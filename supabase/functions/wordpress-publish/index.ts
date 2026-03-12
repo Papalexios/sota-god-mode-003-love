@@ -1,4 +1,4 @@
-/// <reference types="https://deno.land/x/edge_runtime@0.0.1/types/index.d.ts" />
+// Supabase Edge Function - WordPress Publish
 
 
 const corsHeaders = {
