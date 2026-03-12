@@ -1,3 +1,4 @@
+// @ts-ignore - Deno edge runtime types
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const corsHeaders = {
