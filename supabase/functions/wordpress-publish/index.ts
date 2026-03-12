@@ -1,5 +1,5 @@
-// @ts-ignore - Deno edge runtime types
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+/// <reference types="https://deno.land/x/edge_runtime@0.0.1/types/index.d.ts" />
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
