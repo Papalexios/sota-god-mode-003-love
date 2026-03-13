@@ -64,6 +64,8 @@ import {
   buildMasterUserPrompt,
   type ContentPromptConfig,
 } from './prompts/masterContentPrompt';
+import { refineWithSelfCritique } from './HumanQualityRefiner';
+import { WordPressMediaService, type WordPressMediaItem } from './WordPressMediaService';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS & CONFIGURATION
@@ -96,6 +98,7 @@ export class EnterpriseContentOrchestrator {
   private serpAnalyzer: SERPAnalyzer;
   private youtubeService: YouTubeService;
   private referenceService: ReferenceService;
+  private wpMediaService: WordPressMediaService;
   private linkEngine: SOTAInternalLinkEngine;
   private schemaGenerator: SchemaGenerator;
   private eeatValidator: EEATValidator;
@@ -113,6 +116,11 @@ export class EnterpriseContentOrchestrator {
     this.serpAnalyzer = createSERPAnalyzer(serperKey);
     this.youtubeService = createYouTubeService(serperKey);
     this.referenceService = createReferenceService(serperKey);
+    this.wpMediaService = new WordPressMediaService({
+      wpUrl: config.wpUrl,
+      wpUsername: config.wpUsername,
+      wpAppPassword: config.wpAppPassword,
+    });
     this.linkEngine = createInternalLinkEngine(config.sitePages || []);
     // FIX: SchemaGenerator(orgName, orgUrl, logoUrl) — never pass apiKeys here
     this.schemaGenerator = createSchemaGenerator(
@@ -407,6 +415,43 @@ export class EnterpriseContentOrchestrator {
       this.warn(`References: Search failed (${e}). Proceeding without references.`);
       return [];
     }
+  }
+
+  private async fetchWordPressImages(keyword: string): Promise<WordPressMediaItem[]> {
+    try {
+      const images = await this.wpMediaService.getRelevantImages(keyword, 2);
+      return images.slice(0, 2);
+    } catch {
+      return [];
+    }
+  }
+
+  private injectWordPressImages(html: string, images: WordPressMediaItem[], keyword: string): string {
+    if (!images.length || html.includes('data-wp-gallery-images')) return html;
+
+    const section = this.wpMediaService.buildImageSectionHtml(images, keyword);
+    if (!section) return html;
+
+    const h2Matches = [...html.matchAll(/<h2[^>]*>[\s\S]*?<\/h2>/gi)];
+    if (h2Matches.length >= 1) {
+      const anchor = h2Matches[0];
+      const start = (anchor.index || 0) + anchor[0].length;
+      const pClose = html.indexOf('</p>', start);
+      if (pClose !== -1) {
+        return html.slice(0, pClose + 4) + '\n' + section + '\n' + html.slice(pClose + 4);
+      }
+    }
+
+    return html.replace('</article>', `${section}\n</article>`);
+  }
+
+  private ensureExternalLinksClickable(html: string): string {
+    return html.replace(/<a\s+([^>]*href=["']https?:\/\/[^"']+["'][^>]*)>/gi, (_m, attrs: string) => {
+      let out = attrs;
+      if (!/\btarget=/i.test(out)) out += ' target="_blank"';
+      if (!/\brel=/i.test(out)) out += ' rel="noopener noreferrer"';
+      return `<a ${out}>`;
+    });
   }
 
   private injectReferencesSection(html: string, references: Reference[]): string {
@@ -758,22 +803,25 @@ export class EnterpriseContentOrchestrator {
       this.warn('Phase 1: NeuronWriter data unavailable — generating without semantic optimization.');
     }
 
-    // ── Phase 2: YouTube Video Discovery (parallel with Phase 3) ──────────
+    // ── Phase 2: YouTube Video Discovery (parallel with Phase 3/4) ─────────
     this.log('Phase 2: YouTube Video Discovery...');
     const videosPromise = this.fetchYouTubeVideos(options.keyword);
 
-    // ── Phase 3: Reference Gathering (parallel with Phase 2) ──────────────
+    // ── Phase 3: Reference Gathering (parallel) ─────────────────────────────
     this.log('Phase 3: Reference Gathering (8-12 high-quality sources)...');
     const referencesPromise = this.fetchReferences(options.keyword);
 
-    // Wait for both parallel phases
-    const [videos, references] = await Promise.all([videosPromise, referencesPromise]);
+    // ── Phase 4: WordPress Media Discovery (parallel) ───────────────────────
+    const wpImagesPromise = this.fetchWordPressImages(options.keyword);
+
+    const [videos, references, wpImages] = await Promise.all([videosPromise, referencesPromise, wpImagesPromise]);
 
     this.log(`Phase 2 ✅ YouTube: ${videos.length} videos found.`);
     this.log(`Phase 3 ✅ References: ${references.length} high-authority sources found.`);
+    this.log(`Phase 4 ✅ WordPress images: ${wpImages.length} relevant media items found.`);
 
-    // ── Phase 4: Master Content Synthesis ─────────────────────────────────
-    this.log('Phase 4: Master Content Generation (Human-First Anti-AI Engine)...');
+    // ── Phase 5: Master Content Synthesis ─────────────────────────────────
+    this.log('Phase 5: Master Content Generation (Human-First Anti-AI Engine)...');
 
     const systemPrompt = buildMasterSystemPrompt();
 
@@ -843,12 +891,31 @@ export class EnterpriseContentOrchestrator {
         this.log('Phase 5 ✅ All NeuronWriter terms covered!');
       }
     } else {
-      this.log('Phase 5: Skipped — no NeuronWriter data.');
+      this.log('Phase 6: Skipped NW term enforcement — no NeuronWriter data.');
     }
 
-    // ── Phase 6: SOTA Refinement & Aesthetics ─────────────────────────────
-    this.log('Phase 6: Anti-AI Polish & Premium Design Overlay...');
+    // ── Phase 7: Built-in Self-Critique Rewrite ────────────────────────────
+    try {
+      this.log('Phase 7: Running enterprise self-critique pass...');
+      const critique = await refineWithSelfCritique({
+        engine: this.engine,
+        model: options.model || this.config.primaryModel || 'gemini',
+        keyword: options.keyword,
+        title: options.title || options.keyword,
+        html,
+        maxPasses: 2,
+        minScore: 90,
+      });
+      html = critique.html;
+      this.log(`Phase 7 ✅ Self-critique improved quality (${critique.initialScore} → ${critique.finalScore}).`);
+    } catch (e) {
+      this.warn(`Phase 7: Self-critique skipped (${e}).`);
+    }
 
+    // ── Phase 8: SOTA Refinement & Aesthetics ─────────────────────────────
+    this.log('Phase 8: Anti-AI Polish & Premium Design Overlay...');
+
+    html = await this.humanizeContent(html, options.keyword);
     html = polishReadability(html);
     html = await this.applyPremiumStyling(html);
 
@@ -869,15 +936,20 @@ export class EnterpriseContentOrchestrator {
     html = postProcessResult.html;
     this.log(`Phase 6c ✅ Visual breaks: ${postProcessResult.elementsInjected} elements injected.`);
 
-    // ── Phase 7: YouTube Video Injection ──────────────────────────────────
-    this.log('Phase 7: Injecting YouTube videos...');
+    // ── Phase 9: YouTube + WordPress Media Injection ───────────────────────
+    this.log('Phase 9: Injecting YouTube videos...');
     html = this.injectYouTubeVideos(html, videos);
-    this.log(`Phase 7 ✅ ${videos.length} videos injected into content.`);
+    this.log(`Phase 9 ✅ ${videos.length} videos injected into content.`);
 
-    // ── Phase 8: Reference Section Injection ──────────────────────────────
-    this.log('Phase 8: Injecting references section...');
+    this.log('Phase 9b: Injecting WordPress media gallery images...');
+    html = this.injectWordPressImages(html, wpImages, options.keyword);
+    this.log(`Phase 9b ✅ ${wpImages.length} images injected from media gallery.`);
+
+    // ── Phase 10: Reference Section Injection ──────────────────────────────
+    this.log('Phase 10: Injecting references section...');
     html = this.injectReferencesSection(html, references);
-    this.log(`Phase 8 ✅ ${references.length} references injected.`);
+    html = this.ensureExternalLinksClickable(html);
+    this.log(`Phase 10 ✅ ${references.length} references injected.`);
 
     // ── Phase 9: Internal Link Generation & Injection (6–12 links) ─────────
     this.log('Phase 9: Generating & Injecting Internal Links (target: 6-12)...');
