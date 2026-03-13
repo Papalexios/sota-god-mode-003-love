@@ -1009,6 +1009,7 @@ export class EnterpriseContentOrchestrator {
         keyword: options.keyword,
         title: options.title || options.keyword,
         html,
+        contentGaps: gapTargets,
         maxPasses: 2,
         minScore: 90,
       });
