@@ -173,7 +173,7 @@ export class SOTAInternalLinkEngine {
     const usedDomainPaths = new Set<string>();
 
     for (const candidate of scored) {
-      if (selected.length >= maxLinks) break;
+      if (selected.length >= effectiveMax) break;
       if (candidate.relevanceScore < 5) continue;
 
       try {
