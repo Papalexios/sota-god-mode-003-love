@@ -46,22 +46,27 @@ function countWords(html: string): number {
   return html.replace(/<[^>]*>/g, ' ').split(/\s+/).filter(Boolean).length;
 }
 
-function score(html: string, keyword: string): number {
-  return calculateQualityScore(html, keyword, []).overall;
+function score(html: string, keyword: string, contentGaps: string[] = []): number {
+  return calculateQualityScore(html, keyword, [], contentGaps).overall;
 }
 
-function buildCritiquePrompt(title: string, keyword: string, draftHtml: string): string {
+function buildCritiquePrompt(title: string, keyword: string, draftHtml: string, contentGaps: string[] = []): string {
+  const gapSection = contentGaps.length > 0
+    ? `\nMANDATORY GAP TERMS/ENTITIES TO WEAVE NATURALLY:\n${contentGaps.slice(0, 20).map((gap, i) => `${i + 1}. ${gap}`).join('\n')}\n`
+    : '';
+
   return `Rewrite and improve this draft article.
 
 TITLE: ${title}
 PRIMARY KEYWORD: ${keyword}
-
+${gapSection}
 GOALS:
 1) Make it significantly more helpful (specific steps, examples, numbers, clear decisions).
 2) Make it easier to read (shorter paragraphs, tighter sentences, no jargon bloat).
 3) Remove fluff and AI-sounding transitions.
 4) Keep the same core structure and keep all useful links/media.
 5) Ensure the final result remains premium, modern, and mobile-friendly HTML.
+6) Ensure the mandatory gap terms/entities above are included naturally in useful context.
 
 OUTPUT RULES:
 - Return FULL HTML only.
