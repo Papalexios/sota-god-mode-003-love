@@ -69,9 +69,16 @@ export class YouTubeService {
 
   private async searchVideosFallback(query: string, maxResults: number): Promise<YouTubeVideo[]> {
     try {
-      const ddgUrl = `https://duckduckgo.com/html/?q=${encodeURIComponent(`${query} site:youtube.com/watch`)}`;
-      const html = await this.fetchTextViaServerProxy(ddgUrl);
-      if (!html) return [];
+      const sources = [
+        `https://duckduckgo.com/html/?q=${encodeURIComponent(`${query} site:youtube.com/watch`)}`,
+        `https://r.jina.ai/http://https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`,
+      ];
+
+      let html = '';
+      for (const source of sources) {
+        html = await this.fetchTextViaServerProxy(source);
+        if (html && html.length > 200) break;
+      }
 
       const candidates = this.extractYoutubeCandidatesFromHtml(html)
         .filter((item) => this.extractVideoId(item.url))

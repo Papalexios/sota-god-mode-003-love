@@ -93,11 +93,18 @@ export class SERPAnalyzer {
 
   private async fetchSERPFallback(keyword: string): Promise<SERPResult[]> {
     try {
-      const ddgUrl = `https://duckduckgo.com/html/?q=${encodeURIComponent(keyword)}`;
-      const html = await this.fetchTextViaServerProxy(ddgUrl);
+      const sources = [
+        `https://duckduckgo.com/html/?q=${encodeURIComponent(keyword)}`,
+        `https://r.jina.ai/http://https://www.bing.com/search?q=${encodeURIComponent(keyword)}`,
+      ];
+
+      let html = '';
+      for (const source of sources) {
+        html = await this.fetchTextViaServerProxy(source);
+        if (html && html.length > 200) break;
+      }
       if (!html) return [];
 
-      return this.extractDuckDuckGoResults(html).slice(0, 10);
     } catch (error) {
       console.error('Fallback SERP fetch failed:', error);
       return [];

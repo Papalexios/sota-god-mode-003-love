@@ -126,8 +126,16 @@ export class ReferenceService {
 
   private async searchReferencesFallback(query: string, maxResults: number): Promise<Reference[]> {
     try {
-      const ddgUrl = `https://duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-      const html = await this.fetchTextViaServerProxy(ddgUrl);
+      const sources = [
+        `https://duckduckgo.com/html/?q=${encodeURIComponent(query)}`,
+        `https://r.jina.ai/http://https://www.bing.com/search?q=${encodeURIComponent(query)}`,
+      ];
+
+      let html = '';
+      for (const source of sources) {
+        html = await this.fetchTextViaServerProxy(source);
+        if (html && html.length > 200) break;
+      }
       if (!html) return [];
 
       const links = this.extractDuckDuckGoLinks(html);
