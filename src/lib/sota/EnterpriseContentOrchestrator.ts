@@ -529,22 +529,51 @@ export class EnterpriseContentOrchestrator {
   }
 
   private injectWordPressImages(html: string, images: WordPressMediaItem[], keyword: string): string {
-    if (!images.length || html.includes('data-wp-gallery-images')) return html;
+    if (!images.length || html.includes('data-wp-inline-image')) return html;
 
-    const section = this.wpMediaService.buildImageSectionHtml(images, keyword);
-    if (!section) return html;
+    const figures = images
+      .slice(0, 2)
+      .map((img, idx) => this.wpMediaService.buildInlineImageFigureHtml(img, keyword, idx === 0 ? 'primary' : 'secondary'))
+      .filter(Boolean);
 
-    const h2Matches = [...html.matchAll(/<h2[^>]*>[\s\S]*?<\/h2>/gi)];
-    if (h2Matches.length >= 1) {
-      const anchor = h2Matches[0];
-      const start = (anchor.index || 0) + anchor[0].length;
-      const pClose = html.indexOf('</p>', start);
-      if (pClose !== -1) {
-        return html.slice(0, pClose + 4) + '\n' + section + '\n' + html.slice(pClose + 4);
-      }
+    if (figures.length === 0) return html;
+
+    const paragraphMatches = [...html.matchAll(/<\/p>/gi)];
+    if (paragraphMatches.length === 0) {
+      return html.replace('</article>', `${figures.join('\n')}\n</article>`);
     }
 
-    return html.replace('</article>', `${section}\n</article>`);
+    const firstTargetIdx = Math.min(1, paragraphMatches.length - 1);
+    let secondTargetIdx = Math.min(
+      Math.max(firstTargetIdx + 2, Math.floor(paragraphMatches.length * 0.55)),
+      paragraphMatches.length - 1,
+    );
+    if (secondTargetIdx === firstTargetIdx && paragraphMatches.length > 2) {
+      secondTargetIdx = Math.min(firstTargetIdx + 2, paragraphMatches.length - 1);
+    }
+
+    const insertions: Array<{ position: number; markup: string }> = [
+      {
+        position: (paragraphMatches[firstTargetIdx].index || 0) + 4,
+        markup: figures[0],
+      },
+    ];
+
+    if (figures[1]) {
+      insertions.push({
+        position: (paragraphMatches[secondTargetIdx].index || 0) + 4,
+        markup: figures[1],
+      });
+    }
+
+    insertions.sort((a, b) => b.position - a.position);
+
+    let result = html;
+    for (const insertion of insertions) {
+      result = `${result.slice(0, insertion.position)}\n${insertion.markup}\n${result.slice(insertion.position)}`;
+    }
+
+    return result;
   }
 
   private ensureExternalLinksClickable(html: string): string {
