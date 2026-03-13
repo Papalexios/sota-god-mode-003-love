@@ -104,7 +104,7 @@ export class SERPAnalyzer {
         if (html && html.length > 200) break;
       }
       if (!html) return [];
-
+      return this.extractDuckDuckGoResults(html).slice(0, 10);
     } catch (error) {
       console.error('Fallback SERP fetch failed:', error);
       return [];
