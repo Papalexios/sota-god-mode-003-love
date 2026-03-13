@@ -98,7 +98,7 @@ export class YouTubeService {
         })
         .slice(0, maxResults);
 
-      return candidates.map((item, idx) => {
+      const mappedFromHtml = candidates.map((item, idx) => {
         const id = this.extractVideoId(item.url);
         return {
           id,
@@ -110,7 +110,10 @@ export class YouTubeService {
           viewCount: undefined,
           duration: undefined,
         };
-      });
+      }).filter((video) => !!video.id);
+
+      if (mappedFromHtml.length > 0) return mappedFromHtml;
+      return await this.searchVideosFromResilientApi(query, maxResults);
     } catch (error) {
       console.error('Fallback YouTube search failed:', error);
       return [];
