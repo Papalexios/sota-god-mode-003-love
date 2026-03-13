@@ -803,19 +803,22 @@ export class EnterpriseContentOrchestrator {
       this.warn('Phase 1: NeuronWriter data unavailable — generating without semantic optimization.');
     }
 
-    // ── Phase 2: YouTube Video Discovery (parallel with Phase 3) ──────────
+    // ── Phase 2: YouTube Video Discovery (parallel with Phase 3/4) ─────────
     this.log('Phase 2: YouTube Video Discovery...');
     const videosPromise = this.fetchYouTubeVideos(options.keyword);
 
-    // ── Phase 3: Reference Gathering (parallel with Phase 2) ──────────────
+    // ── Phase 3: Reference Gathering (parallel) ─────────────────────────────
     this.log('Phase 3: Reference Gathering (8-12 high-quality sources)...');
     const referencesPromise = this.fetchReferences(options.keyword);
 
-    // Wait for both parallel phases
-    const [videos, references] = await Promise.all([videosPromise, referencesPromise]);
+    // ── Phase 4: WordPress Media Discovery (parallel) ───────────────────────
+    const wpImagesPromise = this.fetchWordPressImages(options.keyword);
+
+    const [videos, references, wpImages] = await Promise.all([videosPromise, referencesPromise, wpImagesPromise]);
 
     this.log(`Phase 2 ✅ YouTube: ${videos.length} videos found.`);
     this.log(`Phase 3 ✅ References: ${references.length} high-authority sources found.`);
+    this.log(`Phase 4 ✅ WordPress images: ${wpImages.length} relevant media items found.`);
 
     // ── Phase 4: Master Content Synthesis ─────────────────────────────────
     this.log('Phase 4: Master Content Generation (Human-First Anti-AI Engine)...');
