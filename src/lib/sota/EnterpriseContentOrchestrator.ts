@@ -820,8 +820,8 @@ export class EnterpriseContentOrchestrator {
     this.log(`Phase 3 ✅ References: ${references.length} high-authority sources found.`);
     this.log(`Phase 4 ✅ WordPress images: ${wpImages.length} relevant media items found.`);
 
-    // ── Phase 4: Master Content Synthesis ─────────────────────────────────
-    this.log('Phase 4: Master Content Generation (Human-First Anti-AI Engine)...');
+    // ── Phase 5: Master Content Synthesis ─────────────────────────────────
+    this.log('Phase 5: Master Content Generation (Human-First Anti-AI Engine)...');
 
     const systemPrompt = buildMasterSystemPrompt();
 
