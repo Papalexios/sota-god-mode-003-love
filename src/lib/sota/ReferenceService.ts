@@ -196,7 +196,7 @@ export class ReferenceService {
       if (out.length >= 80) break;
     }
 
-    const directRegex = /https?:\/\/(?:www\.)?[a-z0-9.-]+\/[^^\s"'<>)]*/gi;
+    const directRegex = /https?:\/\/(?:www\.)?[a-z0-9.-]+\/[^\s"'<>)]*/gi;
     const directMatches = html.match(directRegex) || [];
     for (const rawUrl of directMatches) {
       const normalized = rawUrl.replace(/[),.;]+$/, '');
