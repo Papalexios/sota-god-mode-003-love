@@ -391,7 +391,8 @@ export function detectAITriggerPhrases(content: string): string[] {
 export function calculateQualityScore(
   content: string,
   keyword: string,
-  existingLinks: string[] = []
+  existingLinks: string[] = [],
+  contentGaps: string[] = []
 ): QualityScore {
   const metrics = analyzeContent(content);
   const aiPhrases = detectAITriggerPhrases(content);
