@@ -98,6 +98,7 @@ export class EnterpriseContentOrchestrator {
   private serpAnalyzer: SERPAnalyzer;
   private youtubeService: YouTubeService;
   private referenceService: ReferenceService;
+  private wpMediaService: WordPressMediaService;
   private linkEngine: SOTAInternalLinkEngine;
   private schemaGenerator: SchemaGenerator;
   private eeatValidator: EEATValidator;
