@@ -8,6 +8,7 @@ interface SelfCritiqueOptions {
   keyword: string;
   title: string;
   html: string;
+  contentGaps?: string[];
   maxPasses?: number;
   minScore?: number;
   onProgress?: (message: string) => void;
