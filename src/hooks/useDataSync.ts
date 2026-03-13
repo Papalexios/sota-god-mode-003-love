@@ -61,7 +61,7 @@ export function useDataSync() {
         } else {
           setError(detail?.message || 'Database connection failed.');
         }
-        setTableMissing(true);
+        setTableMissing(detail?.kind === 'missing_table');
         setIsConnected(false);
         setIsLoading(false);
         return;
