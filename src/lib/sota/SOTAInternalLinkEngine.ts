@@ -134,9 +134,11 @@ export class SOTAInternalLinkEngine {
    */
   generateLinkOpportunities(
     htmlContent: string,
-    maxLinks: number = 8,
+    maxLinks: number = 12,
     primaryKeyword?: string
   ): InternalLink[] {
+    const MIN_LINKS = 6;
+    const effectiveMax = Math.max(MIN_LINKS, Math.min(maxLinks, 12));
     if (!this.sitePages || this.sitePages.length === 0) return [];
     if (!htmlContent || htmlContent.trim().length === 0) return [];
 
