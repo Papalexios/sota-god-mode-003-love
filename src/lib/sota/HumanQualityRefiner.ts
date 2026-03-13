@@ -82,7 +82,7 @@ export async function refineWithSelfCritique(options: SelfCritiqueOptions): Prom
   const targetScore = Math.max(80, Math.min(98, options.minScore ?? 90));
 
   let workingHtml = extractArticleHtml(options.html);
-  let workingScore = score(workingHtml, options.keyword);
+  let workingScore = score(workingHtml, options.keyword, options.contentGaps || []);
   const initialScore = workingScore;
   let passes = 0;
 
@@ -93,11 +93,11 @@ export async function refineWithSelfCritique(options: SelfCritiqueOptions): Prom
 
     try {
       const rewrite = await options.engine.generateWithModel({
-        prompt: buildCritiquePrompt(options.title, options.keyword, workingHtml),
+        prompt: buildCritiquePrompt(options.title, options.keyword, workingHtml, options.contentGaps || []),
         systemPrompt: CRITIQUE_SYSTEM_PROMPT,
         model: options.model,
         apiKeys: {} as any,
-        temperature: 0.35,
+        temperature: 0.25,
         maxTokens: 16384,
       });
 
@@ -108,10 +108,10 @@ export async function refineWithSelfCritique(options: SelfCritiqueOptions): Prom
       const newWords = countWords(candidate);
       if (newWords < Math.max(900, Math.floor(oldWords * 0.82))) continue;
 
-      const candidateScore = score(candidate, options.keyword);
+      const candidateScore = score(candidate, options.keyword, options.contentGaps || []);
 
-      // Accept if improved or only slightly lower while much cleaner.
-      if (candidateScore >= workingScore - 2) {
+      // Accept only when quality actually improves.
+      if (candidateScore >= workingScore + 1 || candidateScore >= targetScore) {
         workingHtml = candidate;
         workingScore = candidateScore;
         passes++;
