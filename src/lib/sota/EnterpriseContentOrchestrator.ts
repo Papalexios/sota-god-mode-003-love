@@ -871,6 +871,16 @@ export class EnterpriseContentOrchestrator {
     this.config.currentTitle = options.title || options.keyword;
     this.config.authorName = options.authorName || 'SOTA AI Research';
 
+    // ── Phase 0: Top-3 SERP Scan + Gap Analysis ─────────────────────────────
+    this.log('Phase 0: Top-3 SERP ranking scan and gap analysis...');
+    const serpAnalysis = await this.serpAnalyzer.analyze(options.keyword);
+    const gapTargets = this.buildTopGapTargetsFromSerp(serpAnalysis, options.keyword, 20);
+    const top3Competitors = (serpAnalysis.topCompetitors || []).slice(0, 3);
+
+    this.log(
+      `Phase 0 ✅ Top competitors: ${top3Competitors.length}, gap targets: ${gapTargets.length}`
+    );
+
     // ── Phase 1: NeuronWriter Semantic Context Initialization ──────────────
     this.log('Phase 1: NeuronWriter Semantic Context Initialization...');
     const neuron = await this.maybeInitNeuronWriter(options.keyword, options);
