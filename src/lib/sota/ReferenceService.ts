@@ -52,11 +52,6 @@ export class ReferenceService {
     type: 'all' | 'academic' | 'news' | 'industry' = 'all',
     maxResults: number = 10
   ): Promise<Reference[]> {
-    if (!this.serperApiKey) {
-      console.warn('No Serper API key provided for reference search');
-      return [];
-    }
-
     // Build search query based on type
     let searchQuery = query;
     if (type === 'academic') {
@@ -65,6 +60,11 @@ export class ReferenceService {
       searchQuery = `${query} site:reuters.com OR site:bbc.com OR site:nytimes.com`;
     } else if (type === 'industry') {
       searchQuery = `${query} research study statistics data`;
+    }
+
+    if (!this.serperApiKey) {
+      console.warn('No Serper API key provided for reference search - using fallback search');
+      return this.searchReferencesFallback(searchQuery, maxResults);
     }
 
     try {
@@ -80,21 +80,111 @@ export class ReferenceService {
         })
       });
 
+      const rawText = await response.text();
+
       if (!response.ok) {
+        const lowerBody = rawText.toLowerCase();
+        const isCreditsError =
+          lowerBody.includes('not enough credits') ||
+          lowerBody.includes('quota') ||
+          lowerBody.includes('insufficient');
+
+        if (isCreditsError) {
+          console.warn('Serper credits exhausted for references - using fallback search');
+          return this.searchReferencesFallback(searchQuery, maxResults);
+        }
+
         throw new Error(`Serper API error: ${response.status}`);
       }
 
-      const data = await response.json();
-      const results = data.organic || [];
+      const data = JSON.parse(rawText || '{}');
+      const results = Array.isArray(data.organic) ? data.organic : [];
 
-      return results
+      const serperReferences = results
         .map((result: Record<string, unknown>) => this.parseReference(result))
         .filter((ref: Reference) => ref.authorityScore >= 60)
         .slice(0, maxResults);
+
+      if (serperReferences.length >= Math.min(3, maxResults)) {
+        return serperReferences;
+      }
+
+      const fallbackReferences = await this.searchReferencesFallback(searchQuery, maxResults);
+      const merged = [...serperReferences, ...fallbackReferences];
+      const seen = new Set<string>();
+      return merged.filter((ref) => {
+        const key = ref.url.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      }).slice(0, maxResults);
     } catch (error) {
       console.error('Error searching references:', error);
+      return this.searchReferencesFallback(searchQuery, maxResults);
+    }
+  }
+
+  private async searchReferencesFallback(query: string, maxResults: number): Promise<Reference[]> {
+    try {
+      const ddgUrl = `https://duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+      const html = await this.fetchTextViaServerProxy(ddgUrl);
+      if (!html) return [];
+
+      const links = this.extractDuckDuckGoLinks(html);
+      const parsed = links
+        .map((item) => this.parseReference({ title: item.title, link: item.url }))
+        .filter((ref) => ref.authorityScore >= 60)
+        .slice(0, maxResults);
+
+      return parsed;
+    } catch (error) {
+      console.error('Fallback reference search failed:', error);
       return [];
     }
+  }
+
+  private async fetchTextViaServerProxy(url: string): Promise<string> {
+    const response = await fetch(`/api/fetch-sitemap?url=${encodeURIComponent(url)}`);
+    if (!response.ok) return '';
+
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const json = await response.json().catch(() => null);
+      return String(json?.content || '');
+    }
+
+    return await response.text();
+  }
+
+  private extractDuckDuckGoLinks(html: string): Array<{ title: string; url: string }> {
+    const out: Array<{ title: string; url: string }> = [];
+    const seen = new Set<string>();
+
+    const anchorRegex = /<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+    let match: RegExpExecArray | null;
+
+    while ((match = anchorRegex.exec(html)) !== null) {
+      const rawHref = match[1] || '';
+      const title = (match[2] || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+
+      let decodedHref = rawHref;
+      if (rawHref.includes('uddg=')) {
+        const encoded = rawHref.match(/[?&]uddg=([^&]+)/i)?.[1];
+        if (encoded) decodedHref = decodeURIComponent(encoded);
+      }
+
+      const normalized = decodedHref.startsWith('//') ? `https:${decodedHref}` : decodedHref;
+      if (!/^https?:\/\//i.test(normalized)) continue;
+
+      const key = normalized.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ title, url: normalized });
+
+      if (out.length >= 80) break;
+    }
+
+    return out;
   }
 
   private parseReference(result: Record<string, unknown>): Reference {
