@@ -148,6 +148,92 @@ export class EnterpriseContentOrchestrator {
     this.telemetry.errors.push(msg);
   }
 
+  private normalizeTextForGap(text: string): string {
+    return (text || '').toLowerCase().replace(/<[^>]*>/g, ' ').replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  private buildTopGapTargetsFromSerp(analysis: SERPAnalysis, keyword: string, limit = 20): string[] {
+    const stopWords = new Set([
+      'about', 'after', 'again', 'also', 'and', 'are', 'been', 'best', 'between', 'both', 'but', 'can', 'for',
+      'from', 'guide', 'have', 'into', 'more', 'most', 'over', 'that', 'than', 'their', 'them', 'then', 'there',
+      'these', 'they', 'this', 'those', 'with', 'your', 'what', 'when', 'where', 'which', 'while', 'will', 'would',
+      'could', 'should', 'using', 'used', 'into', 'only', 'much', 'many', 'very', 'through'
+    ]);
+
+    const keywordTokens = new Set(keyword.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+    const top3 = (analysis.topCompetitors || []).slice(0, 3);
+
+    const tokenScore = new Map<string, number>();
+    const boost = (token: string, weight: number) => {
+      const t = token.trim().toLowerCase();
+      if (!t || t.length < 4 || stopWords.has(t) || keywordTokens.has(t)) return;
+      tokenScore.set(t, (tokenScore.get(t) || 0) + weight);
+    };
+
+    for (const competitor of top3) {
+      const combined = `${competitor.title || ''} ${competitor.snippet || ''}`.toLowerCase();
+      const words = combined.split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
+      words.forEach((w) => boost(w, 1));
+
+      for (let i = 0; i < words.length - 1; i++) {
+        const a = words[i];
+        const b = words[i + 1];
+        if (!a || !b) continue;
+        if (a.length < 4 || b.length < 4) continue;
+        if (stopWords.has(a) || stopWords.has(b)) continue;
+        boost(`${a} ${b}`, 2);
+      }
+    }
+
+    const rankedFromTop3 = Array.from(tokenScore.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([term]) => term);
+
+    const merged = [
+      ...(analysis.contentGaps || []),
+      ...(analysis.semanticEntities || []),
+      ...rankedFromTop3,
+    ];
+
+    const dedup = new Set<string>();
+    const finalTerms: string[] = [];
+    for (const term of merged) {
+      const normalized = term.trim().toLowerCase();
+      if (!normalized || normalized.length < 4) continue;
+      if (dedup.has(normalized)) continue;
+      dedup.add(normalized);
+      finalTerms.push(term.trim());
+      if (finalTerms.length >= limit) break;
+    }
+
+    return finalTerms;
+  }
+
+  private enforceGapCoverage(html: string, gapTargets: string[]): { html: string; missingBefore: string[]; missingAfter: string[] } {
+    if (!gapTargets.length) return { html, missingBefore: [], missingAfter: [] };
+
+    const isCovered = (text: string, gap: string): boolean => {
+      const tokens = gap.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 3);
+      if (tokens.length === 0) return true;
+      const matches = tokens.filter((token) => text.includes(token)).length;
+      return matches >= Math.max(1, Math.ceil(tokens.length * 0.5));
+    };
+
+    const textBefore = this.normalizeTextForGap(html);
+    const missingBefore = gapTargets.filter((gap) => !isCovered(textBefore, gap));
+    if (missingBefore.length === 0) return { html, missingBefore: [], missingAfter: [] };
+
+    const injectedHtml = injectMissingTerms(html, missingBefore.slice(0, 20));
+    const textAfter = this.normalizeTextForGap(injectedHtml);
+    const missingAfter = gapTargets.filter((gap) => !isCovered(textAfter, gap));
+
+    return {
+      html: injectedHtml,
+      missingBefore,
+      missingAfter,
+    };
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   // NEURONWRITER INTEGRATION v9.0 — AUTO-CREATE + FULL DATA POLLING
   // ─────────────────────────────────────────────────────────────────────────
