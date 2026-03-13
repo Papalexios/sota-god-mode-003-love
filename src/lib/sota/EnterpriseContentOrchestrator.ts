@@ -648,7 +648,7 @@ export class EnterpriseContentOrchestrator {
       return html;
     }
 
-    const heading = hasRefsHeading ? '📚 Verified Sources' : '📚 Sources & Further Reading';
+    const heading = '📚 Verified Sources';
 
     const styledRefsHtml = `
 <div data-verified-references="true" style="margin:56px 0 0 0;padding-top:40px;border-top:2px solid #e2e8f0;">
