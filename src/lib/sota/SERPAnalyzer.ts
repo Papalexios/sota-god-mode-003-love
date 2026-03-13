@@ -96,16 +96,20 @@ export class SERPAnalyzer {
     const contentGaps = this.identifyContentGaps(serpData, keyword);
     const userIntent = this.classifyIntent(serpData, keyword);
     const semanticEntities = this.extractEntities(serpData);
+    const relatedSearches = this.extractRelatedTopics(serpData, keyword);
+
+    // Merge related searches into gaps for broader coverage
+    const allGaps = [...new Set([...contentGaps, ...relatedSearches])].slice(0, 25);
 
     return {
       avgWordCount,
       commonHeadings,
-      contentGaps,
+      contentGaps: allGaps,
       userIntent,
       semanticEntities,
       topCompetitors: serpData.slice(0, 5),
       recommendedWordCount: Math.max(avgWordCount + 500, 2500),
-      recommendedHeadings: this.generateRecommendedHeadings(keyword, userIntent, contentGaps)
+      recommendedHeadings: this.generateRecommendedHeadings(keyword, userIntent, allGaps)
     };
   }
 
