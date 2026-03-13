@@ -71,7 +71,9 @@ export class YouTubeService {
     try {
       const sources = [
         `https://duckduckgo.com/html/?q=${encodeURIComponent(`${query} site:youtube.com/watch`)}`,
-        `https://r.jina.ai/http://https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`,
+        `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`,
+        `https://www.bing.com/search?q=${encodeURIComponent(`${query} site:youtube.com/watch`)}`,
+        `https://r.jina.ai/http://www.youtube.com/results?search_query=${encodeURIComponent(query)}`,
       ];
 
       let html = '';
@@ -80,8 +82,20 @@ export class YouTubeService {
         if (html && html.length > 200) break;
       }
 
-      const candidates = this.extractYoutubeCandidatesFromHtml(html)
-        .filter((item) => this.extractVideoId(item.url))
+      const anchorCandidates = this.extractYoutubeCandidatesFromHtml(html);
+      const idCandidates = this.extractVideoIdsFromText(html).map((id) => ({
+        url: `https://www.youtube.com/watch?v=${id}`,
+        title: '',
+      }));
+
+      const seenIds = new Set<string>();
+      const candidates = [...anchorCandidates, ...idCandidates]
+        .filter((item) => {
+          const id = this.extractVideoId(item.url);
+          if (!id || seenIds.has(id)) return false;
+          seenIds.add(id);
+          return true;
+        })
         .slice(0, maxResults);
 
       return candidates.map((item, idx) => {
@@ -116,6 +130,26 @@ export class YouTubeService {
     return await response.text();
   }
 
+  private extractVideoIdsFromText(text: string): string[] {
+    const ids = new Set<string>();
+    const patterns = [
+      /"videoId":"([a-zA-Z0-9_-]{11})"/g,
+      /watch\?v=([a-zA-Z0-9_-]{11})/g,
+      /youtu\.be\/([a-zA-Z0-9_-]{11})/g,
+      /\/shorts\/([a-zA-Z0-9_-]{11})/g,
+      /%2Fwatch%3Fv%3D([a-zA-Z0-9_-]{11})/gi,
+    ];
+
+    for (const pattern of patterns) {
+      let match: RegExpExecArray | null;
+      while ((match = pattern.exec(text)) !== null) {
+        if (match[1]) ids.add(match[1]);
+      }
+    }
+
+    return Array.from(ids);
+  }
+
   private extractYoutubeCandidatesFromHtml(html: string): Array<{ url: string; title: string }> {
     const out: Array<{ url: string; title: string }> = [];
     const seen = new Set<string>();
@@ -142,7 +176,7 @@ export class YouTubeService {
       out.push({ url: normalized, title });
     }
 
-    const directRegex = /https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=[\w-]{6,}|youtu\.be\/[\w-]{6,})[^\s"'<>]*/gi;
+    const directRegex = /https?:\/\/(?:www\.)?(?:youtube\.com\/(?:watch\?v=[\w-]{6,}|shorts\/[\w-]{6,})|youtu\.be\/[\w-]{6,})[^\s"'<>]*/gi;
     const directMatches = html.match(directRegex) || [];
     for (const match of directMatches) {
       const key = match.toLowerCase();

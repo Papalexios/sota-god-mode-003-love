@@ -95,7 +95,8 @@ export class SERPAnalyzer {
     try {
       const sources = [
         `https://duckduckgo.com/html/?q=${encodeURIComponent(keyword)}`,
-        `https://r.jina.ai/http://https://www.bing.com/search?q=${encodeURIComponent(keyword)}`,
+        `https://www.bing.com/search?q=${encodeURIComponent(keyword)}`,
+        `https://r.jina.ai/http://www.bing.com/search?q=${encodeURIComponent(keyword)}`,
       ];
 
       let html = '';

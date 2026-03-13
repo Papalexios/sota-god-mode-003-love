@@ -1048,18 +1048,48 @@ export class EnterpriseContentOrchestrator {
     // ── Phase 7: Built-in Self-Critique Rewrite ────────────────────────────
     try {
       this.log('Phase 7: Running enterprise self-critique pass...');
-      const critique = await refineWithSelfCritique({
+      const scoreBeforeCritique = calculateQualityScore(html, options.keyword, [], gapTargets).overall;
+
+      let critique = await refineWithSelfCritique({
         engine: this.engine,
         model: options.model || this.config.primaryModel || 'gemini',
         keyword: options.keyword,
         title: options.title || options.keyword,
         html,
         contentGaps: gapTargets,
-        maxPasses: 2,
-        minScore: 90,
+        maxPasses: 3,
+        minScore: 92,
       });
+
       html = critique.html;
-      this.log(`Phase 7 ✅ Self-critique improved quality (${critique.initialScore} → ${critique.finalScore}).`);
+      let finalCritiqueScore = critique.finalScore;
+
+      if (finalCritiqueScore < 88 || finalCritiqueScore <= critique.initialScore) {
+        this.warn('Phase 7: Quality gain is weak. Running aggressive second critique pass...');
+        const aggressiveCritique = await refineWithSelfCritique({
+          engine: this.engine,
+          model: options.model || this.config.primaryModel || 'gemini',
+          keyword: options.keyword,
+          title: options.title || options.keyword,
+          html,
+          contentGaps: gapTargets,
+          maxPasses: 3,
+          minScore: 94,
+        });
+
+        if (aggressiveCritique.finalScore > finalCritiqueScore) {
+          html = aggressiveCritique.html;
+          finalCritiqueScore = aggressiveCritique.finalScore;
+        }
+      }
+
+      if (finalCritiqueScore < 82) {
+        this.warn(`Phase 7: Final score ${finalCritiqueScore} is below hard gate. Applying emergency anti-fluff cleanup.`);
+        html = removeAIPhrases(polishReadability(html));
+        finalCritiqueScore = calculateQualityScore(html, options.keyword, [], gapTargets).overall;
+      }
+
+      this.log(`Phase 7 ✅ Self-critique quality (${scoreBeforeCritique} → ${finalCritiqueScore}).`);
     } catch (e) {
       this.warn(`Phase 7: Self-critique skipped (${e}).`);
     }

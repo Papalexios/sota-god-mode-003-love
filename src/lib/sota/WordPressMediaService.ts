@@ -212,6 +212,10 @@ export class WordPressMediaService {
         }
       }
 
+      if (rawItems.length === 0) {
+        rawItems = await this.fetchPublicMediaViaProxy(keyword);
+      }
+
       if (rawItems.length === 0) return [];
 
       const normalized = rawItems

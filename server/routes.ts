@@ -374,8 +374,8 @@ export function registerRoutes(app: Express): void {
       const keyword = String(req.body?.keyword || "").trim();
       const limit = Math.min(30, Math.max(2, Number(req.body?.limit ?? 20)));
 
-      if (!wpUrlRaw || !username || !appPassword) {
-        return errorResponse(res, 400, "wpUrl, username and appPassword are required", "validation_error");
+      if (!wpUrlRaw) {
+        return errorResponse(res, 400, "wpUrl is required", "validation_error");
       }
 
       const wpUrl = wpUrlRaw.startsWith("http://") || wpUrlRaw.startsWith("https://")
@@ -387,24 +387,44 @@ export function registerRoutes(app: Express): void {
       }
 
       const originUrl = new URL(wpUrl).origin;
-      const auth = Buffer.from(`${username}:${appPassword}`, "utf8").toString("base64");
-      const headers: Record<string, string> = {
-        Authorization: `Basic ${auth}`,
+      const baseHeaders: Record<string, string> = {
         Accept: "application/json",
-        "User-Agent": "SOTA-MediaFetcher/1.0",
+        "User-Agent": "SOTA-MediaFetcher/1.1",
       };
+      const hasAuth = !!(username && appPassword);
+      const authHeaders: Record<string, string> = hasAuth
+        ? {
+            ...baseHeaders,
+            Authorization: `Basic ${Buffer.from(`${username}:${appPassword}`, "utf8").toString("base64")}`,
+          }
+        : baseHeaders;
 
       const fields = "id,source_url,alt_text,title,caption,description,media_type,mime_type,media_details,date";
 
       const fetchPage = async (url: string): Promise<any[]> => {
-        try {
-          const response = await fetchWithTimeout(url, { method: "GET", headers }, 12_000);
-          const json: unknown = await response.json().catch(() => null);
-          if (!response.ok || !Array.isArray(json)) return [];
-          return json as any[];
-        } catch {
-          return [];
+        const run = async (headers: Record<string, string>) => {
+          try {
+            const response = await fetchWithTimeout(url, { method: "GET", headers }, 12_000);
+            const json: unknown = await response.json().catch(() => null);
+            return {
+              ok: response.ok,
+              status: response.status,
+              items: Array.isArray(json) ? (json as any[]) : [],
+            };
+          } catch {
+            return { ok: false, status: 0, items: [] as any[] };
+          }
+        };
+
+        const first = await run(authHeaders);
+        if (first.ok && first.items.length > 0) return first.items;
+
+        if (hasAuth && (first.status === 401 || first.status === 403)) {
+          const retry = await run(baseHeaders);
+          if (retry.ok) return retry.items;
         }
+
+        return first.items;
       };
 
       const buildSearchTerms = (input: string): string[] => {
