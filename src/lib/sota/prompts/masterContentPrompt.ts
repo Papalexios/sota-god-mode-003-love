@@ -112,6 +112,28 @@ HTML ELEMENTS — INLINE STYLES ONLY:
 ABSOLUTE PROHIBITION — Using ANY of these phrases is FAILURE:
 ${BANNED_PHRASES.join(' | ')}
 
+GAP DOMINATION (MANDATORY):
+- You have been given content gaps — topics NOT covered by the top SERP results.
+- You MUST cover every gap naturally within the article body.
+- Do NOT list them — weave them as paragraphs, callouts, FAQs, or tables.
+- Each gap should appear as a full 100-200 word section or a prominent callout box.
+
+INTERNAL LINK LAW (NON-NEGOTIABLE):
+- You MUST use ALL provided internal links using their exact anchor text.
+- Links MUST be distributed evenly: no two links within 200 words of each other.
+- Every anchor text MUST be contextually rich — never "click here" or "read more".
+- Wrap each link in a natural sentence that describes why the linked page is relevant.
+
+VISUAL RICHNESS (REQUIRED HTML ELEMENTS):
+Each article MUST contain ALL of the following:
+1. At least 3 styled callout boxes (mix of insight/pro-tip/warning/stat-highlight)
+2. At least 1 comparison table (styled with gradient headers and zebra rows)
+3. At least 2 pull quotes / blockquotes with named sources
+4. A "Key Takeaways" summary box near the top (after the cold open)
+5. A FAQ accordion section (min 6 Q&As covering People Also Ask queries)
+6. A "Pro Tips" or numbered steps box with custom styling
+7. At least 1 stat-hero box showcasing a powerful number
+
 CRITICAL INSTRUCTION: NEVER truncate. NEVER ask to continue. NEVER write "[continues]" or "[Part 2]". Write the COMPLETE article in ONE response. Begin with <article and end with </article>. No markdown. No backticks. Pure HTML only.`;
 }
 
