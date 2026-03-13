@@ -100,23 +100,57 @@ export class YouTubeService {
 `;
   }
 
+  private scoreVideoRelevance(video: YouTubeVideo, keyword: string): number {
+    const tokens = keyword
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .map((w) => w.trim())
+      .filter((w) => w.length > 2);
+
+    const haystack = `${video.title} ${video.description} ${video.channelTitle}`.toLowerCase();
+    let score = 0;
+
+    for (const token of tokens) {
+      if (haystack.includes(token)) score += 4;
+      if (video.title.toLowerCase().includes(token)) score += 5;
+    }
+
+    if (/tutorial|how\s*to|guide|explained|case study|strategy|mistake/i.test(video.title)) score += 6;
+    if (/minute|min|\d{4}/i.test(video.title)) score += 1;
+
+    return score;
+  }
+
   async getRelevantVideos(keyword: string, contentType: string = 'guide'): Promise<YouTubeVideo[]> {
-    const searchQueries = [
+    const baseQueries = [
       `${keyword} tutorial`,
       `${keyword} explained`,
-      `${keyword} ${contentType}`,
-      `how to ${keyword}`,
-      `${keyword} 2025`
+      `${keyword} strategy`,
+      `${keyword} mistakes`,
+      `${keyword} case study`,
     ];
 
-    // Use the most relevant query based on content type
-    const query = contentType === 'how-to' 
-      ? searchQueries[3] 
+    const querySet = contentType === 'how-to'
+      ? [baseQueries[0], `how to ${keyword}`, baseQueries[3]]
       : contentType === 'guide'
-        ? searchQueries[1]
-        : searchQueries[0];
+        ? [baseQueries[1], baseQueries[2], baseQueries[4]]
+        : [baseQueries[0], baseQueries[1], baseQueries[2]];
 
-    return this.searchVideos(query, 3);
+    const allResults = await Promise.all(querySet.map((q) => this.searchVideos(q, 6)));
+
+    const dedup = new Map<string, YouTubeVideo>();
+    for (const videos of allResults) {
+      for (const video of videos) {
+        if (!video.id) continue;
+        if (!dedup.has(video.id)) dedup.set(video.id, video);
+      }
+    }
+
+    return Array.from(dedup.values())
+      .map((video) => ({ video, score: this.scoreVideoRelevance(video, keyword) }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .map((entry) => entry.video);
   }
 }
 
