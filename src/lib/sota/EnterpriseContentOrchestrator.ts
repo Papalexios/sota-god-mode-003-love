@@ -936,15 +936,20 @@ export class EnterpriseContentOrchestrator {
     html = postProcessResult.html;
     this.log(`Phase 6c ✅ Visual breaks: ${postProcessResult.elementsInjected} elements injected.`);
 
-    // ── Phase 7: YouTube Video Injection ──────────────────────────────────
-    this.log('Phase 7: Injecting YouTube videos...');
+    // ── Phase 9: YouTube + WordPress Media Injection ───────────────────────
+    this.log('Phase 9: Injecting YouTube videos...');
     html = this.injectYouTubeVideos(html, videos);
-    this.log(`Phase 7 ✅ ${videos.length} videos injected into content.`);
+    this.log(`Phase 9 ✅ ${videos.length} videos injected into content.`);
 
-    // ── Phase 8: Reference Section Injection ──────────────────────────────
-    this.log('Phase 8: Injecting references section...');
+    this.log('Phase 9b: Injecting WordPress media gallery images...');
+    html = this.injectWordPressImages(html, wpImages, options.keyword);
+    this.log(`Phase 9b ✅ ${wpImages.length} images injected from media gallery.`);
+
+    // ── Phase 10: Reference Section Injection ──────────────────────────────
+    this.log('Phase 10: Injecting references section...');
     html = this.injectReferencesSection(html, references);
-    this.log(`Phase 8 ✅ ${references.length} references injected.`);
+    html = this.ensureExternalLinksClickable(html);
+    this.log(`Phase 10 ✅ ${references.length} references injected.`);
 
     // ── Phase 9: Internal Link Generation & Injection (6–12 links) ─────────
     this.log('Phase 9: Generating & Injecting Internal Links (target: 6-12)...');
