@@ -932,13 +932,23 @@ export class EnterpriseContentOrchestrator {
 
     const userPrompt = buildMasterUserPrompt({
       primaryKeyword: options.keyword,
+      secondaryKeywords: gapTargets,
       title: options.title || options.keyword,
       contentType: options.contentType || 'pillar',
-      targetWordCount: neuron?.analysis?.recommended_length || options.targetWordCount || 3500,
+      targetWordCount: Math.max(
+        Number(neuron?.analysis?.recommended_length || 0),
+        Number(serpAnalysis.recommendedWordCount || 0),
+        Number(options.targetWordCount || 3500),
+      ),
       neuronWriterSection,
       authorName: this.config.authorName,
       internalLinks: options.internalLinks || [],
       youtubeEmbed,
+      serpData: {
+        competitorTitles: top3Competitors.map((c) => c.title),
+        peopleAlsoAsk: gapTargets,
+        avgWordCount: serpAnalysis.avgWordCount,
+      },
     } as any);
 
     const genResult = await this.engine.generateWithModel({
