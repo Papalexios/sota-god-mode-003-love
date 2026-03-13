@@ -264,6 +264,9 @@ export class GodModeEngine {
       organizationName: appConfig.organizationName ?? 'Content Hub',
       organizationUrl: appConfig.wpUrl ?? 'https://example.com',
       authorName: appConfig.authorName ?? 'Content Team',
+      wpUrl: appConfig.wpUrl,
+      wpUsername: appConfig.wpUsername,
+      wpAppPassword: appConfig.wpAppPassword,
       primaryModel: (appConfig.primaryModel as any) ?? 'gemini',
       // ✅ FIX #3: Pass sitePages to orchestrator for internal link injection
       sitePages,
