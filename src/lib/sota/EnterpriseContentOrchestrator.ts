@@ -576,13 +576,40 @@ export class EnterpriseContentOrchestrator {
     return result;
   }
 
+  private linkifyPlainUrls(html: string): string {
+    const tokens = html.split(/(<[^>]+>)/g);
+    const urlRegex = /\bhttps?:\/\/[^\s<>"')]+/gi;
+    let insideAnchor = false;
+
+    return tokens
+      .map((token) => {
+        if (!token) return token;
+        if (token.startsWith('<')) {
+          if (/^<a\b/i.test(token)) insideAnchor = true;
+          if (/^<\/a>/i.test(token)) insideAnchor = false;
+          return token;
+        }
+
+        if (insideAnchor) return token;
+
+        return token.replace(urlRegex, (rawUrl) => {
+          const cleanUrl = rawUrl.replace(/[),.;]+$/, '');
+          const trailing = rawUrl.slice(cleanUrl.length);
+          return `<a href="${cleanUrl}" target="_blank" rel="noopener noreferrer">${cleanUrl}</a>${trailing}`;
+        });
+      })
+      .join('');
+  }
+
   private ensureExternalLinksClickable(html: string): string {
-    return html.replace(/<a\s+([^>]*href=["']https?:\/\/[^"']+["'][^>]*)>/gi, (_m, attrs: string) => {
+    const enriched = html.replace(/<a\s+([^>]*href=["']https?:\/\/[^"']+["'][^>]*)>/gi, (_m, attrs: string) => {
       let out = attrs;
       if (!/\btarget=/i.test(out)) out += ' target="_blank"';
       if (!/\brel=/i.test(out)) out += ' rel="noopener noreferrer"';
       return `<a ${out}>`;
     });
+
+    return this.linkifyPlainUrls(enriched);
   }
 
   private injectReferencesSection(html: string, references: Reference[]): string {
