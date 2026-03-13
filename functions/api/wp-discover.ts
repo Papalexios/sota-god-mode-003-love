@@ -1,33 +1,35 @@
 /// <reference types="@cloudflare/workers-types" />
 
-interface Env {}
+import { isPublicUrl } from "../../src/lib/shared/isPublicUrl";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-  "Content-Type": "application/json; charset=utf-8",
-};
+interface Env {
+  CORS_ALLOWED_ORIGINS?: string;
+}
 
-function isPublicUrl(input: string): boolean {
-  let parsed: URL;
-  try {
-    parsed = new URL(input);
-  } catch {
-    return false;
-  }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
-  const hostname = parsed.hostname.toLowerCase();
-  if (hostname === "localhost" || hostname === "[::1]") return false;
-  if (hostname.endsWith(".local") || hostname.endsWith(".internal")) return false;
-  const parts = hostname.split(".").map(Number);
-  if (parts.length === 4 && parts.every((n) => !isNaN(n))) {
-    if (parts[0] === 127 || parts[0] === 10 || parts[0] === 0) return false;
-    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return false;
-    if (parts[0] === 192 && parts[1] === 168) return false;
-    if (parts[0] === 169 && parts[1] === 254) return false;
-  }
-  return true;
+function getCorsHeaders(origin: string | null, env: Env): Record<string, string> {
+  const allowed = (env.CORS_ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+
+  const resolvedOrigin =
+    allowed.length > 0 && origin && allowed.includes(origin)
+      ? origin
+      : allowed[0] || "";
+
+  return {
+    "Access-Control-Allow-Origin": resolvedOrigin,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Content-Type": "application/json; charset=utf-8",
+  };
+}
+
+function jsonError(msg: string, status: number, cors: Record<string, string>) {
+  return new Response(
+    JSON.stringify({ success: false, error: msg, status }),
+    { status, headers: cors },
+  );
 }
 
 async function fetchWpLinks(
@@ -58,7 +60,9 @@ async function fetchWpLinks(
       const json: any = await res.json().catch(() => null);
       const totalPages = Number(res.headers.get("x-wp-totalpages")) || undefined;
       if (!res.ok || !Array.isArray(json)) return { links: [] as string[], totalPages };
-      const links = json.filter((i: any) => typeof i?.link === "string" && i.link.startsWith("http")).map((i: any) => i.link);
+      const links = json
+        .filter((i: any) => typeof i?.link === "string" && i.link.startsWith("http"))
+        .map((i: any) => i.link);
       return { links, totalPages };
     } finally {
       clearTimeout(timeoutId);
@@ -95,17 +99,16 @@ async function fetchWpLinks(
 }
 
 export const onRequest: PagesFunction<Env> = async (context) => {
-  const { request } = context;
+  const { request, env } = context;
+  const origin = request.headers.get("origin");
+  const cors = getCorsHeaders(origin, env);
 
   if (request.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: corsHeaders });
+    return new Response(null, { status: 204, headers: cors });
   }
 
   if (request.method !== "POST") {
-    return new Response(
-      JSON.stringify({ success: false, error: "Method not allowed" }),
-      { status: 405, headers: corsHeaders }
-    );
+    return jsonError("Method not allowed", 405, cors);
   }
 
   try {
@@ -113,44 +116,35 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     const siteUrl = body?.siteUrl;
 
     if (!siteUrl || typeof siteUrl !== "string") {
-      return new Response(
-        JSON.stringify({ success: false, error: "siteUrl is required" }),
-        { status: 400, headers: corsHeaders }
-      );
+      return jsonError("siteUrl is required", 400, cors);
     }
 
     const t = siteUrl.trim();
     const withProto = t.startsWith("http://") || t.startsWith("https://") ? t : `https://${t}`;
     if (!isPublicUrl(withProto)) {
-      return new Response(
-        JSON.stringify({ success: false, error: "URL must be a public HTTP/HTTPS address" }),
-        { status: 400, headers: corsHeaders }
-      );
+      return jsonError("URL must be a public HTTP/HTTPS address", 400, cors);
     }
 
-    const origin = new URL(withProto).origin;
+    const siteOrigin = new URL(withProto).origin;
     const perPage = Number(body?.perPage ?? 100);
     const maxPages = Number(body?.maxPages ?? 250);
     const maxUrls = Number(body?.maxUrls ?? 100000);
     const includePages = body?.includePages !== false;
 
     const urls = new Set<string>();
-    const postLinks = await fetchWpLinks(origin, "posts", { perPage, maxPages, maxUrls });
+    const postLinks = await fetchWpLinks(siteOrigin, "posts", { perPage, maxPages, maxUrls });
     postLinks.forEach((u) => urls.add(u));
 
     if (includePages && urls.size < maxUrls) {
-      const pageLinks = await fetchWpLinks(origin, "pages", { perPage, maxPages, maxUrls: maxUrls - urls.size });
+      const pageLinks = await fetchWpLinks(siteOrigin, "pages", { perPage, maxPages, maxUrls: maxUrls - urls.size });
       pageLinks.forEach((u) => urls.add(u));
     }
 
     return new Response(
       JSON.stringify({ success: true, urls: Array.from(urls) }),
-      { status: 200, headers: corsHeaders }
+      { status: 200, headers: cors }
     );
   } catch (e: any) {
-    return new Response(
-      JSON.stringify({ success: false, error: e?.message || String(e) }),
-      { status: 500, headers: corsHeaders }
-    );
+    return jsonError(e?.message || String(e), 500, cors);
   }
 };
