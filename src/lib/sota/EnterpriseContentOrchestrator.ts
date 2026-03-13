@@ -891,12 +891,31 @@ export class EnterpriseContentOrchestrator {
         this.log('Phase 5 ✅ All NeuronWriter terms covered!');
       }
     } else {
-      this.log('Phase 5: Skipped — no NeuronWriter data.');
+      this.log('Phase 6: Skipped NW term enforcement — no NeuronWriter data.');
     }
 
-    // ── Phase 6: SOTA Refinement & Aesthetics ─────────────────────────────
-    this.log('Phase 6: Anti-AI Polish & Premium Design Overlay...');
+    // ── Phase 7: Built-in Self-Critique Rewrite ────────────────────────────
+    try {
+      this.log('Phase 7: Running enterprise self-critique pass...');
+      const critique = await refineWithSelfCritique({
+        engine: this.engine,
+        model: options.model || this.config.primaryModel || 'gemini',
+        keyword: options.keyword,
+        title: options.title || options.keyword,
+        html,
+        maxPasses: 2,
+        minScore: 90,
+      });
+      html = critique.html;
+      this.log(`Phase 7 ✅ Self-critique improved quality (${critique.initialScore} → ${critique.finalScore}).`);
+    } catch (e) {
+      this.warn(`Phase 7: Self-critique skipped (${e}).`);
+    }
 
+    // ── Phase 8: SOTA Refinement & Aesthetics ─────────────────────────────
+    this.log('Phase 8: Anti-AI Polish & Premium Design Overlay...');
+
+    html = await this.humanizeContent(html, options.keyword);
     html = polishReadability(html);
     html = await this.applyPremiumStyling(html);
 
