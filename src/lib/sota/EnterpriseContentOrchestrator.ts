@@ -374,17 +374,33 @@ export class EnterpriseContentOrchestrator {
   private async fetchYouTubeVideos(keyword: string): Promise<YouTubeVideo[]> {
     try {
       this.log('Searching for relevant YouTube videos...');
-      const videos = await this.youtubeService.getRelevantVideos(keyword, 'guide');
+      const primary = await this.youtubeService.getRelevantVideos(keyword, 'guide');
+      if (primary.length > 0) {
+        const selected = primary.slice(0, 3).filter(v => v.id && v.id.length > 0);
+        this.log(`YouTube: Found ${selected.length} relevant videos.`);
+        return selected;
+      }
 
-      if (videos.length === 0) {
-        this.warn('YouTube: No relevant videos found.');
+      this.warn('YouTube: Primary search returned no videos. Running fallback query set...');
+      const fallbackQueries = [`${keyword} tutorial`, `how to ${keyword}`, `${keyword} explained`];
+      const fallbackBatches = await Promise.all(fallbackQueries.map((q) => this.youtubeService.searchVideos(q, 5)));
+
+      const dedup = new Map<string, YouTubeVideo>();
+      for (const batch of fallbackBatches) {
+        for (const video of batch) {
+          if (!video.id) continue;
+          if (!dedup.has(video.id)) dedup.set(video.id, video);
+        }
+      }
+
+      const fallbackSelected = Array.from(dedup.values()).slice(0, 3);
+      if (fallbackSelected.length === 0) {
+        this.warn('YouTube: No relevant videos found after fallback search.');
         return [];
       }
 
-      // Take 1-3 videos
-      const selected = videos.slice(0, 3).filter(v => v.id && v.id.length > 0);
-      this.log(`YouTube: Found ${selected.length} relevant videos.`);
-      return selected;
+      this.log(`YouTube: Fallback recovered ${fallbackSelected.length} videos.`);
+      return fallbackSelected;
     } catch (e) {
       this.warn(`YouTube: Video search failed (${e}). Proceeding without videos.`);
       return [];

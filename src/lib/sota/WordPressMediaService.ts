@@ -90,7 +90,65 @@ export class WordPressMediaService {
   }
 
   private isConfigured(): boolean {
-    return !!(this.config.wpUrl && this.config.wpUsername && this.config.wpAppPassword);
+    return !!this.config.wpUrl;
+  }
+
+  private buildKeywordTerms(keyword: string): string[] {
+    const tokens = keywordTokens(keyword);
+    if (tokens.length === 0) return [keyword.trim()].filter(Boolean);
+    return tokens.slice(0, 4);
+  }
+
+  private async fetchPublicMediaViaProxy(keyword: string): Promise<any[]> {
+    if (!this.config.wpUrl) return [];
+
+    const withProtocol = this.config.wpUrl.startsWith('http://') || this.config.wpUrl.startsWith('https://')
+      ? this.config.wpUrl
+      : `https://${this.config.wpUrl}`;
+
+    let origin = '';
+    try {
+      origin = new URL(withProtocol).origin;
+    } catch {
+      return [];
+    }
+
+    const fields = 'id,source_url,alt_text,title,caption,description,media_type,mime_type,media_details,date';
+    const terms = this.buildKeywordTerms(keyword);
+
+    const urls = [
+      ...terms.map((term) => `${origin}/wp-json/wp/v2/media?per_page=40&page=1&search=${encodeURIComponent(term)}&_fields=${fields}`),
+      `${origin}/wp-json/wp/v2/media?per_page=40&page=1&_fields=${fields}`,
+    ];
+
+    const merged: any[] = [];
+
+    for (const targetUrl of urls) {
+      try {
+        const response = await fetch(`/api/fetch-sitemap?url=${encodeURIComponent(targetUrl)}`);
+        if (!response.ok) continue;
+
+        const contentType = response.headers.get('content-type') || '';
+        let content = '';
+
+        if (contentType.includes('application/json')) {
+          const json = await response.json().catch(() => null);
+          content = typeof json?.content === 'string' ? json.content : '';
+        } else {
+          content = await response.text();
+        }
+
+        if (!content) continue;
+        const parsed = JSON.parse(content);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          merged.push(...parsed);
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    return merged;
   }
 
   private normalizeRawItem(raw: any): WordPressMediaItem | null {
