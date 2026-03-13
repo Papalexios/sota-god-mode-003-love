@@ -590,13 +590,27 @@ export function calculateQualityScore(
     return Math.min(100, score);
   })();
 
+  // --- GAP COVERAGE (0-100) ---
+  const gapCoverageScore = (() => {
+    if (!contentGaps || contentGaps.length === 0) return 100;
+    const textLower = textContent.toLowerCase();
+    const covered = contentGaps.filter(gap => {
+      const gapWords = gap.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+      // Fuzzy match: at least half the meaningful words appear
+      const matchCount = gapWords.filter(w => textLower.includes(w)).length;
+      return matchCount >= Math.ceil(gapWords.length * 0.5);
+    });
+    return Math.round((covered.length / contentGaps.length) * 100);
+  })();
+
   // --- OVERALL (weighted average) ---
   const overall = Math.round(
-    readabilityScore * 0.20 +
-    seoScore * 0.25 +
-    eeatScore * 0.25 +
-    uniquenessScore * 0.15 +
-    factAccuracyScore * 0.15
+    readabilityScore * 0.15 +
+    seoScore * 0.20 +
+    eeatScore * 0.20 +
+    uniquenessScore * 0.10 +
+    factAccuracyScore * 0.15 +
+    gapCoverageScore * 0.20
   );
 
   return {
