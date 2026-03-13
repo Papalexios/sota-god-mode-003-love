@@ -64,6 +64,8 @@ import {
   buildMasterUserPrompt,
   type ContentPromptConfig,
 } from './prompts/masterContentPrompt';
+import { refineWithSelfCritique } from './HumanQualityRefiner';
+import { WordPressMediaService, type WordPressMediaItem } from './WordPressMediaService';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS & CONFIGURATION
