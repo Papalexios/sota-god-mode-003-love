@@ -300,6 +300,11 @@ export class SOTAInternalLinkEngine {
         `We cover this in more detail in ${linkHtml}.`,
         `Related reading: ${linkHtml}.`,
         `For practical examples, see ${linkHtml}.`,
+        `We covered exactly this in ${linkHtml} — worth reading before you proceed.`,
+        `The numbers change significantly when you factor in what we found in ${linkHtml}.`,
+        `${linkHtml} dives deeper into the mechanics if you want the full picture.`,
+        `The research behind ${linkHtml} changes how you approach this entirely.`,
+        `This is where ${linkHtml} becomes essential reading.`,
       ];
 
       const phrase = contextPhrases[usedIndices.size % contextPhrases.length];
