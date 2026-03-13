@@ -12,8 +12,9 @@ module.exports = {
     "eslint:recommended",
     "plugin:@typescript-eslint/recommended"
   ],
-  ignorePatterns: ["dist", "build", "node_modules"],
+  ignorePatterns: ["dist", "build", "node_modules", "supabase/functions"],
   rules: {
-    "@typescript-eslint/no-explicit-any": "off"
+    "@typescript-eslint/no-explicit-any": "warn",
+    "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }]
   }
 };

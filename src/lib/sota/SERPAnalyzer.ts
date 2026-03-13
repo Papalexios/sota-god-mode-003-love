@@ -96,16 +96,20 @@ export class SERPAnalyzer {
     const contentGaps = this.identifyContentGaps(serpData, keyword);
     const userIntent = this.classifyIntent(serpData, keyword);
     const semanticEntities = this.extractEntities(serpData);
+    const relatedSearches = this.extractRelatedTopics(serpData, keyword);
+
+    // Merge related searches into gaps for broader coverage
+    const allGaps = [...new Set([...contentGaps, ...relatedSearches])].slice(0, 25);
 
     return {
       avgWordCount,
       commonHeadings,
-      contentGaps,
+      contentGaps: allGaps,
       userIntent,
       semanticEntities,
       topCompetitors: serpData.slice(0, 5),
       recommendedWordCount: Math.max(avgWordCount + 500, 2500),
-      recommendedHeadings: this.generateRecommendedHeadings(keyword, userIntent, contentGaps)
+      recommendedHeadings: this.generateRecommendedHeadings(keyword, userIntent, allGaps)
     };
   }
 
@@ -149,7 +153,10 @@ export class SERPAnalyzer {
       'pros and cons', 'features', 'benefits', 'drawbacks',
       'how it works', 'getting started', 'advanced tips',
       'common mistakes', 'best practices', 'case studies',
-      'statistics', 'trends', 'future', '2025 updates'
+      'statistics', 'trends', 'future', '2025 updates',
+      'for beginners', 'vs competitors', 'ROI', 'tools',
+      'step by step', 'checklist', 'templates', 'examples',
+      'expert opinions', 'research findings', 'benchmarks'
     ];
 
     potentialTopics.forEach(topic => {
@@ -162,7 +169,33 @@ export class SERPAnalyzer {
       }
     });
 
-    return gaps.slice(0, 5);
+    return gaps.slice(0, 15);
+  }
+
+  /**
+   * Extract related topics from SERP titles and snippets that aren't in the keyword.
+   * This simulates "People Also Ask" / "Related Searches" gap analysis.
+   */
+  private extractRelatedTopics(serpData: SERPResult[], keyword: string): string[] {
+    const keywordWords = new Set(keyword.toLowerCase().split(/\s+/));
+    const topics = new Set<string>();
+
+    serpData.forEach(result => {
+      // Extract unique phrases from titles
+      const titleWords = result.title.split(/[-|–—:]/);
+      titleWords.forEach(phrase => {
+        const cleaned = phrase.trim();
+        if (cleaned.length > 10 && cleaned.length < 60) {
+          const phraseWords = cleaned.toLowerCase().split(/\s+/);
+          const hasNewInfo = phraseWords.some(w => w.length > 3 && !keywordWords.has(w));
+          if (hasNewInfo) {
+            topics.add(cleaned);
+          }
+        }
+      });
+    });
+
+    return Array.from(topics).slice(0, 10);
   }
 
   private classifyIntent(serpData: SERPResult[], keyword: string): SERPAnalysis['userIntent'] {

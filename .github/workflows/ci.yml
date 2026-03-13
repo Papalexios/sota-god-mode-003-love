@@ -17,8 +17,17 @@ jobs:
 
       - run: npm ci
 
+      - name: TypeScript Check
+        run: npx tsc --noEmit
+
       - name: Lint
         run: npm run lint
+
+      - name: Test
+        run: npm run test
+
+      - name: Security Audit
+        run: npm audit --audit-level=high || true
 
       - name: Build
         run: npm run build

@@ -58,7 +58,7 @@ import {
   type NeuronWriterAnalysis,
   type NeuronWriterQuery,
 } from './NeuronWriterService';
-import ContentPostProcessor, { removeAIPatterns, postProcessContent, injectMissingTerms } from './ContentPostProcessor';
+import ContentPostProcessor, { removeAIPatterns, postProcessContent, injectMissingTerms, ensureVisualElements } from './ContentPostProcessor';
 import {
   buildMasterSystemPrompt,
   buildMasterUserPrompt,
@@ -852,8 +852,12 @@ export class EnterpriseContentOrchestrator {
     html = polishReadability(html);
     html = await this.applyPremiumStyling(html);
 
-    // ── Phase 6b: Visual Break Enforcement ────────────────────────────────
-    this.log('Phase 6b: Visual Break Enforcement (breaking walls of text)...');
+    // ── Phase 6b: Visual Element Enforcement ──────────────────────────────
+    this.log('Phase 6b: Ensuring visual richness (callouts, stats, key takeaways)...');
+    html = ensureVisualElements(html, options.keyword);
+
+    // ── Phase 6c: Visual Break Enforcement ────────────────────────────────
+    this.log('Phase 6c: Visual Break Enforcement (breaking walls of text)...');
 
     const postProcessResult = postProcessContent(html, {
       maxConsecutiveWords: 200,
@@ -863,7 +867,7 @@ export class EnterpriseContentOrchestrator {
     });
 
     html = postProcessResult.html;
-    this.log(`Phase 6b ✅ Visual breaks: ${postProcessResult.elementsInjected} elements injected.`);
+    this.log(`Phase 6c ✅ Visual breaks: ${postProcessResult.elementsInjected} elements injected.`);
 
     // ── Phase 7: YouTube Video Injection ──────────────────────────────────
     this.log('Phase 7: Injecting YouTube videos...');
@@ -875,14 +879,14 @@ export class EnterpriseContentOrchestrator {
     html = this.injectReferencesSection(html, references);
     this.log(`Phase 8 ✅ ${references.length} references injected.`);
 
-    // ── Phase 9: Internal Link Generation & Injection (4–8 links) ─────────
-    this.log('Phase 9: Generating & Injecting Internal Links...');
+    // ── Phase 9: Internal Link Generation & Injection (6–12 links) ─────────
+    this.log('Phase 9: Generating & Injecting Internal Links (target: 6-12)...');
 
     let finalInternalLinks: InternalLink[] = [];
 
     if (this.config.sitePages && this.config.sitePages.length > 0) {
       this.linkEngine.updateSitePages(this.config.sitePages);
-      const generatedLinks = this.linkEngine.generateLinkOpportunities(html, 8, options.keyword);
+      const generatedLinks = this.linkEngine.generateLinkOpportunities(html, 12, options.keyword);
 
       if (generatedLinks.length > 0) {
         html = this.linkEngine.injectContextualLinks(html, generatedLinks);

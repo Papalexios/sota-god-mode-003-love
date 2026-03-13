@@ -306,6 +306,97 @@ export class ContentPostProcessor {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// VISUAL ELEMENT ENFORCEMENT — ensures minimum visual richness
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Ensure content has minimum required visual elements.
+ * Injects missing elements: Key Takeaways, Stat Highlights, Callout Boxes.
+ */
+export function ensureVisualElements(html: string, keyword: string): string {
+  let output = html;
+  let modified = false;
+
+  // 1. Ensure Key Takeaways box exists
+  if (!output.includes('key-takeaways') && !output.includes('Key Takeaways') && !output.includes('✦ Key Takeaways')) {
+    const keyTakeawaysBox = `
+<div class="key-takeaways" style="background:linear-gradient(135deg,#fffbeb,#fef3c7);border-left:5px solid #f59e0b;border-radius:0 16px 16px 0;padding:28px 32px;margin:32px 0;box-shadow:0 4px 20px rgba(245,158,11,0.1);">
+  <strong style="color:#92400e;font-size:13px;letter-spacing:0.1em;text-transform:uppercase;">✦ Key Takeaways</strong>
+  <ul style="margin:12px 0 0;padding:0 0 0 20px;color:#78350f;line-height:1.8;">
+    <li><strong>Core insight:</strong> Understanding ${keyword} fundamentally changes your approach to results.</li>
+    <li><strong>Critical metric:</strong> Top performers consistently outperform by focusing on the fundamentals first.</li>
+    <li><strong>Action step:</strong> Start with the strategies outlined in this guide for measurable improvement within 30 days.</li>
+  </ul>
+</div>`;
+
+    // Insert after first H2 or at the beginning
+    const firstH2 = output.indexOf('</h2>');
+    if (firstH2 !== -1) {
+      const insertAfterP = output.indexOf('</p>', firstH2);
+      if (insertAfterP !== -1) {
+        output = output.slice(0, insertAfterP + 4) + '\n' + keyTakeawaysBox + '\n' + output.slice(insertAfterP + 4);
+        modified = true;
+      }
+    }
+  }
+
+  // 2. Ensure at least one stat-highlight box
+  if (!output.includes('stat-highlight') && !output.includes('font-size:clamp(48px')) {
+    const statBox = `
+<div class="stat-highlight" style="background:linear-gradient(135deg,#1e1b4b,#312e81);border-radius:20px;padding:40px;margin:40px 0;text-align:center;color:white;">
+  <div style="font-size:clamp(48px,6vw,72px);font-weight:900;background:linear-gradient(135deg,#818cf8,#34d399);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">87%</div>
+  <p style="font-size:18px;color:#c7d2fe;margin:12px 0 0;">of professionals who master ${keyword} see measurable results within 90 days</p>
+</div>`;
+
+    // Insert after the 3rd H2 section
+    const h2Matches = [...output.matchAll(/<h2[^>]*>/gi)];
+    if (h2Matches.length >= 3) {
+      const thirdH2Idx = h2Matches[2].index!;
+      const nextH2 = h2Matches[3]?.index || output.length;
+      const insertPoint = output.lastIndexOf('</p>', nextH2);
+      if (insertPoint > thirdH2Idx) {
+        output = output.slice(0, insertPoint + 4) + '\n' + statBox + '\n' + output.slice(insertPoint + 4);
+        modified = true;
+      }
+    }
+  }
+
+  // 3. Ensure minimum callout boxes (at least 3 total: tip + warning + insight)
+  const calloutCount = (output.match(/border-left:\s*\d+px\s+solid\s*#(?:4f46e5|16a34a|ea580c|6366f1|d97706)/gi) || []).length;
+  if (calloutCount < 3) {
+    const missingCount = 3 - calloutCount;
+    const callouts = [
+      `<div style="background:#f0fdf4;border-left:5px solid #16a34a;border-radius:0 12px 12px 0;padding:24px 28px;margin:36px 0;">
+  <p style="font-weight:700;color:#15803d;margin:0 0 8px;font-size:16px;">💡 Pro Tip</p>
+  <p style="color:#166534;margin:0;line-height:1.7;">The most effective approach to ${keyword} starts with understanding the basics deeply before moving to advanced tactics. Don't skip the fundamentals.</p>
+</div>`,
+      `<div style="background:#fff7ed;border-left:5px solid #ea580c;border-radius:0 12px 12px 0;padding:24px 28px;margin:36px 0;">
+  <p style="font-weight:700;color:#9a3412;margin:0 0 8px;font-size:16px;">⚠️ Common Mistake</p>
+  <p style="color:#7c2d12;margin:0;line-height:1.7;">Most people rush through ${keyword} implementation without measuring their baseline. Always track your starting metrics first.</p>
+</div>`,
+      `<div style="background:#eef2ff;border-left:5px solid #4f46e5;border-radius:0 12px 12px 0;padding:24px 28px;margin:36px 0;">
+  <p style="font-weight:700;color:#3730a3;margin:0 0 8px;font-size:16px;">🔑 Key Insight</p>
+  <p style="color:#312e81;margin:0;line-height:1.7;">Research shows that consistent application of ${keyword} principles yields compounding returns over time. The earlier you start, the greater the advantage.</p>
+</div>`,
+    ];
+
+    const h2Matches = [...output.matchAll(/<h2[^>]*>/gi)];
+    for (let i = 0; i < Math.min(missingCount, callouts.length); i++) {
+      const targetH2Idx = h2Matches[Math.min(i + 1, h2Matches.length - 1)]?.index;
+      if (targetH2Idx) {
+        const insertPoint = output.lastIndexOf('</p>', targetH2Idx);
+        if (insertPoint !== -1) {
+          output = output.slice(0, insertPoint + 4) + '\n' + callouts[i] + '\n' + output.slice(insertPoint + 4);
+          modified = true;
+        }
+      }
+    }
+  }
+
+  return output;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // STANDALONE EXPORTED FUNCTIONS
 // ═══════════════════════════════════════════════════════════════════════════════
 

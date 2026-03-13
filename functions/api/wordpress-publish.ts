@@ -1,26 +1,48 @@
 /// <reference types="@cloudflare/workers-types" />
 
-interface Env {}
+import { isPublicUrl } from "../../src/lib/shared/isPublicUrl";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-  "Content-Type": "application/json; charset=utf-8",
-};
+interface Env {
+  CORS_ALLOWED_ORIGINS?: string;
+}
+
+function getCorsHeaders(origin: string | null, env: Env): Record<string, string> {
+  const allowed = (env.CORS_ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+
+  const resolvedOrigin =
+    allowed.length > 0 && origin && allowed.includes(origin)
+      ? origin
+      : allowed[0] || "";
+
+  return {
+    "Access-Control-Allow-Origin": resolvedOrigin,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Content-Type": "application/json; charset=utf-8",
+  };
+}
+
+function jsonError(msg: string, status: number, cors: Record<string, string>) {
+  return new Response(
+    JSON.stringify({ success: false, error: msg, status }),
+    { status, headers: cors },
+  );
+}
 
 export const onRequest: PagesFunction<Env> = async (context) => {
-  const { request } = context;
+  const { request, env } = context;
+  const origin = request.headers.get("origin");
+  const cors = getCorsHeaders(origin, env);
 
   if (request.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: corsHeaders });
+    return new Response(null, { status: 204, headers: cors });
   }
 
   if (request.method !== "POST") {
-    return new Response(
-      JSON.stringify({ success: false, error: "Method not allowed" }),
-      { status: 405, headers: corsHeaders }
-    );
+    return jsonError("Method not allowed", 405, cors);
   }
 
   try {
@@ -31,10 +53,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     const appPassword = String(body.appPassword || body.wpPassword || body.wpAppPassword || "");
 
     if (!wordpressUrl || !username || !appPassword) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Missing WordPress URL, username, or app password." }),
-        { status: 400, headers: corsHeaders }
-      );
+      return jsonError("Missing WordPress URL, username, or app password.", 400, cors);
+    }
+
+    // Validate WordPress URL against SSRF
+    const wpUrlWithProto = wordpressUrl.startsWith("http") ? wordpressUrl : `https://${wordpressUrl}`;
+    if (!isPublicUrl(wpUrlWithProto)) {
+      return jsonError("WordPress URL must be a public HTTP/HTTPS address", 400, cors);
     }
 
     const title = body.title || "";
@@ -68,7 +93,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           const posts: any[] = await searchRes.json();
           if (posts.length > 0) targetPostId = posts[0].id;
         }
-      } catch {}
+      } catch { /* ignore search errors */ }
     }
 
     if (!targetPostId && sourceUrl) {
@@ -84,7 +109,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             if (posts.length > 0) targetPostId = posts[0].id;
           }
         }
-      } catch {}
+      } catch { /* ignore search errors */ }
     }
 
     const postData: Record<string, unknown> = { title, content, status };
@@ -130,10 +155,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (wpRes.status === 403) errorMessage = "Permission denied. Ensure the user has publish capabilities.";
       if (wpRes.status === 404) errorMessage = "WordPress REST API not found. Ensure permalinks are enabled.";
 
-      return new Response(
-        JSON.stringify({ success: false, error: errorMessage, status: wpRes.status }),
-        { status: 200, headers: corsHeaders }
-      );
+      return jsonError(errorMessage, wpRes.status, cors);
     }
 
     return new Response(
@@ -149,20 +171,18 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           slug: json.slug,
         },
       }),
-      { status: 200, headers: corsHeaders }
+      { status: 200, headers: cors }
     );
   } catch (e: any) {
     const msg = e?.message || String(e);
     const isTimeout = msg.includes("abort") || msg.includes("timeout");
 
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: isTimeout
-          ? "Connection to WordPress timed out. Check URL and site availability."
-          : msg,
-      }),
-      { status: 200, headers: corsHeaders }
+    return jsonError(
+      isTimeout
+        ? "Connection to WordPress timed out. Check URL and site availability."
+        : msg,
+      isTimeout ? 408 : 500,
+      cors,
     );
   }
 };

@@ -1,27 +1,34 @@
 /// <reference types="@cloudflare/workers-types" />
 
-const corsHeaders: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*", // TODO: Restrict in production
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-};
+import { isPublicUrl } from "../../src/lib/shared/isPublicUrl";
 
-function isPublicUrl(input: string): boolean {
-  let parsed: URL;
-  try { parsed = new URL(input); } catch { return false; }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
-  const h = parsed.hostname.toLowerCase();
-  if (h === "localhost" || h === "[::1]" || h.endsWith(".local") || h.endsWith(".internal")) return false;
-  if (h === "metadata.google.internal" || h === "instance-data") return false;
-  if (/^0x[0-9a-f]+$/i.test(h) || /^\d+$/.test(h)) return false;
-  const p = h.split(".").map(Number);
-  if (p.length === 4 && p.every((n) => !isNaN(n) && n >= 0 && n <= 255)) {
-    if (p[0] === 127 || p[0] === 10 || p[0] === 0) return false;
-    if (p[0] === 172 && p[1] >= 16 && p[1] <= 31) return false;
-    if (p[0] === 192 && p[1] === 168) return false;
-    if (p[0] === 169 && p[1] === 254) return false;
-  }
-  return true;
+interface Env {
+  CORS_ALLOWED_ORIGINS?: string;
+}
+
+function getCorsHeaders(origin: string | null, env: Env): Record<string, string> {
+  const allowed = (env.CORS_ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+
+  const resolvedOrigin =
+    allowed.length > 0 && origin && allowed.includes(origin)
+      ? origin
+      : allowed[0] || "";
+
+  return {
+    "Access-Control-Allow-Origin": resolvedOrigin,
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  };
+}
+
+function jsonError(msg: string, status: number, cors: Record<string, string>) {
+  return new Response(
+    JSON.stringify({ success: false, error: msg, status }),
+    { status, headers: { ...cors, "Content-Type": "application/json" } },
+  );
 }
 
 async function fetchWithTimeout(url: string, timeout = 90_000): Promise<Response> {
@@ -40,11 +47,13 @@ async function fetchWithTimeout(url: string, timeout = 90_000): Promise<Response
   }
 }
 
-export const onRequest: PagesFunction = async (context) => {
-  const { request } = context;
+export const onRequest: PagesFunction<Env> = async (context) => {
+  const { request, env } = context;
+  const origin = request.headers.get("origin");
+  const cors = getCorsHeaders(origin, env);
 
   if (request.method === "OPTIONS") {
-    return new Response(null, { status: 200, headers: corsHeaders });
+    return new Response(null, { status: 200, headers: cors });
   }
 
   try {
@@ -59,25 +68,20 @@ export const onRequest: PagesFunction = async (context) => {
     }
 
     if (!targetUrl) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Missing 'url' parameter" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      return jsonError("Missing 'url' parameter", 400, cors);
     }
 
     if (!isPublicUrl(targetUrl)) {
-      return new Response(
-        JSON.stringify({ success: false, error: "URL must be a public HTTP/HTTPS address" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      return jsonError("URL must be a public HTTP/HTTPS address", 400, cors);
     }
 
     const response = await fetchWithTimeout(targetUrl, 90_000);
 
     if (!response.ok) {
-      return new Response(
-        JSON.stringify({ success: false, error: `Upstream returned ${response.status}: ${response.statusText}` }),
-        { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      return jsonError(
+        `Upstream returned ${response.status}: ${response.statusText}`,
+        response.status,
+        cors,
       );
     }
 
@@ -87,7 +91,7 @@ export const onRequest: PagesFunction = async (context) => {
     return new Response(text, {
       status: 200,
       headers: {
-        ...corsHeaders,
+        ...cors,
         "Content-Type": contentType,
         "Cache-Control": "public, max-age=300",
       },
@@ -95,9 +99,10 @@ export const onRequest: PagesFunction = async (context) => {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
     const isTimeout = message.includes("abort");
-    return new Response(
-      JSON.stringify({ success: false, error: isTimeout ? "Request timed out" : message }),
-      { status: isTimeout ? 408 : 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    return jsonError(
+      isTimeout ? "Request timed out" : message,
+      isTimeout ? 408 : 500,
+      cors,
     );
   }
 };
