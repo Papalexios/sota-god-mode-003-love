@@ -116,6 +116,11 @@ export class EnterpriseContentOrchestrator {
     this.serpAnalyzer = createSERPAnalyzer(serperKey);
     this.youtubeService = createYouTubeService(serperKey);
     this.referenceService = createReferenceService(serperKey);
+    this.wpMediaService = new WordPressMediaService({
+      wpUrl: config.wpUrl,
+      wpUsername: config.wpUsername,
+      wpAppPassword: config.wpAppPassword,
+    });
     this.linkEngine = createInternalLinkEngine(config.sitePages || []);
     // FIX: SchemaGenerator(orgName, orgUrl, logoUrl) — never pass apiKeys here
     this.schemaGenerator = createSchemaGenerator(
