@@ -365,6 +365,93 @@ export function registerRoutes(app: Express): void {
     }
   });
 
+  // ─── WordPress Media Search (REST API) ─────────────────────────
+  app.post("/api/wp-media", async (req: Request, res: Response) => {
+    try {
+      const wpUrlRaw = String(req.body?.wpUrl || req.body?.wordpressUrl || "").trim();
+      const username = String(req.body?.username || req.body?.wpUsername || "").trim();
+      const appPassword = String(req.body?.appPassword || req.body?.wpAppPassword || "").trim();
+      const keyword = String(req.body?.keyword || "").trim();
+      const limit = Math.min(30, Math.max(2, Number(req.body?.limit ?? 20)));
+
+      if (!wpUrlRaw || !username || !appPassword) {
+        return errorResponse(res, 400, "wpUrl, username and appPassword are required", "validation_error");
+      }
+
+      const wpUrl = wpUrlRaw.startsWith("http://") || wpUrlRaw.startsWith("https://")
+        ? wpUrlRaw
+        : `https://${wpUrlRaw}`;
+
+      if (!isPublicUrl(wpUrl)) {
+        return errorResponse(res, 400, "WordPress URL must be a public HTTP/HTTPS address", "validation_error");
+      }
+
+      const originUrl = new URL(wpUrl).origin;
+      const auth = Buffer.from(`${username}:${appPassword}`, "utf8").toString("base64");
+      const headers: Record<string, string> = {
+        Authorization: `Basic ${auth}`,
+        Accept: "application/json",
+        "User-Agent": "SOTA-MediaFetcher/1.0",
+      };
+
+      const fields = "id,source_url,alt_text,title,caption,description,media_type,mime_type,media_details,date";
+
+      const fetchPage = async (url: string): Promise<any[]> => {
+        try {
+          const response = await fetchWithTimeout(url, { method: "GET", headers }, 12_000);
+          const json: unknown = await response.json().catch(() => null);
+          if (!response.ok || !Array.isArray(json)) return [];
+          return json as any[];
+        } catch {
+          return [];
+        }
+      };
+
+      const buildSearchTerms = (input: string): string[] => {
+        const parts = input
+          .toLowerCase()
+          .split(/[^a-z0-9]+/)
+          .map((p) => p.trim())
+          .filter((p) => p.length > 2);
+        const unique = Array.from(new Set(parts)).slice(0, 4);
+        if (unique.length === 0 && input.trim()) return [input.trim()];
+        return unique;
+      };
+
+      const terms = buildSearchTerms(keyword);
+      const searchUrls = terms.map(
+        (term) => `${originUrl}/wp-json/wp/v2/media?per_page=40&page=1&search=${encodeURIComponent(term)}&_fields=${fields}`,
+      );
+      const fallbackLatest = `${originUrl}/wp-json/wp/v2/media?per_page=40&page=1&_fields=${fields}`;
+
+      const results = await Promise.all([
+        ...searchUrls.map((u) => fetchPage(u)),
+        fetchPage(fallbackLatest),
+      ]);
+
+      const dedup = new Map<number, any>();
+      for (const item of results.flat()) {
+        const id = Number(item?.id || 0);
+        if (!id) continue;
+        if (!dedup.has(id)) dedup.set(id, item);
+      }
+
+      const images = Array.from(dedup.values())
+        .filter((item) => {
+          const sourceUrl = String(item?.source_url || "");
+          const mediaType = String(item?.media_type || "");
+          const mimeType = String(item?.mime_type || "");
+          return sourceUrl.startsWith("http") && (mediaType === "image" || mimeType.startsWith("image/"));
+        })
+        .slice(0, limit);
+
+      res.json({ success: true, images, total: images.length });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown server error";
+      errorResponse(res, 500, message, "server_error");
+    }
+  });
+
   // ─── WordPress Publish (with Circuit Breaker) ──────────────────
   app.post("/api/wordpress-publish", async (req: Request, res: Response) => {
     try {
