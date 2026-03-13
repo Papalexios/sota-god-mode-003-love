@@ -166,9 +166,9 @@ export class WordPressMediaService {
     const sourceUrl = String(raw?.source_url || raw?.sourceUrl || '').trim();
     if (!sourceUrl || !/^https?:\/\//i.test(sourceUrl)) return null;
 
-    const title = stripHtml(String(raw?.title?.rendered || raw?.title || ''));
-    const caption = stripHtml(String(raw?.caption?.rendered || raw?.caption || ''));
-    const description = stripHtml(String(raw?.description?.rendered || raw?.description || ''));
+    const title = toRenderableText(raw?.title) || stripHtml(String(raw?.title?.rendered || raw?.title || ''));
+    const caption = toRenderableText(raw?.caption) || stripHtml(String(raw?.caption?.rendered || raw?.caption || ''));
+    const description = toRenderableText(raw?.description) || stripHtml(String(raw?.description?.rendered || raw?.description || ''));
 
     return {
       id: Number(raw?.id || 0),
