@@ -875,14 +875,14 @@ export class EnterpriseContentOrchestrator {
     html = this.injectReferencesSection(html, references);
     this.log(`Phase 8 ✅ ${references.length} references injected.`);
 
-    // ── Phase 9: Internal Link Generation & Injection (4–8 links) ─────────
-    this.log('Phase 9: Generating & Injecting Internal Links...');
+    // ── Phase 9: Internal Link Generation & Injection (6–12 links) ─────────
+    this.log('Phase 9: Generating & Injecting Internal Links (target: 6-12)...');
 
     let finalInternalLinks: InternalLink[] = [];
 
     if (this.config.sitePages && this.config.sitePages.length > 0) {
       this.linkEngine.updateSitePages(this.config.sitePages);
-      const generatedLinks = this.linkEngine.generateLinkOpportunities(html, 8, options.keyword);
+      const generatedLinks = this.linkEngine.generateLinkOpportunities(html, 12, options.keyword);
 
       if (generatedLinks.length > 0) {
         html = this.linkEngine.injectContextualLinks(html, generatedLinks);
