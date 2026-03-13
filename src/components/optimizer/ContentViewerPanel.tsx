@@ -365,12 +365,12 @@ export function ContentViewerPanel({
 
   const handlePublishToWordPress = async () => {
     if (!item) return;
-    // ✅ FIX: Always use editedContent — it's initialized from content on mount
-    // and always holds the latest version (edited or original).
-    // The old code used `isEditorDirty ? editedContent : content` which broke
-    // after clicking "Save" because Save sets isEditorDirty=false, causing
-    // the publish to send the ORIGINAL content instead of the saved edits.
-    const publishContent = editedContent || content;
+
+    // Use canonical content by default; use draft only when it diverges.
+    const canonicalContent = generatedContent?.content || content;
+    const publishContent = (isEditorDirty || editedContent !== canonicalContent)
+      ? editedContent
+      : canonicalContent;
 
     if (!publishContent) return;
 
