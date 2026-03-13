@@ -648,7 +648,7 @@ export class EnterpriseContentOrchestrator {
       return html;
     }
 
-    const heading = hasRefsHeading ? '📚 Verified Sources' : '📚 Sources & Further Reading';
+    const heading = '📚 Verified Sources';
 
     const styledRefsHtml = `
 <div data-verified-references="true" style="margin:56px 0 0 0;padding-top:40px;border-top:2px solid #e2e8f0;">
@@ -1206,19 +1206,26 @@ export class EnterpriseContentOrchestrator {
     this.log(`Phase 6c ✅ Visual breaks: ${postProcessResult.elementsInjected} elements injected.`);
 
     // ── Phase 9: YouTube + WordPress Media Injection ───────────────────────
-    this.log('Phase 9: Injecting YouTube videos...');
-    html = this.injectYouTubeVideos(html, videos);
-    this.log(`Phase 9 ✅ ${videos.length} videos injected into content.`);
+    this.log('Phase 9: Deduplicating & injecting YouTube videos...');
+    // Remove any AI-generated YouTube iframes first to avoid duplicates
+    html = html.replace(/<iframe[^>]*src=["']https?:\/\/(?:www\.)?youtube\.com\/embed\/[^"']+["'][^>]*><\/iframe>/gi, '');
+    // Now inject exactly ONE video via our controlled method
+    if (videos.length > 0) {
+      html = this.injectYouTubeVideos(html, [videos[0]]);
+    }
+    this.log(`Phase 9 ✅ ${Math.min(videos.length, 1)} video injected into content.`);
 
     this.log('Phase 9b: Injecting WordPress media gallery images...');
     html = this.injectWordPressImages(html, wpImages, options.keyword);
     this.log(`Phase 9b ✅ ${wpImages.length} images injected from media gallery.`);
 
     // ── Phase 10: Reference Section Injection ──────────────────────────────
-    this.log('Phase 10: Injecting references section...');
+    this.log('Phase 10: Stripping AI-generated references, injecting verified sources...');
+    // Remove any AI-generated "Sources & Further Reading" / "References" section BEFORE injecting our verified one
+    html = html.replace(/<h2[^>]*>\s*(?:Sources\s*&?\s*Further\s*Reading|References)\s*<\/h2>[\s\S]*?(?=<h2[^>]*>|<div[^>]*data-(?:article-footer|verified-references)|<\/article>)/gi, '');
     html = this.injectReferencesSection(html, references);
     html = this.ensureExternalLinksClickable(html);
-    this.log(`Phase 10 ✅ ${references.length} references injected.`);
+    this.log(`Phase 10 ✅ ${references.length} verified sources injected.`);
 
     // ── Phase 9: Internal Link Generation & Injection (6–12 links) ─────────
     this.log('Phase 9: Generating & Injecting Internal Links (target: 6-12)...');

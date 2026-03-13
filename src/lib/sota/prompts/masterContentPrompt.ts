@@ -167,17 +167,8 @@ export function buildMasterUserPrompt(config: ContentPromptConfig): string {
     ? `\nSERP GAP ANALYSIS (TOP 3 COMPETITORS):\n- Competitor Titles:\n${(serpData.competitorTitles || []).slice(0, 3).map((title, idx) => `  ${idx + 1}. ${title}`).join('\n')}\n- Missing Topics/Questions To Cover:\n${(serpData.peopleAlsoAsk || []).slice(0, 20).map((gap, idx) => `  ${idx + 1}. ${gap}`).join('\n')}\n- Competitor average length signal: ${serpData.avgWordCount || targetWordCount} words\n`
     : '';
 
-  // Support multiple YouTube embeds
+  // YouTube embeds are injected post-generation — do NOT include in prompt
   let youtubeSection = '';
-  if (youtubeEmbed && Array.isArray(youtubeEmbed) && youtubeEmbed.length > 0) {
-    const embeds = youtubeEmbed.map(v =>
-      `<iframe width="100%" height="400" src="https://www.youtube.com/embed/${v.videoId}" title="${v.title}" frameborder="0" allowfullscreen style="border-radius:12px;margin:32px 0;display:block;max-width:100%;"></iframe>`
-    ).join('\n');
-    youtubeSection = `VIDEO EMBEDS — place at the most topically relevant spots:\n${embeds}\n`;
-  } else if (youtubeEmbed && !Array.isArray(youtubeEmbed) && (youtubeEmbed as any).videoId) {
-    const v = youtubeEmbed as any;
-    youtubeSection = `VIDEO EMBED — insert at the most topically relevant spot:\n<iframe width="100%" height="400" src="https://www.youtube.com/embed/${v.videoId}" title="${v.title}" frameborder="0" allowfullscreen style="border-radius:12px;margin:32px 0;display:block;max-width:100%;"></iframe>\n`;
-  }
 
   return `ASSIGNMENT: Write a complete, untruncated ${contentType.toUpperCase()} article. Do NOT stop. Do NOT ask to continue. Output the ENTIRE article in one response.
 
@@ -266,9 +257,7 @@ End with:
 <p style="margin:0;opacity:0.9;font-size:17px;line-height:1.6;">[1-2 sentences of specific, practical final guidance]</p>
 </div>
 
-[8] REFERENCES:
-<h2>Sources & Further Reading</h2>
-8-12 numbered references. Use real, plausible sources with author names, publications, and years.
+[8] DO NOT generate a "References" or "Sources & Further Reading" section. The system will auto-inject verified, clickable sources after generation. Any AI-generated reference section will be stripped.
 
 OUTPUT FORMAT:
 - Wrap in: <article style="font-family:'Georgia',serif;max-width:860px;margin:0 auto;color:#1e293b;line-height:1.85;font-size:17px;">
