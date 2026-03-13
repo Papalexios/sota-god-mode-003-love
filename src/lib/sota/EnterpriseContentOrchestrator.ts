@@ -58,7 +58,7 @@ import {
   type NeuronWriterAnalysis,
   type NeuronWriterQuery,
 } from './NeuronWriterService';
-import ContentPostProcessor, { removeAIPatterns, postProcessContent, injectMissingTerms } from './ContentPostProcessor';
+import ContentPostProcessor, { removeAIPatterns, postProcessContent, injectMissingTerms, ensureVisualElements } from './ContentPostProcessor';
 import {
   buildMasterSystemPrompt,
   buildMasterUserPrompt,
