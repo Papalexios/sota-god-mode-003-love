@@ -20,6 +20,17 @@ function stripHtml(input: string): string {
   return (input || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+function toRenderableText(input: unknown): string {
+  if (typeof input === 'string') return stripHtml(input);
+  if (input && typeof input === 'object') {
+    const rendered = (input as Record<string, unknown>).rendered;
+    if (typeof rendered === 'string') return stripHtml(rendered);
+    const raw = (input as Record<string, unknown>).raw;
+    if (typeof raw === 'string') return stripHtml(raw);
+  }
+  return '';
+}
+
 function escapeAttr(input: string): string {
   return (input || '')
     .replace(/&/g, '&amp;')
@@ -155,9 +166,9 @@ export class WordPressMediaService {
     const sourceUrl = String(raw?.source_url || raw?.sourceUrl || '').trim();
     if (!sourceUrl || !/^https?:\/\//i.test(sourceUrl)) return null;
 
-    const title = stripHtml(String(raw?.title?.rendered || raw?.title || ''));
-    const caption = stripHtml(String(raw?.caption?.rendered || raw?.caption || ''));
-    const description = stripHtml(String(raw?.description?.rendered || raw?.description || ''));
+    const title = toRenderableText(raw?.title) || stripHtml(String(raw?.title?.rendered || raw?.title || ''));
+    const caption = toRenderableText(raw?.caption) || stripHtml(String(raw?.caption?.rendered || raw?.caption || ''));
+    const description = toRenderableText(raw?.description) || stripHtml(String(raw?.description?.rendered || raw?.description || ''));
 
     return {
       id: Number(raw?.id || 0),
@@ -238,6 +249,26 @@ export class WordPressMediaService {
     } catch {
       return [];
     }
+  }
+
+  buildInlineImageFigureHtml(image: WordPressMediaItem, keyword: string, variant: 'primary' | 'secondary' = 'primary'): string {
+    if (!image?.sourceUrl) return '';
+
+    const alt = optimizeAltText(image, keyword);
+    const caption = optimizeCaption(image, keyword);
+    const title = escapeHtml(image.title || keyword);
+    const accent = variant === 'primary'
+      ? 'linear-gradient(135deg,#0f172a,#1e293b)'
+      : 'linear-gradient(135deg,#0f766e,#155e75)';
+
+    return `<figure data-wp-inline-image="true" style="margin:34px 0;border:1px solid #e2e8f0;border-radius:18px;overflow:hidden;background:#fff;box-shadow:0 12px 30px rgba(15,23,42,0.08);">
+  <img src="${escapeAttr(image.sourceUrl)}" alt="${escapeAttr(alt)}" loading="lazy" decoding="async" style="display:block;width:100%;height:auto;max-height:460px;object-fit:cover;">
+  <figcaption style="padding:14px 16px 16px;background:${accent};color:#e2e8f0;">
+    <p style="margin:0 0 6px 0;font-size:13px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#cbd5e1;">Visual Insight</p>
+    <p style="margin:0 0 6px 0;font-size:15px;font-weight:700;line-height:1.45;color:#ffffff;">${title}</p>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#cbd5e1;">${escapeHtml(caption)}</p>
+  </figcaption>
+</figure>`;
   }
 
   buildImageSectionHtml(images: WordPressMediaItem[], keyword: string): string {

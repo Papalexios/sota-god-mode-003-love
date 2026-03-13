@@ -394,13 +394,19 @@ export class EnterpriseContentOrchestrator {
       }
 
       const fallbackSelected = Array.from(dedup.values()).slice(0, 3);
-      if (fallbackSelected.length === 0) {
-        this.warn('YouTube: No relevant videos found after fallback search.');
-        return [];
+      if (fallbackSelected.length > 0) {
+        this.log(`YouTube: Fallback recovered ${fallbackSelected.length} videos.`);
+        return fallbackSelected;
       }
 
-      this.log(`YouTube: Fallback recovered ${fallbackSelected.length} videos.`);
-      return fallbackSelected;
+      const guaranteed = await this.youtubeService.getGuaranteedFallbackVideos(keyword, 1);
+      if (guaranteed.length > 0) {
+        this.warn('YouTube: Recovered a best-effort video via resilient fallback source.');
+        return guaranteed;
+      }
+
+      this.warn('YouTube: No relevant videos found after all fallback sources.');
+      return [];
     } catch (e) {
       this.warn(`YouTube: Video search failed (${e}). Proceeding without videos.`);
       return [];
@@ -529,53 +535,127 @@ export class EnterpriseContentOrchestrator {
   }
 
   private injectWordPressImages(html: string, images: WordPressMediaItem[], keyword: string): string {
-    if (!images.length || html.includes('data-wp-gallery-images')) return html;
+    if (!images.length || html.includes('data-wp-inline-image')) return html;
 
-    const section = this.wpMediaService.buildImageSectionHtml(images, keyword);
-    if (!section) return html;
+    const figures = images
+      .slice(0, 2)
+      .map((img, idx) => this.wpMediaService.buildInlineImageFigureHtml(img, keyword, idx === 0 ? 'primary' : 'secondary'))
+      .filter(Boolean);
 
-    const h2Matches = [...html.matchAll(/<h2[^>]*>[\s\S]*?<\/h2>/gi)];
-    if (h2Matches.length >= 1) {
-      const anchor = h2Matches[0];
-      const start = (anchor.index || 0) + anchor[0].length;
-      const pClose = html.indexOf('</p>', start);
-      if (pClose !== -1) {
-        return html.slice(0, pClose + 4) + '\n' + section + '\n' + html.slice(pClose + 4);
-      }
+    if (figures.length === 0) return html;
+
+    const paragraphMatches = [...html.matchAll(/<\/p>/gi)];
+    if (paragraphMatches.length === 0) {
+      return html.replace('</article>', `${figures.join('\n')}\n</article>`);
     }
 
-    return html.replace('</article>', `${section}\n</article>`);
+    const firstTargetIdx = Math.min(1, paragraphMatches.length - 1);
+    let secondTargetIdx = Math.min(
+      Math.max(firstTargetIdx + 2, Math.floor(paragraphMatches.length * 0.55)),
+      paragraphMatches.length - 1,
+    );
+    if (secondTargetIdx === firstTargetIdx && paragraphMatches.length > 2) {
+      secondTargetIdx = Math.min(firstTargetIdx + 2, paragraphMatches.length - 1);
+    }
+
+    const insertions: Array<{ position: number; markup: string }> = [
+      {
+        position: (paragraphMatches[firstTargetIdx].index || 0) + 4,
+        markup: figures[0],
+      },
+    ];
+
+    if (figures[1]) {
+      insertions.push({
+        position: (paragraphMatches[secondTargetIdx].index || 0) + 4,
+        markup: figures[1],
+      });
+    }
+
+    insertions.sort((a, b) => b.position - a.position);
+
+    let result = html;
+    for (const insertion of insertions) {
+      result = `${result.slice(0, insertion.position)}\n${insertion.markup}\n${result.slice(insertion.position)}`;
+    }
+
+    return result;
+  }
+
+  private linkifyPlainUrls(html: string): string {
+    const tokens = html.split(/(<[^>]+>)/g);
+    const urlRegex = /\bhttps?:\/\/[^\s<>"')]+/gi;
+    let insideAnchor = false;
+
+    return tokens
+      .map((token) => {
+        if (!token) return token;
+        if (token.startsWith('<')) {
+          if (/^<a\b/i.test(token)) insideAnchor = true;
+          if (/^<\/a>/i.test(token)) insideAnchor = false;
+          return token;
+        }
+
+        if (insideAnchor) return token;
+
+        return token.replace(urlRegex, (rawUrl) => {
+          const cleanUrl = rawUrl.replace(/[),.;]+$/, '');
+          const trailing = rawUrl.slice(cleanUrl.length);
+          return `<a href="${cleanUrl}" target="_blank" rel="noopener noreferrer">${cleanUrl}</a>${trailing}`;
+        });
+      })
+      .join('');
   }
 
   private ensureExternalLinksClickable(html: string): string {
-    return html.replace(/<a\s+([^>]*href=["']https?:\/\/[^"']+["'][^>]*)>/gi, (_m, attrs: string) => {
+    const enriched = html.replace(/<a\s+([^>]*href=["']https?:\/\/[^"']+["'][^>]*)>/gi, (_m, attrs: string) => {
       let out = attrs;
       if (!/\btarget=/i.test(out)) out += ' target="_blank"';
       if (!/\brel=/i.test(out)) out += ' rel="noopener noreferrer"';
       return `<a ${out}>`;
     });
+
+    return this.linkifyPlainUrls(enriched);
   }
 
   private injectReferencesSection(html: string, references: Reference[]): string {
     if (!references || references.length === 0) return html;
 
-    // Check if references/sources section already exists
-    const hasRefs = /<h2[^>]*>\s*(?:references|sources|further reading|sources\s*&\s*further\s*reading)/i.test(html);
-    if (hasRefs) {
-      this.log('References: Article already contains a references section. Skipping injection.');
+    const sanitizedReferences = references
+      .filter((ref) => /^https?:\/\//i.test(ref.url || ''))
+      .map((ref) => ({
+        ...ref,
+        title: (ref.title || ref.domain || ref.url || 'Reference')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;'),
+      }))
+      .slice(0, 12);
+
+    if (sanitizedReferences.length === 0) return html;
+
+    const refsHeadingRegex = /<h2[^>]*>\s*(?:references|sources|further reading|sources\s*&\s*further\s*reading)\s*<\/h2>/i;
+    const hasRefsHeading = refsHeadingRegex.test(html);
+
+    const refsSectionMatch = html.match(
+      /<h2[^>]*>\s*(?:references|sources|further reading|sources\s*&\s*further\s*reading)\s*<\/h2>[\s\S]*?(?=<h2[^>]*>|<div[^>]*data-article-footer|<\/article>)/i,
+    );
+    const hasLinkedReferences = !!refsSectionMatch && /<a\s+[^>]*href=["']https?:\/\//i.test(refsSectionMatch[0]);
+
+    if (hasRefsHeading && hasLinkedReferences) {
+      this.log('References: Existing references section already has clickable links. Skipping duplicate injection.');
       return html;
     }
 
-    const refsHtml = this.referenceService.formatReferencesSection(references);
+    const heading = hasRefsHeading ? '📚 Verified Sources' : '📚 Sources & Further Reading';
 
-    // Style the references section to match premium design
     const styledRefsHtml = `
-<div style="margin: 56px 0 0 0; padding-top: 40px; border-top: 2px solid #e2e8f0;">
-  <h2 style="font-size:1.95em;font-weight:900;color:#0f172a;margin:0 0 20px 0;line-height:1.15;letter-spacing:-0.025em;font-family:'Inter',system-ui,sans-serif;border-bottom:3px solid #e2e8f0;padding-bottom:12px;">📚 Sources & Further Reading</h2>
+<div data-verified-references="true" style="margin:56px 0 0 0;padding-top:40px;border-top:2px solid #e2e8f0;">
+  <h2 style="font-size:1.95em;font-weight:900;color:#0f172a;margin:0 0 20px 0;line-height:1.15;letter-spacing:-0.025em;font-family:'Inter',system-ui,sans-serif;border-bottom:3px solid #e2e8f0;padding-bottom:12px;">${heading}</h2>
   <div style="font-family:'Inter',system-ui,sans-serif;">
-    <ol style="margin:0;padding:0 0 0 0;list-style:none;counter-reset:ref-counter;">
-      ${references.map((ref, i) => {
-      const safeTitle = (ref.title || '').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    <ol style="margin:0;padding:0;list-style:none;counter-reset:ref-counter;">
+      ${sanitizedReferences.map((ref, i) => {
       const typeLabel = ref.type === 'academic' ? ' <span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;">Academic</span>'
         : ref.type === 'government' ? ' <span style="background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;">Official</span>'
           : ref.type === 'news' ? ' <span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;">News</span>'
@@ -583,7 +663,7 @@ export class EnterpriseContentOrchestrator {
       return `<li style="margin:0 0 16px 0;padding:12px 16px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;display:flex;align-items:flex-start;gap:12px;">
           <span style="flex-shrink:0;width:28px;height:28px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;">${i + 1}</span>
           <div>
-            <a href="${ref.url}" target="_blank" rel="noopener noreferrer" style="color:#1e293b;text-decoration:none;font-weight:600;font-size:15px;line-height:1.4;">${safeTitle}</a>
+            <a href="${ref.url}" target="_blank" rel="noopener noreferrer" style="color:#1e293b;text-decoration:none;font-weight:600;font-size:15px;line-height:1.4;">${ref.title}</a>
             <div style="margin-top:4px;font-size:12px;color:#64748b;">${ref.domain}${typeLabel}</div>
           </div>
         </li>`;
@@ -592,7 +672,6 @@ export class EnterpriseContentOrchestrator {
   </div>
 </div>`;
 
-    // Insert before the article footer or before </article>
     const footerIdx = html.indexOf('data-article-footer');
     if (footerIdx !== -1) {
       const insertPoint = html.lastIndexOf('<div', footerIdx);
