@@ -417,6 +417,43 @@ export class EnterpriseContentOrchestrator {
     }
   }
 
+  private async fetchWordPressImages(keyword: string): Promise<WordPressMediaItem[]> {
+    try {
+      const images = await this.wpMediaService.getRelevantImages(keyword, 2);
+      return images.slice(0, 2);
+    } catch {
+      return [];
+    }
+  }
+
+  private injectWordPressImages(html: string, images: WordPressMediaItem[], keyword: string): string {
+    if (!images.length || html.includes('data-wp-gallery-images')) return html;
+
+    const section = this.wpMediaService.buildImageSectionHtml(images, keyword);
+    if (!section) return html;
+
+    const h2Matches = [...html.matchAll(/<h2[^>]*>[\s\S]*?<\/h2>/gi)];
+    if (h2Matches.length >= 1) {
+      const anchor = h2Matches[0];
+      const start = (anchor.index || 0) + anchor[0].length;
+      const pClose = html.indexOf('</p>', start);
+      if (pClose !== -1) {
+        return html.slice(0, pClose + 4) + '\n' + section + '\n' + html.slice(pClose + 4);
+      }
+    }
+
+    return html.replace('</article>', `${section}\n</article>`);
+  }
+
+  private ensureExternalLinksClickable(html: string): string {
+    return html.replace(/<a\s+([^>]*href=["']https?:\/\/[^"']+["'][^>]*)>/gi, (_m, attrs: string) => {
+      let out = attrs;
+      if (!/\btarget=/i.test(out)) out += ' target="_blank"';
+      if (!/\brel=/i.test(out)) out += ' rel="noopener noreferrer"';
+      return `<a ${out}>`;
+    });
+  }
+
   private injectReferencesSection(html: string, references: Reference[]): string {
     if (!references || references.length === 0) return html;
 
