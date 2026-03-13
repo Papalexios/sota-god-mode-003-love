@@ -54,6 +54,12 @@ export async function ensureTableExists(): Promise<boolean> {
         return false;
       }
 
+      if (msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('network')) {
+        lastDbCheckError = { kind: 'network', code, message: msg };
+        console.error('[ContentPersistence] Network/CORS issue:', msg);
+        return false;
+      }
+
       lastDbCheckError = { kind: 'unknown', code, message: msg };
       console.error('[ContentPersistence] Table check failed:', msg);
       return false;
