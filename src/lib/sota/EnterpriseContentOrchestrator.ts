@@ -852,8 +852,12 @@ export class EnterpriseContentOrchestrator {
     html = polishReadability(html);
     html = await this.applyPremiumStyling(html);
 
-    // ── Phase 6b: Visual Break Enforcement ────────────────────────────────
-    this.log('Phase 6b: Visual Break Enforcement (breaking walls of text)...');
+    // ── Phase 6b: Visual Element Enforcement ──────────────────────────────
+    this.log('Phase 6b: Ensuring visual richness (callouts, stats, key takeaways)...');
+    html = ensureVisualElements(html, options.keyword);
+
+    // ── Phase 6c: Visual Break Enforcement ────────────────────────────────
+    this.log('Phase 6c: Visual Break Enforcement (breaking walls of text)...');
 
     const postProcessResult = postProcessContent(html, {
       maxConsecutiveWords: 200,
@@ -863,7 +867,7 @@ export class EnterpriseContentOrchestrator {
     });
 
     html = postProcessResult.html;
-    this.log(`Phase 6b ✅ Visual breaks: ${postProcessResult.elementsInjected} elements injected.`);
+    this.log(`Phase 6c ✅ Visual breaks: ${postProcessResult.elementsInjected} elements injected.`);
 
     // ── Phase 7: YouTube Video Injection ──────────────────────────────────
     this.log('Phase 7: Injecting YouTube videos...');
