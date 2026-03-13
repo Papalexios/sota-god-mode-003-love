@@ -9,6 +9,7 @@
     "dev:client": "vite",
     "build": "vite build",
     "build:dev": "vite build --mode development",
+    "install:server": "cd server && npm install",
     "postinstall:local": "cd server && npm install",
     "preview": "vite preview",
     "db:push": "drizzle-kit push",
