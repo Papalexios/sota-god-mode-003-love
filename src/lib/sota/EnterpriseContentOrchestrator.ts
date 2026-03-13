@@ -394,13 +394,19 @@ export class EnterpriseContentOrchestrator {
       }
 
       const fallbackSelected = Array.from(dedup.values()).slice(0, 3);
-      if (fallbackSelected.length === 0) {
-        this.warn('YouTube: No relevant videos found after fallback search.');
-        return [];
+      if (fallbackSelected.length > 0) {
+        this.log(`YouTube: Fallback recovered ${fallbackSelected.length} videos.`);
+        return fallbackSelected;
       }
 
-      this.log(`YouTube: Fallback recovered ${fallbackSelected.length} videos.`);
-      return fallbackSelected;
+      const guaranteed = await this.youtubeService.getGuaranteedFallbackVideos(keyword, 1);
+      if (guaranteed.length > 0) {
+        this.warn('YouTube: Recovered a best-effort video via resilient fallback source.');
+        return guaranteed;
+      }
+
+      this.warn('YouTube: No relevant videos found after all fallback sources.');
+      return [];
     } catch (e) {
       this.warn(`YouTube: Video search failed (${e}). Proceeding without videos.`);
       return [];
