@@ -8,7 +8,7 @@
     "dev:server": "tsx server/index.ts",
     "dev:client": "vite",
     "build": "vite build",
-    "install:server": "cd server && npm install",
+    "build:dev": "vite build --mode development",
     "postinstall:local": "cd server && npm install",
     "preview": "vite preview",
     "db:push": "drizzle-kit push",
