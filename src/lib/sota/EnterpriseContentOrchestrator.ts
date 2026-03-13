@@ -1019,6 +1019,14 @@ export class EnterpriseContentOrchestrator {
       this.warn(`Phase 7: Self-critique skipped (${e}).`);
     }
 
+    // ── Phase 7b: SERP Gap Coverage Enforcement ────────────────────────────
+    this.log('Phase 7b: Enforcing top-3 SERP gap/entity coverage...');
+    const gapCoverage = this.enforceGapCoverage(html, gapTargets);
+    html = gapCoverage.html;
+    this.log(
+      `Phase 7b ✅ Gap coverage: ${gapTargets.length - gapCoverage.missingAfter.length}/${gapTargets.length} terms covered.`
+    );
+
     // ── Phase 8: SOTA Refinement & Aesthetics ─────────────────────────────
     this.log('Phase 8: Anti-AI Polish & Premium Design Overlay...');
 
