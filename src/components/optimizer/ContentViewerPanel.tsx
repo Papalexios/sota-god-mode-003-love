@@ -53,6 +53,22 @@ function formatHtml(html: string): string {
     .trim();
 }
 
+interface EditorAutoSavePayload {
+  content: string;
+  sourceHash: string;
+  savedAt: number;
+}
+
+function getContentHash(input: string): string {
+  const str = input || '';
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return `${str.length}:${hash >>> 0}`;
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════════
@@ -220,13 +236,38 @@ export function ContentViewerPanel({
   useEffect(() => {
     if (!item?.id) return;
     const autoSaveKey = `sota-editor-autosave-${item.id}`;
-    const autoSaved = localStorage.getItem(autoSaveKey);
-    const initialContent = autoSaved && autoSaved !== content ? autoSaved : content;
+    const autoSavedRaw = localStorage.getItem(autoSaveKey);
+    const sourceHash = getContentHash(content);
+
+    let restoredDraft: string | null = null;
+
+    if (autoSavedRaw) {
+      try {
+        const parsed = JSON.parse(autoSavedRaw) as Partial<EditorAutoSavePayload>;
+        if (
+          typeof parsed?.content === 'string' &&
+          parsed.sourceHash === sourceHash &&
+          parsed.content !== content
+        ) {
+          restoredDraft = parsed.content;
+        }
+      } catch {
+        // Legacy format (raw string). Avoid restoring stale drafts across regenerations.
+        if (autoSavedRaw === content) {
+          restoredDraft = autoSavedRaw;
+        } else {
+          localStorage.removeItem(autoSaveKey);
+        }
+      }
+    }
+
+    const initialContent = restoredDraft ?? content;
     setEditedContent(initialContent);
     setEditorHistory([initialContent]);
     setHistoryIndex(0);
     setIsEditorDirty(initialContent !== content);
-    if (autoSaved && autoSaved !== content) {
+
+    if (restoredDraft) {
       toast.info('Restored unsaved changes from auto-save');
     }
   }, [content, item?.id]);
@@ -235,10 +276,15 @@ export function ContentViewerPanel({
     if (!item?.id || !isEditorDirty) return;
     const key = `sota-editor-autosave-${item.id}`;
     const timeout = setTimeout(() => {
-      localStorage.setItem(key, editedContent);
+      const payload: EditorAutoSavePayload = {
+        content: editedContent,
+        sourceHash: getContentHash(content),
+        savedAt: Date.now(),
+      };
+      localStorage.setItem(key, JSON.stringify(payload));
     }, 1500);
     return () => clearTimeout(timeout);
-  }, [editedContent, isEditorDirty, item?.id]);
+  }, [content, editedContent, isEditorDirty, item?.id]);
 
   const handleEditorChange = useCallback((newContent: string) => {
     setEditedContent(newContent);
@@ -319,12 +365,12 @@ export function ContentViewerPanel({
 
   const handlePublishToWordPress = async () => {
     if (!item) return;
-    // ✅ FIX: Always use editedContent — it's initialized from content on mount
-    // and always holds the latest version (edited or original).
-    // The old code used `isEditorDirty ? editedContent : content` which broke
-    // after clicking "Save" because Save sets isEditorDirty=false, causing
-    // the publish to send the ORIGINAL content instead of the saved edits.
-    const publishContent = editedContent || content;
+
+    // Use canonical content by default; use draft only when it diverges.
+    const canonicalContent = generatedContent?.content || content;
+    const publishContent = (isEditorDirty || editedContent !== canonicalContent)
+      ? editedContent
+      : canonicalContent;
 
     if (!publishContent) return;
 
