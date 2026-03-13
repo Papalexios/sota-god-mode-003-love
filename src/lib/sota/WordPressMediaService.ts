@@ -117,22 +117,44 @@ export class WordPressMediaService {
   async getRelevantImages(keyword: string, count: number = 2): Promise<WordPressMediaItem[]> {
     if (!this.isConfigured()) return [];
 
-    try {
-      const response = await fetch('/api/wp-media', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          wpUrl: this.config.wpUrl,
-          username: this.config.wpUsername,
-          appPassword: this.config.wpAppPassword,
-          keyword,
-          limit: 20,
-        }),
-      });
+    const payload = {
+      wpUrl: this.config.wpUrl,
+      username: this.config.wpUsername,
+      appPassword: this.config.wpAppPassword,
+      keyword,
+      limit: 24,
+    };
 
-      if (!response.ok) return [];
-      const json = await response.json().catch(() => null);
-      const rawItems = Array.isArray(json?.images) ? json.images : [];
+    const endpoints = ['/api/wp-media', '/functions/api/wp-media'];
+
+    try {
+      let rawItems: any[] = [];
+
+      for (const endpoint of endpoints) {
+        try {
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+
+          if (!response.ok) {
+            if (response.status === 404) continue;
+            continue;
+          }
+
+          const json = await response.json().catch(() => null);
+          const items = Array.isArray(json?.images) ? json.images : [];
+          if (items.length > 0) {
+            rawItems = items;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      if (rawItems.length === 0) return [];
 
       const normalized = rawItems
         .map((item: any) => this.normalizeRawItem(item))

@@ -8,6 +8,7 @@ interface SelfCritiqueOptions {
   keyword: string;
   title: string;
   html: string;
+  contentGaps?: string[];
   maxPasses?: number;
   minScore?: number;
   onProgress?: (message: string) => void;
@@ -45,22 +46,27 @@ function countWords(html: string): number {
   return html.replace(/<[^>]*>/g, ' ').split(/\s+/).filter(Boolean).length;
 }
 
-function score(html: string, keyword: string): number {
-  return calculateQualityScore(html, keyword, []).overall;
+function score(html: string, keyword: string, contentGaps: string[] = []): number {
+  return calculateQualityScore(html, keyword, [], contentGaps).overall;
 }
 
-function buildCritiquePrompt(title: string, keyword: string, draftHtml: string): string {
+function buildCritiquePrompt(title: string, keyword: string, draftHtml: string, contentGaps: string[] = []): string {
+  const gapSection = contentGaps.length > 0
+    ? `\nMANDATORY GAP TERMS/ENTITIES TO WEAVE NATURALLY:\n${contentGaps.slice(0, 20).map((gap, i) => `${i + 1}. ${gap}`).join('\n')}\n`
+    : '';
+
   return `Rewrite and improve this draft article.
 
 TITLE: ${title}
 PRIMARY KEYWORD: ${keyword}
-
+${gapSection}
 GOALS:
 1) Make it significantly more helpful (specific steps, examples, numbers, clear decisions).
 2) Make it easier to read (shorter paragraphs, tighter sentences, no jargon bloat).
 3) Remove fluff and AI-sounding transitions.
 4) Keep the same core structure and keep all useful links/media.
 5) Ensure the final result remains premium, modern, and mobile-friendly HTML.
+6) Ensure the mandatory gap terms/entities above are included naturally in useful context.
 
 OUTPUT RULES:
 - Return FULL HTML only.
@@ -76,7 +82,7 @@ export async function refineWithSelfCritique(options: SelfCritiqueOptions): Prom
   const targetScore = Math.max(80, Math.min(98, options.minScore ?? 90));
 
   let workingHtml = extractArticleHtml(options.html);
-  let workingScore = score(workingHtml, options.keyword);
+  let workingScore = score(workingHtml, options.keyword, options.contentGaps || []);
   const initialScore = workingScore;
   let passes = 0;
 
@@ -87,11 +93,11 @@ export async function refineWithSelfCritique(options: SelfCritiqueOptions): Prom
 
     try {
       const rewrite = await options.engine.generateWithModel({
-        prompt: buildCritiquePrompt(options.title, options.keyword, workingHtml),
+        prompt: buildCritiquePrompt(options.title, options.keyword, workingHtml, options.contentGaps || []),
         systemPrompt: CRITIQUE_SYSTEM_PROMPT,
         model: options.model,
         apiKeys: {} as any,
-        temperature: 0.35,
+        temperature: 0.25,
         maxTokens: 16384,
       });
 
@@ -102,10 +108,10 @@ export async function refineWithSelfCritique(options: SelfCritiqueOptions): Prom
       const newWords = countWords(candidate);
       if (newWords < Math.max(900, Math.floor(oldWords * 0.82))) continue;
 
-      const candidateScore = score(candidate, options.keyword);
+      const candidateScore = score(candidate, options.keyword, options.contentGaps || []);
 
-      // Accept if improved or only slightly lower while much cleaner.
-      if (candidateScore >= workingScore - 2) {
+      // Accept only when quality actually improves.
+      if (candidateScore >= workingScore + 1 || candidateScore >= targetScore) {
         workingHtml = candidate;
         workingScore = candidateScore;
         passes++;

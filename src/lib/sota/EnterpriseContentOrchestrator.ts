@@ -148,6 +148,92 @@ export class EnterpriseContentOrchestrator {
     this.telemetry.errors.push(msg);
   }
 
+  private normalizeTextForGap(text: string): string {
+    return (text || '').toLowerCase().replace(/<[^>]*>/g, ' ').replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  private buildTopGapTargetsFromSerp(analysis: SERPAnalysis, keyword: string, limit = 20): string[] {
+    const stopWords = new Set([
+      'about', 'after', 'again', 'also', 'and', 'are', 'been', 'best', 'between', 'both', 'but', 'can', 'for',
+      'from', 'guide', 'have', 'into', 'more', 'most', 'over', 'that', 'than', 'their', 'them', 'then', 'there',
+      'these', 'they', 'this', 'those', 'with', 'your', 'what', 'when', 'where', 'which', 'while', 'will', 'would',
+      'could', 'should', 'using', 'used', 'into', 'only', 'much', 'many', 'very', 'through'
+    ]);
+
+    const keywordTokens = new Set(keyword.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+    const top3 = (analysis.topCompetitors || []).slice(0, 3);
+
+    const tokenScore = new Map<string, number>();
+    const boost = (token: string, weight: number) => {
+      const t = token.trim().toLowerCase();
+      if (!t || t.length < 4 || stopWords.has(t) || keywordTokens.has(t)) return;
+      tokenScore.set(t, (tokenScore.get(t) || 0) + weight);
+    };
+
+    for (const competitor of top3) {
+      const combined = `${competitor.title || ''} ${competitor.snippet || ''}`.toLowerCase();
+      const words = combined.split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
+      words.forEach((w) => boost(w, 1));
+
+      for (let i = 0; i < words.length - 1; i++) {
+        const a = words[i];
+        const b = words[i + 1];
+        if (!a || !b) continue;
+        if (a.length < 4 || b.length < 4) continue;
+        if (stopWords.has(a) || stopWords.has(b)) continue;
+        boost(`${a} ${b}`, 2);
+      }
+    }
+
+    const rankedFromTop3 = Array.from(tokenScore.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([term]) => term);
+
+    const merged = [
+      ...(analysis.contentGaps || []),
+      ...(analysis.semanticEntities || []),
+      ...rankedFromTop3,
+    ];
+
+    const dedup = new Set<string>();
+    const finalTerms: string[] = [];
+    for (const term of merged) {
+      const normalized = term.trim().toLowerCase();
+      if (!normalized || normalized.length < 4) continue;
+      if (dedup.has(normalized)) continue;
+      dedup.add(normalized);
+      finalTerms.push(term.trim());
+      if (finalTerms.length >= limit) break;
+    }
+
+    return finalTerms;
+  }
+
+  private enforceGapCoverage(html: string, gapTargets: string[]): { html: string; missingBefore: string[]; missingAfter: string[] } {
+    if (!gapTargets.length) return { html, missingBefore: [], missingAfter: [] };
+
+    const isCovered = (text: string, gap: string): boolean => {
+      const tokens = gap.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 3);
+      if (tokens.length === 0) return true;
+      const matches = tokens.filter((token) => text.includes(token)).length;
+      return matches >= Math.max(1, Math.ceil(tokens.length * 0.5));
+    };
+
+    const textBefore = this.normalizeTextForGap(html);
+    const missingBefore = gapTargets.filter((gap) => !isCovered(textBefore, gap));
+    if (missingBefore.length === 0) return { html, missingBefore: [], missingAfter: [] };
+
+    const injectedHtml = injectMissingTerms(html, missingBefore.slice(0, 20));
+    const textAfter = this.normalizeTextForGap(injectedHtml);
+    const missingAfter = gapTargets.filter((gap) => !isCovered(textAfter, gap));
+
+    return {
+      html: injectedHtml,
+      missingBefore,
+      missingAfter,
+    };
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   // NEURONWRITER INTEGRATION v9.0 — AUTO-CREATE + FULL DATA POLLING
   // ─────────────────────────────────────────────────────────────────────────
@@ -785,6 +871,16 @@ export class EnterpriseContentOrchestrator {
     this.config.currentTitle = options.title || options.keyword;
     this.config.authorName = options.authorName || 'SOTA AI Research';
 
+    // ── Phase 0: Top-3 SERP Scan + Gap Analysis ─────────────────────────────
+    this.log('Phase 0: Top-3 SERP ranking scan and gap analysis...');
+    const serpAnalysis = await this.serpAnalyzer.analyze(options.keyword);
+    const gapTargets = this.buildTopGapTargetsFromSerp(serpAnalysis, options.keyword, 20);
+    const top3Competitors = (serpAnalysis.topCompetitors || []).slice(0, 3);
+
+    this.log(
+      `Phase 0 ✅ Top competitors: ${top3Competitors.length}, gap targets: ${gapTargets.length}`
+    );
+
     // ── Phase 1: NeuronWriter Semantic Context Initialization ──────────────
     this.log('Phase 1: NeuronWriter Semantic Context Initialization...');
     const neuron = await this.maybeInitNeuronWriter(options.keyword, options);
@@ -836,13 +932,23 @@ export class EnterpriseContentOrchestrator {
 
     const userPrompt = buildMasterUserPrompt({
       primaryKeyword: options.keyword,
+      secondaryKeywords: gapTargets,
       title: options.title || options.keyword,
       contentType: options.contentType || 'pillar',
-      targetWordCount: neuron?.analysis?.recommended_length || options.targetWordCount || 3500,
+      targetWordCount: Math.max(
+        Number(neuron?.analysis?.recommended_length || 0),
+        Number(serpAnalysis.recommendedWordCount || 0),
+        Number(options.targetWordCount || 3500),
+      ),
       neuronWriterSection,
       authorName: this.config.authorName,
       internalLinks: options.internalLinks || [],
       youtubeEmbed,
+      serpData: {
+        competitorTitles: top3Competitors.map((c) => c.title),
+        peopleAlsoAsk: gapTargets,
+        avgWordCount: serpAnalysis.avgWordCount,
+      },
     } as any);
 
     const genResult = await this.engine.generateWithModel({
@@ -903,6 +1009,7 @@ export class EnterpriseContentOrchestrator {
         keyword: options.keyword,
         title: options.title || options.keyword,
         html,
+        contentGaps: gapTargets,
         maxPasses: 2,
         minScore: 90,
       });
@@ -911,6 +1018,14 @@ export class EnterpriseContentOrchestrator {
     } catch (e) {
       this.warn(`Phase 7: Self-critique skipped (${e}).`);
     }
+
+    // ── Phase 7b: SERP Gap Coverage Enforcement ────────────────────────────
+    this.log('Phase 7b: Enforcing top-3 SERP gap/entity coverage...');
+    const gapCoverage = this.enforceGapCoverage(html, gapTargets);
+    html = gapCoverage.html;
+    this.log(
+      `Phase 7b ✅ Gap coverage: ${gapTargets.length - gapCoverage.missingAfter.length}/${gapTargets.length} terms covered.`
+    );
 
     // ── Phase 8: SOTA Refinement & Aesthetics ─────────────────────────────
     this.log('Phase 8: Anti-AI Polish & Premium Design Overlay...');
@@ -1035,7 +1150,7 @@ export class EnterpriseContentOrchestrator {
         readabilityGrade: 8,
         estimatedReadTime: Math.ceil(wordCount / 200)
       },
-      qualityScore: calculateQualityScore(html, options.keyword, finalInternalLinks.map(l => l.targetUrl)),
+      qualityScore: calculateQualityScore(html, options.keyword, finalInternalLinks.map(l => l.targetUrl), gapTargets),
       internalLinks: finalInternalLinks,
       schema,
       eeat: {
@@ -1053,20 +1168,25 @@ export class EnterpriseContentOrchestrator {
         factChecked: true
       },
       serpAnalysis: {
-        avgWordCount: neuron?.analysis?.recommended_length || 2000,
-        recommendedWordCount: neuron?.analysis?.recommended_length || 2500,
-        userIntent: 'informational',
-        commonHeadings: [
+        avgWordCount: serpAnalysis.avgWordCount || neuron?.analysis?.recommended_length || 2000,
+        recommendedWordCount: serpAnalysis.recommendedWordCount || neuron?.analysis?.recommended_length || 2500,
+        userIntent: serpAnalysis.userIntent || 'informational',
+        commonHeadings: Array.from(new Set([
+          ...(serpAnalysis.commonHeadings || []),
           ...(neuron?.analysis?.headingsH2 || []).map(h => h.text),
-          ...(neuron?.analysis?.headingsH3 || []).map(h => h.text)
-        ],
-        contentGaps: [],
-        semanticEntities: (neuron?.analysis?.entities || []).map(e => e.entity),
-        topCompetitors: [],
-        recommendedHeadings: [
+          ...(neuron?.analysis?.headingsH3 || []).map(h => h.text),
+        ])),
+        contentGaps: gapTargets,
+        semanticEntities: Array.from(new Set([
+          ...(serpAnalysis.semanticEntities || []),
+          ...(neuron?.analysis?.entities || []).map(e => e.entity),
+        ])),
+        topCompetitors: top3Competitors,
+        recommendedHeadings: Array.from(new Set([
+          ...(serpAnalysis.recommendedHeadings || []),
           ...(neuron?.analysis?.headingsH2 || []).map(h => h.text),
-          ...(neuron?.analysis?.headingsH3 || []).map(h => h.text)
-        ],
+          ...(neuron?.analysis?.headingsH3 || []).map(h => h.text),
+        ])),
       },
       generatedAt: new Date(),
       model: genResult.model,

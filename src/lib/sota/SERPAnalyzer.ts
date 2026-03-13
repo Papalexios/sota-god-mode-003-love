@@ -22,16 +22,21 @@ export class SERPAnalyzer {
   }
 
   async fetchSERP(keyword: string, country: string = 'us'): Promise<SERPResult[]> {
-    if (!this.serperApiKey) {
-      console.warn('No Serper API key provided');
-      return [];
-    }
-
-    // Check cache
     const cacheKey = { keyword, country };
     const cached = serpCache.get<SERPResult[]>(cacheKey);
     if (cached) {
       return cached;
+    }
+
+    const fetchFallbackAndCache = async () => {
+      const fallback = await this.fetchSERPFallback(keyword);
+      serpCache.set(cacheKey, fallback, 15 * 60 * 1000);
+      return fallback;
+    };
+
+    if (!this.serperApiKey) {
+      console.warn('No Serper API key provided, using fallback SERP source');
+      return fetchFallbackAndCache();
     }
 
     try {
@@ -48,12 +53,25 @@ export class SERPAnalyzer {
         })
       });
 
+      const rawText = await response.text();
+
       if (!response.ok) {
+        const lowerBody = rawText.toLowerCase();
+        const isCreditsError =
+          lowerBody.includes('not enough credits') ||
+          lowerBody.includes('quota') ||
+          lowerBody.includes('insufficient');
+
+        if (isCreditsError) {
+          console.warn('Serper credits exhausted for SERP analysis, using fallback SERP source');
+          return fetchFallbackAndCache();
+        }
+
         throw new Error(`Serper API error: ${response.status}`);
       }
 
-      const data = await response.json();
-      const results: SERPResult[] = (data.organic || []).map((result: Record<string, unknown>, index: number) => ({
+      const data = JSON.parse(rawText || '{}');
+      const results: SERPResult[] = (Array.isArray(data.organic) ? data.organic : []).map((result: Record<string, unknown>, index: number) => ({
         title: result.title as string || '',
         url: result.link as string || '',
         snippet: result.snippet as string || '',
@@ -61,19 +79,87 @@ export class SERPAnalyzer {
         domain: this.extractDomain(result.link as string || '')
       }));
 
-      // ✅ FIX: Cache the plain results array, NOT Promise.resolve(results).
-      //    Old code:  serpCache.set(cacheKey, Promise.resolve(results), 30 * 60 * 1000);
-      //    This cached a Promise object. The old cache.ts called .finally() on
-      //    values passed to .set(). When other code (SOTAContentGenerationEngine)
-      //    passed a plain object to generationCache.set(), the old cache tried
-      //    .finally() on it → TypeError → crash.
-      serpCache.set(cacheKey, results, 30 * 60 * 1000);
+      if (results.length === 0) {
+        return fetchFallbackAndCache();
+      }
 
+      serpCache.set(cacheKey, results, 30 * 60 * 1000);
       return results;
     } catch (error) {
       console.error('Error fetching SERP:', error);
+      return fetchFallbackAndCache();
+    }
+  }
+
+  private async fetchSERPFallback(keyword: string): Promise<SERPResult[]> {
+    try {
+      const sources = [
+        `https://duckduckgo.com/html/?q=${encodeURIComponent(keyword)}`,
+        `https://r.jina.ai/http://https://www.bing.com/search?q=${encodeURIComponent(keyword)}`,
+      ];
+
+      let html = '';
+      for (const source of sources) {
+        html = await this.fetchTextViaServerProxy(source);
+        if (html && html.length > 200) break;
+      }
+      if (!html) return [];
+      return this.extractDuckDuckGoResults(html).slice(0, 10);
+    } catch (error) {
+      console.error('Fallback SERP fetch failed:', error);
       return [];
     }
+  }
+
+  private async fetchTextViaServerProxy(url: string): Promise<string> {
+    const response = await fetch(`/api/fetch-sitemap?url=${encodeURIComponent(url)}`);
+    if (!response.ok) return '';
+
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const json = await response.json().catch(() => null);
+      return String(json?.content || '');
+    }
+
+    return await response.text();
+  }
+
+  private extractDuckDuckGoResults(html: string): SERPResult[] {
+    const results: SERPResult[] = [];
+    const seen = new Set<string>();
+
+    const anchorRegex = /<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+    let match: RegExpExecArray | null;
+
+    while ((match = anchorRegex.exec(html)) !== null) {
+      const rawHref = match[1] || '';
+      const title = (match[2] || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+
+      let decodedHref = rawHref;
+      if (rawHref.includes('uddg=')) {
+        const encoded = rawHref.match(/[?&]uddg=([^&]+)/i)?.[1];
+        if (encoded) decodedHref = decodeURIComponent(encoded);
+      }
+
+      const normalized = decodedHref.startsWith('//') ? `https:${decodedHref}` : decodedHref;
+      if (!/^https?:\/\//i.test(normalized)) continue;
+
+      const key = normalized.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      results.push({
+        title: title || this.extractDomain(normalized),
+        url: normalized,
+        snippet: '',
+        position: results.length + 1,
+        domain: this.extractDomain(normalized),
+      });
+
+      if (results.length >= 10) break;
+    }
+
+    return results;
   }
 
   private extractDomain(url: string): string {
