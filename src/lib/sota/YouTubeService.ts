@@ -11,8 +11,8 @@ export class YouTubeService {
 
   async searchVideos(query: string, maxResults: number = 5): Promise<YouTubeVideo[]> {
     if (!this.serperApiKey) {
-      console.warn('No Serper API key provided for YouTube search');
-      return [];
+      console.warn('No Serper API key provided for YouTube search - using fallback search');
+      return this.searchVideosFallback(query, maxResults);
     }
 
     try {
@@ -28,14 +28,27 @@ export class YouTubeService {
         })
       });
 
+      const rawText = await response.text();
+
       if (!response.ok) {
+        const lowerBody = rawText.toLowerCase();
+        const isCreditsError =
+          lowerBody.includes('not enough credits') ||
+          lowerBody.includes('quota') ||
+          lowerBody.includes('insufficient');
+
+        if (isCreditsError) {
+          console.warn('Serper credits exhausted for YouTube search - using fallback search');
+          return this.searchVideosFallback(query, maxResults);
+        }
+
         throw new Error(`Serper API error: ${response.status}`);
       }
 
-      const data = await response.json();
-      const videos = data.videos || [];
+      const data = JSON.parse(rawText || '{}');
+      const videos = Array.isArray(data.videos) ? data.videos : [];
 
-      return videos.slice(0, maxResults).map((video: Record<string, unknown>) => ({
+      const mapped = videos.slice(0, maxResults).map((video: Record<string, unknown>) => ({
         id: this.extractVideoId(video.link as string || ''),
         title: video.title as string || '',
         channelTitle: video.channel as string || '',
@@ -44,11 +57,94 @@ export class YouTubeService {
         publishedAt: video.date as string || '',
         viewCount: undefined,
         duration: video.duration as string || undefined
-      }));
+      })).filter((video: YouTubeVideo) => !!video.id);
+
+      if (mapped.length > 0) return mapped;
+      return this.searchVideosFallback(query, maxResults);
     } catch (error) {
       console.error('Error searching YouTube videos:', error);
+      return this.searchVideosFallback(query, maxResults);
+    }
+  }
+
+  private async searchVideosFallback(query: string, maxResults: number): Promise<YouTubeVideo[]> {
+    try {
+      const ddgUrl = `https://duckduckgo.com/html/?q=${encodeURIComponent(`${query} site:youtube.com/watch`)}`;
+      const html = await this.fetchTextViaServerProxy(ddgUrl);
+      if (!html) return [];
+
+      const candidates = this.extractYoutubeCandidatesFromHtml(html)
+        .filter((item) => this.extractVideoId(item.url))
+        .slice(0, maxResults);
+
+      return candidates.map((item, idx) => {
+        const id = this.extractVideoId(item.url);
+        return {
+          id,
+          title: item.title || `${query} video ${idx + 1}`,
+          channelTitle: '',
+          description: `Relevant YouTube resource for ${query}`,
+          thumbnailUrl: id ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : '',
+          publishedAt: '',
+          viewCount: undefined,
+          duration: undefined,
+        };
+      });
+    } catch (error) {
+      console.error('Fallback YouTube search failed:', error);
       return [];
     }
+  }
+
+  private async fetchTextViaServerProxy(url: string): Promise<string> {
+    const response = await fetch(`/api/fetch-sitemap?url=${encodeURIComponent(url)}`);
+    if (!response.ok) return '';
+
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const json = await response.json().catch(() => null);
+      return String(json?.content || '');
+    }
+
+    return await response.text();
+  }
+
+  private extractYoutubeCandidatesFromHtml(html: string): Array<{ url: string; title: string }> {
+    const out: Array<{ url: string; title: string }> = [];
+    const seen = new Set<string>();
+
+    const anchorRegex = /<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+    let anchorMatch: RegExpExecArray | null;
+
+    while ((anchorMatch = anchorRegex.exec(html)) !== null) {
+      const rawHref = anchorMatch[1] || '';
+      const title = (anchorMatch[2] || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+
+      let decoded = rawHref;
+      if (rawHref.includes('uddg=')) {
+        const encoded = rawHref.match(/[?&]uddg=([^&]+)/i)?.[1];
+        if (encoded) decoded = decodeURIComponent(encoded);
+      }
+
+      const normalized = decoded.startsWith('//') ? `https:${decoded}` : decoded;
+      if (!/https?:\/\/(www\.)?(youtube\.com|youtu\.be)\//i.test(normalized)) continue;
+
+      const key = normalized.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ url: normalized, title });
+    }
+
+    const directRegex = /https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=[\w-]{6,}|youtu\.be\/[\w-]{6,})[^\s"'<>]*/gi;
+    const directMatches = html.match(directRegex) || [];
+    for (const match of directMatches) {
+      const key = match.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ url: match, title: '' });
+    }
+
+    return out;
   }
 
   private extractVideoId(url: string): string {
