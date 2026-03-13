@@ -142,6 +142,7 @@ CRITICAL INSTRUCTION: NEVER truncate. NEVER ask to continue. NEVER write "[conti
 export function buildMasterUserPrompt(config: ContentPromptConfig): string {
   const {
     primaryKeyword,
+    secondaryKeywords,
     title,
     targetWordCount,
     neuronWriterSection,
@@ -149,12 +150,21 @@ export function buildMasterUserPrompt(config: ContentPromptConfig): string {
     youtubeEmbed,
     authorName,
     contentType,
+    serpData,
   } = config;
 
   const hasNeuronData = neuronWriterSection && !neuronWriterSection.includes('No NeuronWriter');
 
   const linksSection = (internalLinks && internalLinks.length > 0)
     ? `\nINTERNAL LINKS — weave these naturally as contextual anchor text (never "click here"):\n${internalLinks.map(l => `  • "${l.anchor}" → ${l.url}`).join('\n')}\n`
+    : '';
+
+  const secondaryKeywordsSection = (secondaryKeywords && secondaryKeywords.length > 0)
+    ? `\nTOP MISSING KEYWORDS/ENTITIES TO WEAVE NATURALLY (MANDATORY):\n${secondaryKeywords.slice(0, 20).map((term, idx) => `  ${idx + 1}. ${term}`).join('\n')}\n`
+    : '';
+
+  const serpGapSection = serpData
+    ? `\nSERP GAP ANALYSIS (TOP 3 COMPETITORS):\n- Competitor Titles:\n${(serpData.competitorTitles || []).slice(0, 3).map((title, idx) => `  ${idx + 1}. ${title}`).join('\n')}\n- Missing Topics/Questions To Cover:\n${(serpData.peopleAlsoAsk || []).slice(0, 20).map((gap, idx) => `  ${idx + 1}. ${gap}`).join('\n')}\n- Competitor average length signal: ${serpData.avgWordCount || targetWordCount} words\n`
     : '';
 
   // Support multiple YouTube embeds
@@ -176,7 +186,7 @@ PRIMARY KEYWORD: ${primaryKeyword}
 MINIMUM LENGTH: ${targetWordCount} words — every section below is required
 AUTHOR: ${authorName || 'Staff Writer'}
 
-${linksSection}${youtubeSection}
+${linksSection}${youtubeSection}${secondaryKeywordsSection}${serpGapSection}
 ${hasNeuronData ? `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 NEURONWRITER OPTIMIZATION DATA — THIS IS YOUR SEO BIBLE
