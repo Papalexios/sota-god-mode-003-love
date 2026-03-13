@@ -128,7 +128,8 @@ export class ReferenceService {
     try {
       const sources = [
         `https://duckduckgo.com/html/?q=${encodeURIComponent(query)}`,
-        `https://r.jina.ai/http://https://www.bing.com/search?q=${encodeURIComponent(query)}`,
+        `https://www.bing.com/search?q=${encodeURIComponent(query)}`,
+        `https://r.jina.ai/http://www.bing.com/search?q=${encodeURIComponent(query)}`,
       ];
 
       let html = '';
@@ -139,12 +140,15 @@ export class ReferenceService {
       if (!html) return [];
 
       const links = this.extractDuckDuckGoLinks(html);
-      const parsed = links
-        .map((item) => this.parseReference({ title: item.title, link: item.url }))
-        .filter((ref) => ref.authorityScore >= 60)
-        .slice(0, maxResults);
+      const parsed = links.map((item) => this.parseReference({ title: item.title, link: item.url }));
 
-      return parsed;
+      const highAuthority = parsed.filter((ref) => ref.authorityScore >= 60);
+      if (highAuthority.length >= Math.min(3, maxResults)) {
+        return highAuthority.slice(0, maxResults);
+      }
+
+      const mediumAuthority = parsed.filter((ref) => ref.authorityScore >= 50);
+      return (mediumAuthority.length > 0 ? mediumAuthority : parsed).slice(0, maxResults);
     } catch (error) {
       console.error('Fallback reference search failed:', error);
       return [];
@@ -190,6 +194,18 @@ export class ReferenceService {
       out.push({ title, url: normalized });
 
       if (out.length >= 80) break;
+    }
+
+    const directRegex = /https?:\/\/(?:www\.)?[a-z0-9.-]+\/[^\s"'<>)]*/gi;
+    const directMatches = html.match(directRegex) || [];
+    for (const rawUrl of directMatches) {
+      const normalized = rawUrl.replace(/[),.;]+$/, '');
+      if (!/^https?:\/\//i.test(normalized)) continue;
+      const key = normalized.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ title: '', url: normalized });
+      if (out.length >= 120) break;
     }
 
     return out;

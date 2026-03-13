@@ -374,17 +374,33 @@ export class EnterpriseContentOrchestrator {
   private async fetchYouTubeVideos(keyword: string): Promise<YouTubeVideo[]> {
     try {
       this.log('Searching for relevant YouTube videos...');
-      const videos = await this.youtubeService.getRelevantVideos(keyword, 'guide');
+      const primary = await this.youtubeService.getRelevantVideos(keyword, 'guide');
+      if (primary.length > 0) {
+        const selected = primary.slice(0, 3).filter(v => v.id && v.id.length > 0);
+        this.log(`YouTube: Found ${selected.length} relevant videos.`);
+        return selected;
+      }
 
-      if (videos.length === 0) {
-        this.warn('YouTube: No relevant videos found.');
+      this.warn('YouTube: Primary search returned no videos. Running fallback query set...');
+      const fallbackQueries = [`${keyword} tutorial`, `how to ${keyword}`, `${keyword} explained`];
+      const fallbackBatches = await Promise.all(fallbackQueries.map((q) => this.youtubeService.searchVideos(q, 5)));
+
+      const dedup = new Map<string, YouTubeVideo>();
+      for (const batch of fallbackBatches) {
+        for (const video of batch) {
+          if (!video.id) continue;
+          if (!dedup.has(video.id)) dedup.set(video.id, video);
+        }
+      }
+
+      const fallbackSelected = Array.from(dedup.values()).slice(0, 3);
+      if (fallbackSelected.length === 0) {
+        this.warn('YouTube: No relevant videos found after fallback search.');
         return [];
       }
 
-      // Take 1-3 videos
-      const selected = videos.slice(0, 3).filter(v => v.id && v.id.length > 0);
-      this.log(`YouTube: Found ${selected.length} relevant videos.`);
-      return selected;
+      this.log(`YouTube: Fallback recovered ${fallbackSelected.length} videos.`);
+      return fallbackSelected;
     } catch (e) {
       this.warn(`YouTube: Video search failed (${e}). Proceeding without videos.`);
       return [];
@@ -910,7 +926,36 @@ export class EnterpriseContentOrchestrator {
     // ── Phase 4: WordPress Media Discovery (parallel) ───────────────────────
     const wpImagesPromise = this.fetchWordPressImages(options.keyword);
 
-    const [videos, references, wpImages] = await Promise.all([videosPromise, referencesPromise, wpImagesPromise]);
+    let [videos, references, wpImages] = await Promise.all([videosPromise, referencesPromise, wpImagesPromise]);
+
+    if (references.length === 0 && top3Competitors.length > 0) {
+      const serpFallbackRefs: Reference[] = top3Competitors
+        .map((competitor) => {
+          const url = competitor.url || '';
+          if (!/^https?:\/\//i.test(url)) return null;
+          let domain = '';
+          try {
+            domain = new URL(url).hostname.replace('www.', '');
+          } catch {
+            domain = '';
+          }
+
+          return {
+            title: competitor.title || domain || options.keyword,
+            url,
+            type: domain.endsWith('.gov') ? 'government' : 'industry',
+            domain,
+            authorityScore: this.referenceService.calculateAuthorityScore(url),
+          } as Reference;
+        })
+        .filter((ref): ref is Reference => !!ref)
+        .slice(0, 8);
+
+      if (serpFallbackRefs.length > 0) {
+        references = serpFallbackRefs;
+        this.warn(`References: using ${references.length} SERP competitor links as fallback.`);
+      }
+    }
 
     this.log(`Phase 2 ✅ YouTube: ${videos.length} videos found.`);
     this.log(`Phase 3 ✅ References: ${references.length} high-authority sources found.`);
@@ -1003,18 +1048,48 @@ export class EnterpriseContentOrchestrator {
     // ── Phase 7: Built-in Self-Critique Rewrite ────────────────────────────
     try {
       this.log('Phase 7: Running enterprise self-critique pass...');
-      const critique = await refineWithSelfCritique({
+      const scoreBeforeCritique = calculateQualityScore(html, options.keyword, [], gapTargets).overall;
+
+      let critique = await refineWithSelfCritique({
         engine: this.engine,
         model: options.model || this.config.primaryModel || 'gemini',
         keyword: options.keyword,
         title: options.title || options.keyword,
         html,
         contentGaps: gapTargets,
-        maxPasses: 2,
-        minScore: 90,
+        maxPasses: 3,
+        minScore: 92,
       });
+
       html = critique.html;
-      this.log(`Phase 7 ✅ Self-critique improved quality (${critique.initialScore} → ${critique.finalScore}).`);
+      let finalCritiqueScore = critique.finalScore;
+
+      if (finalCritiqueScore < 88 || finalCritiqueScore <= critique.initialScore) {
+        this.warn('Phase 7: Quality gain is weak. Running aggressive second critique pass...');
+        const aggressiveCritique = await refineWithSelfCritique({
+          engine: this.engine,
+          model: options.model || this.config.primaryModel || 'gemini',
+          keyword: options.keyword,
+          title: options.title || options.keyword,
+          html,
+          contentGaps: gapTargets,
+          maxPasses: 3,
+          minScore: 94,
+        });
+
+        if (aggressiveCritique.finalScore > finalCritiqueScore) {
+          html = aggressiveCritique.html;
+          finalCritiqueScore = aggressiveCritique.finalScore;
+        }
+      }
+
+      if (finalCritiqueScore < 82) {
+        this.warn(`Phase 7: Final score ${finalCritiqueScore} is below hard gate. Applying emergency anti-fluff cleanup.`);
+        html = removeAIPhrases(polishReadability(html));
+        finalCritiqueScore = calculateQualityScore(html, options.keyword, [], gapTargets).overall;
+      }
+
+      this.log(`Phase 7 ✅ Self-critique quality (${scoreBeforeCritique} → ${finalCritiqueScore}).`);
     } catch (e) {
       this.warn(`Phase 7: Self-critique skipped (${e}).`);
     }

@@ -91,8 +91,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     const keyword = String(body?.keyword || "").trim();
     const limit = Math.min(30, Math.max(2, Number(body?.limit ?? 20)));
 
-    if (!wpUrlRaw || !username || !appPassword) {
-      return jsonError("wpUrl, username and appPassword are required", 400, cors);
+    if (!wpUrlRaw) {
+      return jsonError("wpUrl is required", 400, cors);
     }
 
     const wpUrl = wpUrlRaw.startsWith("http://") || wpUrlRaw.startsWith("https://")
@@ -104,24 +104,44 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     }
 
     const originUrl = new URL(wpUrl).origin;
-    const auth = btoa(`${username}:${appPassword}`);
-    const headers: Record<string, string> = {
-      Authorization: `Basic ${auth}`,
+    const baseHeaders: Record<string, string> = {
       Accept: "application/json",
-      "User-Agent": "SOTA-MediaFetcher/1.0",
+      "User-Agent": "SOTA-MediaFetcher/1.1",
     };
+    const hasAuth = !!(username && appPassword);
+    const headers: Record<string, string> = hasAuth
+      ? {
+          ...baseHeaders,
+          Authorization: `Basic ${btoa(`${username}:${appPassword}`)}`,
+        }
+      : baseHeaders;
 
     const fields = "id,source_url,alt_text,title,caption,description,media_type,mime_type,media_details,date";
 
     const fetchPage = async (url: string): Promise<any[]> => {
-      try {
-        const res = await fetchWithTimeout(url, { method: "GET", headers }, 12_000);
-        const json = await res.json().catch(() => null);
-        if (!res.ok || !Array.isArray(json)) return [];
-        return json;
-      } catch {
-        return [];
+      const run = async (reqHeaders: Record<string, string>) => {
+        try {
+          const res = await fetchWithTimeout(url, { method: "GET", headers: reqHeaders }, 12_000);
+          const json = await res.json().catch(() => null);
+          return {
+            ok: res.ok,
+            status: res.status,
+            items: Array.isArray(json) ? json : [],
+          };
+        } catch {
+          return { ok: false, status: 0, items: [] as any[] };
+        }
+      };
+
+      const first = await run(headers);
+      if (first.ok && first.items.length > 0) return first.items;
+
+      if (hasAuth && (first.status === 401 || first.status === 403)) {
+        const retry = await run(baseHeaders);
+        if (retry.ok) return retry.items;
       }
+
+      return first.items;
     };
 
     const terms = buildSearchTerms(keyword);
