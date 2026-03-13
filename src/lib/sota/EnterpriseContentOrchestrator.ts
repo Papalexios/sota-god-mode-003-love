@@ -1206,9 +1206,14 @@ export class EnterpriseContentOrchestrator {
     this.log(`Phase 6c ✅ Visual breaks: ${postProcessResult.elementsInjected} elements injected.`);
 
     // ── Phase 9: YouTube + WordPress Media Injection ───────────────────────
-    this.log('Phase 9: Injecting YouTube videos...');
-    html = this.injectYouTubeVideos(html, videos);
-    this.log(`Phase 9 ✅ ${videos.length} videos injected into content.`);
+    this.log('Phase 9: Deduplicating & injecting YouTube videos...');
+    // Remove any AI-generated YouTube iframes first to avoid duplicates
+    html = html.replace(/<iframe[^>]*src=["']https?:\/\/(?:www\.)?youtube\.com\/embed\/[^"']+["'][^>]*><\/iframe>/gi, '');
+    // Now inject exactly ONE video via our controlled method
+    if (videos.length > 0) {
+      html = this.injectYouTubeVideos(html, [videos[0]]);
+    }
+    this.log(`Phase 9 ✅ ${Math.min(videos.length, 1)} video injected into content.`);
 
     this.log('Phase 9b: Injecting WordPress media gallery images...');
     html = this.injectWordPressImages(html, wpImages, options.keyword);

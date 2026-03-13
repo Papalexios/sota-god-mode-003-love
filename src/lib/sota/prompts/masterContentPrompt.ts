@@ -266,9 +266,7 @@ End with:
 <p style="margin:0;opacity:0.9;font-size:17px;line-height:1.6;">[1-2 sentences of specific, practical final guidance]</p>
 </div>
 
-[8] REFERENCES:
-<h2>Sources & Further Reading</h2>
-8-12 numbered references. Use real, plausible sources with author names, publications, and years.
+[8] DO NOT generate a "References" or "Sources & Further Reading" section. The system will auto-inject verified, clickable sources after generation. Any AI-generated reference section will be stripped.
 
 OUTPUT FORMAT:
 - Wrap in: <article style="font-family:'Georgia',serif;max-width:860px;margin:0 auto;color:#1e293b;line-height:1.85;font-size:17px;">
