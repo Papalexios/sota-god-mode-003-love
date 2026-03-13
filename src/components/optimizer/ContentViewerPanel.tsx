@@ -53,6 +53,22 @@ function formatHtml(html: string): string {
     .trim();
 }
 
+interface EditorAutoSavePayload {
+  content: string;
+  sourceHash: string;
+  savedAt: number;
+}
+
+function getContentHash(input: string): string {
+  const str = input || '';
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return `${str.length}:${hash >>> 0}`;
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════════
