@@ -120,6 +120,80 @@ export class YouTubeService {
     }
   }
 
+  async getGuaranteedFallbackVideos(keyword: string, maxResults: number = 1): Promise<YouTubeVideo[]> {
+    const queries = [`${keyword} tutorial`, `how to ${keyword}`, `${keyword} explained`];
+    const dedup = new Map<string, YouTubeVideo>();
+
+    for (const query of queries) {
+      const videos = await this.searchVideosFromResilientApi(query, Math.max(2, maxResults * 2));
+      for (const video of videos) {
+        if (!video.id || dedup.has(video.id)) continue;
+        dedup.set(video.id, video);
+        if (dedup.size >= maxResults) return Array.from(dedup.values());
+      }
+    }
+
+    return Array.from(dedup.values()).slice(0, maxResults);
+  }
+
+  private async searchVideosFromResilientApi(query: string, maxResults: number): Promise<YouTubeVideo[]> {
+    const sources = [
+      `https://piped.video/api/v1/search?q=${encodeURIComponent(query)}&filter=videos`,
+      `https://invidious.privacyredirect.com/api/v1/search?q=${encodeURIComponent(query)}&type=video`,
+      `https://invidious.nerdvpn.de/api/v1/search?q=${encodeURIComponent(query)}&type=video`,
+    ];
+
+    const dedup = new Map<string, YouTubeVideo>();
+
+    for (const source of sources) {
+      try {
+        const payload = await this.fetchTextViaServerProxy(source);
+        if (!payload || payload.length < 8) continue;
+
+        const parsed = JSON.parse(payload);
+        const rows: any[] = Array.isArray(parsed)
+          ? parsed
+          : Array.isArray(parsed?.items)
+            ? parsed.items
+            : [];
+
+        for (const row of rows) {
+          const candidateUrl = String(row?.url || row?.link || row?.href || '');
+          const rawId = String(row?.id || row?.videoId || '');
+          const id = this.extractVideoId(candidateUrl) || (/^[a-zA-Z0-9_-]{11}$/.test(rawId) ? rawId : '');
+          if (!id || dedup.has(id)) continue;
+
+          const title = String(row?.title || '').trim() || `${query} video`;
+          const channelTitle = String(row?.uploaderName || row?.author || row?.channelName || '').trim();
+          const description = String(row?.description || row?.shortDescription || '').trim() || `Relevant YouTube resource for ${query}`;
+          const thumbCandidate = String(row?.thumbnail || row?.thumbnailUrl || row?.thumbnail_url || '');
+          const thumbnailUrl = /^https?:\/\//i.test(thumbCandidate)
+            ? thumbCandidate
+            : `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
+
+          dedup.set(id, {
+            id,
+            title,
+            channelTitle,
+            description,
+            thumbnailUrl,
+            publishedAt: '',
+            viewCount: undefined,
+            duration: String(row?.duration || '') || undefined,
+          });
+
+          if (dedup.size >= maxResults) {
+            return Array.from(dedup.values()).slice(0, maxResults);
+          }
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    return Array.from(dedup.values()).slice(0, maxResults);
+  }
+
   private async fetchTextViaServerProxy(url: string): Promise<string> {
     const response = await fetch(`/api/fetch-sitemap?url=${encodeURIComponent(url)}`);
     if (!response.ok) return '';
