@@ -1215,10 +1215,12 @@ export class EnterpriseContentOrchestrator {
     this.log(`Phase 9b ✅ ${wpImages.length} images injected from media gallery.`);
 
     // ── Phase 10: Reference Section Injection ──────────────────────────────
-    this.log('Phase 10: Injecting references section...');
+    this.log('Phase 10: Stripping AI-generated references, injecting verified sources...');
+    // Remove any AI-generated "Sources & Further Reading" / "References" section BEFORE injecting our verified one
+    html = html.replace(/<h2[^>]*>\s*(?:Sources\s*&?\s*Further\s*Reading|References)\s*<\/h2>[\s\S]*?(?=<h2[^>]*>|<div[^>]*data-(?:article-footer|verified-references)|<\/article>)/gi, '');
     html = this.injectReferencesSection(html, references);
     html = this.ensureExternalLinksClickable(html);
-    this.log(`Phase 10 ✅ ${references.length} references injected.`);
+    this.log(`Phase 10 ✅ ${references.length} verified sources injected.`);
 
     // ── Phase 9: Internal Link Generation & Injection (6–12 links) ─────────
     this.log('Phase 9: Generating & Injecting Internal Links (target: 6-12)...');
