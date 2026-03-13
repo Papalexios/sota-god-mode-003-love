@@ -236,13 +236,38 @@ export function ContentViewerPanel({
   useEffect(() => {
     if (!item?.id) return;
     const autoSaveKey = `sota-editor-autosave-${item.id}`;
-    const autoSaved = localStorage.getItem(autoSaveKey);
-    const initialContent = autoSaved && autoSaved !== content ? autoSaved : content;
+    const autoSavedRaw = localStorage.getItem(autoSaveKey);
+    const sourceHash = getContentHash(content);
+
+    let restoredDraft: string | null = null;
+
+    if (autoSavedRaw) {
+      try {
+        const parsed = JSON.parse(autoSavedRaw) as Partial<EditorAutoSavePayload>;
+        if (
+          typeof parsed?.content === 'string' &&
+          parsed.sourceHash === sourceHash &&
+          parsed.content !== content
+        ) {
+          restoredDraft = parsed.content;
+        }
+      } catch {
+        // Legacy format (raw string). Avoid restoring stale drafts across regenerations.
+        if (autoSavedRaw === content) {
+          restoredDraft = autoSavedRaw;
+        } else {
+          localStorage.removeItem(autoSaveKey);
+        }
+      }
+    }
+
+    const initialContent = restoredDraft ?? content;
     setEditedContent(initialContent);
     setEditorHistory([initialContent]);
     setHistoryIndex(0);
     setIsEditorDirty(initialContent !== content);
-    if (autoSaved && autoSaved !== content) {
+
+    if (restoredDraft) {
       toast.info('Restored unsaved changes from auto-save');
     }
   }, [content, item?.id]);
@@ -251,10 +276,15 @@ export function ContentViewerPanel({
     if (!item?.id || !isEditorDirty) return;
     const key = `sota-editor-autosave-${item.id}`;
     const timeout = setTimeout(() => {
-      localStorage.setItem(key, editedContent);
+      const payload: EditorAutoSavePayload = {
+        content: editedContent,
+        sourceHash: getContentHash(content),
+        savedAt: Date.now(),
+      };
+      localStorage.setItem(key, JSON.stringify(payload));
     }, 1500);
     return () => clearTimeout(timeout);
-  }, [editedContent, isEditorDirty, item?.id]);
+  }, [content, editedContent, isEditorDirty, item?.id]);
 
   const handleEditorChange = useCallback((newContent: string) => {
     setEditedContent(newContent);
