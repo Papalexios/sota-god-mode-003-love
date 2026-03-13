@@ -1150,7 +1150,7 @@ export class EnterpriseContentOrchestrator {
         readabilityGrade: 8,
         estimatedReadTime: Math.ceil(wordCount / 200)
       },
-      qualityScore: calculateQualityScore(html, options.keyword, finalInternalLinks.map(l => l.targetUrl)),
+      qualityScore: calculateQualityScore(html, options.keyword, finalInternalLinks.map(l => l.targetUrl), gapTargets),
       internalLinks: finalInternalLinks,
       schema,
       eeat: {
