@@ -20,6 +20,17 @@ function stripHtml(input: string): string {
   return (input || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+function toRenderableText(input: unknown): string {
+  if (typeof input === 'string') return stripHtml(input);
+  if (input && typeof input === 'object') {
+    const rendered = (input as Record<string, unknown>).rendered;
+    if (typeof rendered === 'string') return stripHtml(rendered);
+    const raw = (input as Record<string, unknown>).raw;
+    if (typeof raw === 'string') return stripHtml(raw);
+  }
+  return '';
+}
+
 function escapeAttr(input: string): string {
   return (input || '')
     .replace(/&/g, '&amp;')
