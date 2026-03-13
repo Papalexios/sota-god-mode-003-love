@@ -193,7 +193,7 @@ export class ReferenceService {
     const listItems = sortedRefs.map((ref) => {
       const safeTitle = ref.title.replace(/"/g, '&quot;');
       const label = typeLabel(ref);
-      return `<li><a href="${ref.url}" rel="noopener noreferrer">${safeTitle}</a> &mdash; <em>${ref.domain}</em>${label}</li>`;
+      return `<li><a href="${ref.url}" target="_blank" rel="noopener noreferrer">${safeTitle}</a> &mdash; <em>${ref.domain}</em>${label}</li>`;
     }).join('\n    ');
 
     return `\n<hr>\n<h2>References &amp; Sources</h2>\n<ol>\n    ${listItems}\n</ol>\n`;
