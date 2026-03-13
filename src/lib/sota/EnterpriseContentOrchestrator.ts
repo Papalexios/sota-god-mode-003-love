@@ -1168,20 +1168,25 @@ export class EnterpriseContentOrchestrator {
         factChecked: true
       },
       serpAnalysis: {
-        avgWordCount: neuron?.analysis?.recommended_length || 2000,
-        recommendedWordCount: neuron?.analysis?.recommended_length || 2500,
-        userIntent: 'informational',
-        commonHeadings: [
+        avgWordCount: serpAnalysis.avgWordCount || neuron?.analysis?.recommended_length || 2000,
+        recommendedWordCount: serpAnalysis.recommendedWordCount || neuron?.analysis?.recommended_length || 2500,
+        userIntent: serpAnalysis.userIntent || 'informational',
+        commonHeadings: Array.from(new Set([
+          ...(serpAnalysis.commonHeadings || []),
           ...(neuron?.analysis?.headingsH2 || []).map(h => h.text),
-          ...(neuron?.analysis?.headingsH3 || []).map(h => h.text)
-        ],
-        contentGaps: [],
-        semanticEntities: (neuron?.analysis?.entities || []).map(e => e.entity),
-        topCompetitors: [],
-        recommendedHeadings: [
+          ...(neuron?.analysis?.headingsH3 || []).map(h => h.text),
+        ])),
+        contentGaps: gapTargets,
+        semanticEntities: Array.from(new Set([
+          ...(serpAnalysis.semanticEntities || []),
+          ...(neuron?.analysis?.entities || []).map(e => e.entity),
+        ])),
+        topCompetitors: top3Competitors,
+        recommendedHeadings: Array.from(new Set([
+          ...(serpAnalysis.recommendedHeadings || []),
           ...(neuron?.analysis?.headingsH2 || []).map(h => h.text),
-          ...(neuron?.analysis?.headingsH3 || []).map(h => h.text)
-        ],
+          ...(neuron?.analysis?.headingsH3 || []).map(h => h.text),
+        ])),
       },
       generatedAt: new Date(),
       model: genResult.model,
