@@ -926,7 +926,36 @@ export class EnterpriseContentOrchestrator {
     // ── Phase 4: WordPress Media Discovery (parallel) ───────────────────────
     const wpImagesPromise = this.fetchWordPressImages(options.keyword);
 
-    const [videos, references, wpImages] = await Promise.all([videosPromise, referencesPromise, wpImagesPromise]);
+    let [videos, references, wpImages] = await Promise.all([videosPromise, referencesPromise, wpImagesPromise]);
+
+    if (references.length === 0 && top3Competitors.length > 0) {
+      const serpFallbackRefs: Reference[] = top3Competitors
+        .map((competitor) => {
+          const url = competitor.url || '';
+          if (!/^https?:\/\//i.test(url)) return null;
+          let domain = '';
+          try {
+            domain = new URL(url).hostname.replace('www.', '');
+          } catch {
+            domain = '';
+          }
+
+          return {
+            title: competitor.title || domain || options.keyword,
+            url,
+            type: domain.endsWith('.gov') ? 'government' : 'industry',
+            domain,
+            authorityScore: this.referenceService.calculateAuthorityScore(url),
+          } as Reference;
+        })
+        .filter((ref): ref is Reference => !!ref)
+        .slice(0, 8);
+
+      if (serpFallbackRefs.length > 0) {
+        references = serpFallbackRefs;
+        this.warn(`References: using ${references.length} SERP competitor links as fallback.`);
+      }
+    }
 
     this.log(`Phase 2 ✅ YouTube: ${videos.length} videos found.`);
     this.log(`Phase 3 ✅ References: ${references.length} high-authority sources found.`);
