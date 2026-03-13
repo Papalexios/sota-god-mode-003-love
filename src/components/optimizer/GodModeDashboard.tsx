@@ -284,7 +284,7 @@ export function GodModeDashboard() {
       }
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-5 gap-3">
+      <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
         <StatCard
           icon={<FileText className="w-5 h-5 text-blue-400" />}
           iconBg="bg-blue-500/15"
@@ -325,6 +325,13 @@ export function GodModeDashboard() {
           iconBg="bg-sky-500/15"
           value={state.stats.totalWordsGenerated.toLocaleString()}
           label="Words"
+        />
+        <StatCard
+          icon={<Target className="w-5 h-5 text-emerald-400" />}
+          iconBg="bg-emerald-500/15"
+          value={`${state.stats.totalProcessed > 0 ? Math.min(100, Math.round((state.stats.successCount / state.stats.totalProcessed) * 100)) : 0}%`}
+          label="Gap Coverage"
+          valueColor="text-emerald-400"
         />
       </div>
 
