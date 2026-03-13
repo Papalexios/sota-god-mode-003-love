@@ -615,23 +615,41 @@ export class EnterpriseContentOrchestrator {
   private injectReferencesSection(html: string, references: Reference[]): string {
     if (!references || references.length === 0) return html;
 
-    // Check if references/sources section already exists
-    const hasRefs = /<h2[^>]*>\s*(?:references|sources|further reading|sources\s*&\s*further\s*reading)/i.test(html);
-    if (hasRefs) {
-      this.log('References: Article already contains a references section. Skipping injection.');
+    const sanitizedReferences = references
+      .filter((ref) => /^https?:\/\//i.test(ref.url || ''))
+      .map((ref) => ({
+        ...ref,
+        title: (ref.title || ref.domain || ref.url || 'Reference')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;'),
+      }))
+      .slice(0, 12);
+
+    if (sanitizedReferences.length === 0) return html;
+
+    const refsHeadingRegex = /<h2[^>]*>\s*(?:references|sources|further reading|sources\s*&\s*further\s*reading)\s*<\/h2>/i;
+    const hasRefsHeading = refsHeadingRegex.test(html);
+
+    const refsSectionMatch = html.match(
+      /<h2[^>]*>\s*(?:references|sources|further reading|sources\s*&\s*further\s*reading)\s*<\/h2>[\s\S]*?(?=<h2[^>]*>|<div[^>]*data-article-footer|<\/article>)/i,
+    );
+    const hasLinkedReferences = !!refsSectionMatch && /<a\s+[^>]*href=["']https?:\/\//i.test(refsSectionMatch[0]);
+
+    if (hasRefsHeading && hasLinkedReferences) {
+      this.log('References: Existing references section already has clickable links. Skipping duplicate injection.');
       return html;
     }
 
-    const refsHtml = this.referenceService.formatReferencesSection(references);
+    const heading = hasRefsHeading ? '📚 Verified Sources' : '📚 Sources & Further Reading';
 
-    // Style the references section to match premium design
     const styledRefsHtml = `
-<div style="margin: 56px 0 0 0; padding-top: 40px; border-top: 2px solid #e2e8f0;">
-  <h2 style="font-size:1.95em;font-weight:900;color:#0f172a;margin:0 0 20px 0;line-height:1.15;letter-spacing:-0.025em;font-family:'Inter',system-ui,sans-serif;border-bottom:3px solid #e2e8f0;padding-bottom:12px;">📚 Sources & Further Reading</h2>
+<div data-verified-references="true" style="margin:56px 0 0 0;padding-top:40px;border-top:2px solid #e2e8f0;">
+  <h2 style="font-size:1.95em;font-weight:900;color:#0f172a;margin:0 0 20px 0;line-height:1.15;letter-spacing:-0.025em;font-family:'Inter',system-ui,sans-serif;border-bottom:3px solid #e2e8f0;padding-bottom:12px;">${heading}</h2>
   <div style="font-family:'Inter',system-ui,sans-serif;">
-    <ol style="margin:0;padding:0 0 0 0;list-style:none;counter-reset:ref-counter;">
-      ${references.map((ref, i) => {
-      const safeTitle = (ref.title || '').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    <ol style="margin:0;padding:0;list-style:none;counter-reset:ref-counter;">
+      ${sanitizedReferences.map((ref, i) => {
       const typeLabel = ref.type === 'academic' ? ' <span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;">Academic</span>'
         : ref.type === 'government' ? ' <span style="background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;">Official</span>'
           : ref.type === 'news' ? ' <span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;">News</span>'
@@ -639,7 +657,7 @@ export class EnterpriseContentOrchestrator {
       return `<li style="margin:0 0 16px 0;padding:12px 16px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;display:flex;align-items:flex-start;gap:12px;">
           <span style="flex-shrink:0;width:28px;height:28px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;">${i + 1}</span>
           <div>
-            <a href="${ref.url}" target="_blank" rel="noopener noreferrer" style="color:#1e293b;text-decoration:none;font-weight:600;font-size:15px;line-height:1.4;">${safeTitle}</a>
+            <a href="${ref.url}" target="_blank" rel="noopener noreferrer" style="color:#1e293b;text-decoration:none;font-weight:600;font-size:15px;line-height:1.4;">${ref.title}</a>
             <div style="margin-top:4px;font-size:12px;color:#64748b;">${ref.domain}${typeLabel}</div>
           </div>
         </li>`;
@@ -648,7 +666,6 @@ export class EnterpriseContentOrchestrator {
   </div>
 </div>`;
 
-    // Insert before the article footer or before </article>
     const footerIdx = html.indexOf('data-article-footer');
     if (footerIdx !== -1) {
       const insertPoint = html.lastIndexOf('<div', footerIdx);
