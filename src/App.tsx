@@ -101,7 +101,9 @@ const queryClient = new QueryClient({
 // APP
 // ═══════════════════════════════════════════════════════════════════
 
-const App = () => (
+const App = () => {
+  console.log('[App] Rendering...');
+  return (
   <AppErrorBoundary>
     <div className="min-h-screen gradient-bg text-foreground">
       <QueryClientProvider client={queryClient}>
