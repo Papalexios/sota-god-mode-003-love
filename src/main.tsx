@@ -13,8 +13,6 @@ if (typeof Response !== 'undefined' && !(Response.prototype as any).finally) {
   };
 }
 
-console.log('[main.tsx] Entry point executing...');
-
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
@@ -25,5 +23,4 @@ if (!rootElement) {
   throw new Error('Root element not found');
 }
 
-console.log('[main.tsx] Mounting React app...');
 createRoot(rootElement).render(<App />);
