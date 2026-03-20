@@ -785,7 +785,7 @@ export function ContentStrategy() {
                 <label className="block text-xs font-semibold text-zinc-400 mb-2">AI Model</label>
                 <select
                   value={singleModel}
-                  onChange={(e) => setSingleModel(e.target.value)}
+                  onChange={(e) => setSingleModel(e.target.value as any)}
                   className="w-full px-4 py-3 bg-black/20 text-white border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
                 >
                   {availableModels.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
