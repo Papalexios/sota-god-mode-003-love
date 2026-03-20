@@ -1,34 +1,16 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import { isPublicUrl } from "../../src/lib/shared/isPublicUrl";
+import { getCorsHeadersForCF } from "../../src/lib/shared/corsHeaders";
 
 interface Env {
   CORS_ALLOWED_ORIGINS?: string;
 }
 
-function getCorsHeaders(origin: string | null, env: Env): Record<string, string> {
-  const allowed = (env.CORS_ALLOWED_ORIGINS || "")
-    .split(",")
-    .map((o) => o.trim())
-    .filter(Boolean);
-
-  const resolvedOrigin =
-    allowed.length > 0 && origin && allowed.includes(origin)
-      ? origin
-      : allowed[0] || "";
-
-  return {
-    "Access-Control-Allow-Origin": resolvedOrigin,
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
-    "Content-Type": "application/json; charset=utf-8",
-  };
-}
-
 function jsonError(msg: string, status: number, cors: Record<string, string>) {
   return new Response(JSON.stringify({ success: false, error: msg, status }), {
     status,
-    headers: cors,
+    headers: { ...cors, "Content-Type": "application/json" },
   });
 }
 
@@ -42,18 +24,31 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 15_0
   }
 }
 
-function normalizeMedia(item: any) {
+interface NormalizedMedia {
+  id: number;
+  source_url: string;
+  alt_text: string;
+  title: { rendered: string } | string;
+  caption: { rendered: string } | string;
+  description: { rendered: string } | string;
+  media_type: string;
+  mime_type: string;
+  media_details: Record<string, unknown>;
+  date?: string;
+}
+
+function normalizeMedia(item: Record<string, unknown>): NormalizedMedia {
   return {
     id: Number(item?.id || 0),
     source_url: String(item?.source_url || ""),
     alt_text: String(item?.alt_text || ""),
-    title: item?.title || { rendered: "" },
-    caption: item?.caption || { rendered: "" },
-    description: item?.description || { rendered: "" },
+    title: (item?.title as { rendered: string }) || { rendered: "" },
+    caption: (item?.caption as { rendered: string }) || { rendered: "" },
+    description: (item?.description as { rendered: string }) || { rendered: "" },
     media_type: String(item?.media_type || ""),
     mime_type: String(item?.mime_type || ""),
-    media_details: item?.media_details || {},
-    date: item?.date,
+    media_details: (item?.media_details as Record<string, unknown>) || {},
+    date: item?.date as string | undefined,
   };
 }
 
@@ -72,7 +67,7 @@ function buildSearchTerms(keyword: string): string[] {
 export const onRequest: PagesFunction<Env> = async (context) => {
   const { request, env } = context;
   const origin = request.headers.get("origin");
-  const cors = getCorsHeaders(origin, env);
+  const cors = getCorsHeadersForCF(origin, env.CORS_ALLOWED_ORIGINS);
 
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: cors });
@@ -83,7 +78,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   }
 
   try {
-    const body = await request.json<any>();
+    const body: Record<string, unknown> = await request.json();
 
     const wpUrlRaw = String(body?.wpUrl || body?.wordpressUrl || "").trim();
     const username = String(body?.username || body?.wpUsername || "").trim();
@@ -110,26 +105,19 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     };
     const hasAuth = !!(username && appPassword);
     const headers: Record<string, string> = hasAuth
-      ? {
-          ...baseHeaders,
-          Authorization: `Basic ${btoa(`${username}:${appPassword}`)}`,
-        }
+      ? { ...baseHeaders, Authorization: `Basic ${btoa(`${username}:${appPassword}`)}` }
       : baseHeaders;
 
     const fields = "id,source_url,alt_text,title,caption,description,media_type,mime_type,media_details,date";
 
-    const fetchPage = async (url: string): Promise<any[]> => {
+    const fetchPage = async (url: string): Promise<Array<Record<string, unknown>>> => {
       const run = async (reqHeaders: Record<string, string>) => {
         try {
           const res = await fetchWithTimeout(url, { method: "GET", headers: reqHeaders }, 12_000);
           const json = await res.json().catch(() => null);
-          return {
-            ok: res.ok,
-            status: res.status,
-            items: Array.isArray(json) ? json : [],
-          };
+          return { ok: res.ok, status: res.status, items: Array.isArray(json) ? json : [] };
         } catch {
-          return { ok: false, status: 0, items: [] as any[] };
+          return { ok: false, status: 0, items: [] as Array<Record<string, unknown>> };
         }
       };
 
@@ -158,7 +146,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     ]);
 
     const merged = results.flat();
-    const dedup = new Map<number, any>();
+    const dedup = new Map<number, Record<string, unknown>>();
 
     for (const item of merged) {
       const id = Number(item?.id || 0);
@@ -176,9 +164,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     return new Response(JSON.stringify({ success: true, images, total: images.length }), {
       status: 200,
-      headers: cors,
+      headers: { ...cors, "Content-Type": "application/json" },
     });
-  } catch (e: any) {
-    return jsonError(e?.message || String(e), 500, cors);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return jsonError(msg, 500, cors);
   }
 };

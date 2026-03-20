@@ -1,27 +1,10 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import { isPublicUrl } from "../../src/lib/shared/isPublicUrl";
+import { getCorsHeadersForCF } from "../../src/lib/shared/corsHeaders";
 
 interface Env {
   CORS_ALLOWED_ORIGINS?: string;
-}
-
-function getCorsHeaders(origin: string | null, env: Env): Record<string, string> {
-  const allowed = (env.CORS_ALLOWED_ORIGINS || "")
-    .split(",")
-    .map((o) => o.trim())
-    .filter(Boolean);
-
-  const resolvedOrigin =
-    allowed.length > 0 && origin && allowed.includes(origin)
-      ? origin
-      : allowed[0] || "";
-
-  return {
-    "Access-Control-Allow-Origin": resolvedOrigin,
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-  };
 }
 
 function jsonError(msg: string, status: number, cors: Record<string, string>) {
@@ -31,26 +14,33 @@ function jsonError(msg: string, status: number, cors: Record<string, string>) {
   );
 }
 
-async function fetchWithTimeout(url: string, timeout = 90_000): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-  try {
-    return await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; ContentOptimizer/3.0)",
-        Accept: "application/xml, text/xml, text/html, */*",
-      },
-      signal: controller.signal,
-    });
-  } finally {
-    clearTimeout(timeoutId);
+async function fetchWithRetry(url: string, maxRetries = 2, timeout = 20_000): Promise<Response> {
+  for (let i = 0; i <= maxRetries; i++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    try {
+      const response = await fetch(url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; ContentOptimizer/3.0)",
+          Accept: "application/xml, text/xml, text/html, */*",
+        },
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      return response;
+    } catch (e) {
+      clearTimeout(timeoutId);
+      if (i === maxRetries) throw e;
+      await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+    }
   }
+  throw new Error("Unreachable");
 }
 
 export const onRequest: PagesFunction<Env> = async (context) => {
   const { request, env } = context;
   const origin = request.headers.get("origin");
-  const cors = getCorsHeaders(origin, env);
+  const cors = getCorsHeadersForCF(origin, env.CORS_ALLOWED_ORIGINS);
 
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: cors });
@@ -75,7 +65,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       return jsonError("URL must be a public HTTP/HTTPS address", 400, cors);
     }
 
-    const response = await fetchWithTimeout(targetUrl, 90_000);
+    const response = await fetchWithRetry(targetUrl, 2, 20_000);
 
     if (!response.ok) {
       return jsonError(

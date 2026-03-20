@@ -1,41 +1,41 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import { isPublicUrl } from "../../src/lib/shared/isPublicUrl";
+import { getCorsHeadersForCF } from "../../src/lib/shared/corsHeaders";
 
 interface Env {
   CORS_ALLOWED_ORIGINS?: string;
 }
 
-function getCorsHeaders(origin: string | null, env: Env): Record<string, string> {
-  const allowed = (env.CORS_ALLOWED_ORIGINS || "")
-    .split(",")
-    .map((o) => o.trim())
-    .filter(Boolean);
+// ── Rate Limiter ────────────────────────────────────────────────────────────
 
-  const resolvedOrigin =
-    allowed.length > 0 && origin && allowed.includes(origin)
-      ? origin
-      : allowed[0] || "";
-
-  return {
-    "Access-Control-Allow-Origin": resolvedOrigin,
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Content-Type": "application/json; charset=utf-8",
-  };
-}
+const rateLimiter = {
+  tokens: 10,
+  maxTokens: 10,
+  refillRate: 1,
+  lastRefill: Date.now(),
+  tryAcquire(): boolean {
+    const now = Date.now();
+    const elapsed = (now - this.lastRefill) / 1000;
+    this.tokens = Math.min(this.maxTokens, this.tokens + elapsed * this.refillRate);
+    this.lastRefill = now;
+    if (this.tokens < 1) return false;
+    this.tokens--;
+    return true;
+  },
+};
 
 function jsonError(msg: string, status: number, cors: Record<string, string>) {
   return new Response(
     JSON.stringify({ success: false, error: msg, status }),
-    { status, headers: cors },
+    { status, headers: { ...cors, "Content-Type": "application/json" } },
   );
 }
 
 export const onRequest: PagesFunction<Env> = async (context) => {
   const { request, env } = context;
   const origin = request.headers.get("origin");
-  const cors = getCorsHeaders(origin, env);
+  const cors = getCorsHeadersForCF(origin, env.CORS_ALLOWED_ORIGINS);
 
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: cors });
@@ -45,8 +45,15 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     return jsonError("Method not allowed", 405, cors);
   }
 
+  if (!rateLimiter.tryAcquire()) {
+    return new Response(
+      JSON.stringify({ success: false, error: "Rate limit exceeded", type: "rate_limit" }),
+      { status: 429, headers: { ...cors, "Content-Type": "application/json", "Retry-After": "10" } },
+    );
+  }
+
   try {
-    const body = await request.json<any>();
+    const body: Record<string, unknown> = await request.json();
 
     const wordpressUrl = String(body.wordpressUrl || body.wpUrl || "").replace(/\/+$/, "");
     const username = String(body.username || body.wpUsername || "");
@@ -56,25 +63,24 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       return jsonError("Missing WordPress URL, username, or app password.", 400, cors);
     }
 
-    // Validate WordPress URL against SSRF
     const wpUrlWithProto = wordpressUrl.startsWith("http") ? wordpressUrl : `https://${wordpressUrl}`;
     if (!isPublicUrl(wpUrlWithProto)) {
       return jsonError("WordPress URL must be a public HTTP/HTTPS address", 400, cors);
     }
 
-    const title = body.title || "";
-    const content = body.content || "";
-    const excerpt = body.excerpt ?? "";
-    const slug = body.slug ?? undefined;
-    const status = body.status ?? "publish";
+    const title = String(body.title || "");
+    const content = String(body.content || "");
+    const excerpt = String(body.excerpt ?? "");
+    const slug = body.slug ? String(body.slug) : undefined;
+    const status = String(body.status ?? "publish");
     const categories = Array.isArray(body.categories) ? body.categories : undefined;
     const tags = Array.isArray(body.tags) ? body.tags : undefined;
-    const seoTitle = body.seoTitle || "";
-    const metaDescription = body.metaDescription || "";
-    const sourceUrl = body.sourceUrl || "";
+    const seoTitle = String(body.seoTitle || "");
+    const metaDescription = String(body.metaDescription || "");
+    const sourceUrl = String(body.sourceUrl || "");
     const existingPostId = body.existingPostId;
 
-    const apiUrl = `${wordpressUrl}/wp-json/wp/v2/posts`;
+    const apiUrl = `${wpUrlWithProto}/wp-json/wp/v2/posts`;
     const auth = btoa(`${username}:${appPassword}`);
     const authHeaders: Record<string, string> = {
       "Authorization": `Basic ${auth}`,
@@ -82,18 +88,17 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       "Accept": "application/json",
     };
 
-    let targetPostId: number | null = existingPostId || null;
+    let targetPostId: number | null = existingPostId ? Number(existingPostId) : null;
+    if (targetPostId !== null && isNaN(targetPostId)) targetPostId = null;
 
     if (!targetPostId && slug) {
       try {
-        const searchRes = await fetch(`${apiUrl}?slug=${encodeURIComponent(slug)}&status=any`, {
-          headers: authHeaders,
-        });
+        const searchRes = await fetch(`${apiUrl}?slug=${encodeURIComponent(slug)}&status=any`, { headers: authHeaders });
         if (searchRes.ok) {
-          const posts: any[] = await searchRes.json();
+          const posts: Array<{ id: number }> = await searchRes.json();
           if (posts.length > 0) targetPostId = posts[0].id;
         }
-      } catch { /* ignore search errors */ }
+      } catch { /* ignore */ }
     }
 
     if (!targetPostId && sourceUrl) {
@@ -101,22 +106,19 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         const pathMatch = sourceUrl.match(/\/([^/]+)\/?$/);
         if (pathMatch) {
           const sourceSlug = pathMatch[1].replace(/\/$/, "");
-          const searchRes = await fetch(`${apiUrl}?slug=${encodeURIComponent(sourceSlug)}&status=any`, {
-            headers: authHeaders,
-          });
+          const searchRes = await fetch(`${apiUrl}?slug=${encodeURIComponent(sourceSlug)}&status=any`, { headers: authHeaders });
           if (searchRes.ok) {
-            const posts: any[] = await searchRes.json();
+            const posts: Array<{ id: number }> = await searchRes.json();
             if (posts.length > 0) targetPostId = posts[0].id;
           }
         }
-      } catch { /* ignore search errors */ }
+      } catch { /* ignore */ }
     }
 
     const postData: Record<string, unknown> = { title, content, status };
     if (excerpt) postData.excerpt = excerpt;
     if (slug) {
-      const cleanSlug = slug.replace(/^\/+|\/+$/g, "").split("/").pop() || slug;
-      postData.slug = cleanSlug;
+      postData.slug = slug.replace(/^\/+|\/+$/g, "").split("/").pop() || slug;
     }
     if (categories) postData.categories = categories;
     if (tags) postData.tags = tags;
@@ -142,19 +144,14 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     });
 
     const txt = await wpRes.text();
-    let json: any = null;
-    try {
-      json = JSON.parse(txt);
-    } catch {
-      json = { raw: txt };
-    }
+    let json: Record<string, unknown> = {};
+    try { json = JSON.parse(txt); } catch { json = { raw: txt }; }
 
     if (!wpRes.ok) {
-      let errorMessage = json?.message || `WordPress error (${wpRes.status})`;
+      let errorMessage = String(json?.message || `WordPress error (${wpRes.status})`);
       if (wpRes.status === 401) errorMessage = "Authentication failed. Check username and application password.";
       if (wpRes.status === 403) errorMessage = "Permission denied. Ensure the user has publish capabilities.";
       if (wpRes.status === 404) errorMessage = "WordPress REST API not found. Ensure permalinks are enabled.";
-
       return jsonError(errorMessage, wpRes.status, cors);
     }
 
@@ -167,20 +164,17 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           url: json.link,
           link: json.link,
           status: json.status,
-          title: json.title?.rendered || title,
+          title: (json.title as Record<string, string>)?.rendered || title,
           slug: json.slug,
         },
       }),
-      { status: 200, headers: cors }
+      { status: 200, headers: { ...cors, "Content-Type": "application/json" } },
     );
-  } catch (e: any) {
-    const msg = e?.message || String(e);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
     const isTimeout = msg.includes("abort") || msg.includes("timeout");
-
     return jsonError(
-      isTimeout
-        ? "Connection to WordPress timed out. Check URL and site availability."
-        : msg,
+      isTimeout ? "Connection to WordPress timed out." : msg,
       isTimeout ? 408 : 500,
       cors,
     );
