@@ -1,27 +1,10 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import { isPublicUrl } from "../../src/lib/shared/isPublicUrl";
+import { getCorsHeadersForCF } from "../../src/lib/shared/corsHeaders";
 
 interface Env {
   CORS_ALLOWED_ORIGINS?: string;
-}
-
-function getCorsHeaders(origin: string | null, env: Env): Record<string, string> {
-  const allowed = (env.CORS_ALLOWED_ORIGINS || "")
-    .split(",")
-    .map((o) => o.trim())
-    .filter(Boolean);
-
-  const resolvedOrigin =
-    allowed.length > 0 && origin && allowed.includes(origin)
-      ? origin
-      : allowed[0] || "";
-
-  return {
-    "Access-Control-Allow-Origin": resolvedOrigin,
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
-  };
 }
 
 function jsonError(msg: string, status: number, cors: Record<string, string>) {
@@ -34,10 +17,10 @@ function jsonError(msg: string, status: number, cors: Record<string, string>) {
 export const onRequest: PagesFunction<Env> = async (context) => {
   const { request, env } = context;
   const origin = request.headers.get("origin");
-  const cors = getCorsHeaders(origin, env);
+  const cors = getCorsHeadersForCF(origin, env.CORS_ALLOWED_ORIGINS);
 
   if (request.method === "OPTIONS") {
-    return new Response(null, { headers: cors });
+    return new Response(null, { status: 204, headers: cors });
   }
 
   const url = new URL(request.url);

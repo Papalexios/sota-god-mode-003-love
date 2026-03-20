@@ -1,20 +1,18 @@
 /// <reference types="@cloudflare/workers-types" />
 
 /**
- * SOTA NeuronWriter Proxy v2.0 - Enterprise-Grade
- * Cloudflare Pages Function for proxying NeuronWriter API calls
- * 
- * API Docs: https://neuronwriter.com/faqs/neuronwriter-api-how-to-use/
- * API Endpoint: https://app.neuronwriter.com/neuron-api/0.5/writer
+ * SOTA NeuronWriter Proxy v3.0 — Enterprise-Grade
+ * Cloudflare Pages Function — SINGLE SOURCE OF TRUTH for NeuronWriter proxying.
+ * All other copies (api/neuronwriter.ts, supabase/functions/neuronwriter-proxy) are DELETED.
  */
+
+import { getCorsHeadersForCF } from "../../src/lib/shared/corsHeaders";
 
 const NEURON_API_BASE = "https://app.neuronwriter.com/neuron-api/0.5/writer";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-NeuronWriter-Key, X-API-KEY",
-};
+interface Env {
+  CORS_ALLOWED_ORIGINS?: string;
+}
 
 interface ProxyRequest {
   endpoint: string;
@@ -31,18 +29,35 @@ interface NeuronAPIResponse {
   type?: string;
 }
 
+// ── Rate Limiter (per-worker in-memory) ─────────────────────────────────────
+
+const rateLimiter = {
+  tokens: 20,
+  maxTokens: 20,
+  refillRate: 2, // tokens per second
+  lastRefill: Date.now(),
+
+  tryAcquire(): boolean {
+    const now = Date.now();
+    const elapsed = (now - this.lastRefill) / 1000;
+    this.tokens = Math.min(this.maxTokens, this.tokens + elapsed * this.refillRate);
+    this.lastRefill = now;
+    if (this.tokens < 1) return false;
+    this.tokens--;
+    return true;
+  },
+};
+
 async function makeNeuronRequest(
   endpoint: string,
   method: string,
   apiKey: string,
   body?: Record<string, unknown>,
   timeoutMs: number = 30000
-): Promise<Response> {
+): Promise<NeuronAPIResponse> {
   const cleanApiKey = apiKey.trim();
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const url = `${NEURON_API_BASE}${cleanEndpoint}`;
-
-  console.log(`[NeuronWriter Proxy] ${method} ${endpoint}`);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -54,14 +69,13 @@ async function makeNeuronRequest(
         "X-API-KEY": cleanApiKey,
         "Content-Type": "application/json",
         "Accept": "application/json",
-        "User-Agent": "SOTAContentOptimizer/2.0",
+        "User-Agent": "SOTAContentOptimizer/3.0",
       },
       signal: controller.signal,
     };
 
     if (body && (method === "POST" || method === "PUT")) {
       fetchOptions.body = JSON.stringify(body);
-      console.log(`[NeuronWriter Proxy] Body:`, JSON.stringify(body).substring(0, 200));
     }
 
     const response = await fetch(url, fetchOptions);
@@ -73,11 +87,8 @@ async function makeNeuronRequest(
     try {
       responseData = JSON.parse(responseText);
     } catch {
-      console.error(`[NeuronWriter Proxy] Failed to parse JSON:`, responseText.substring(0, 200));
-      responseData = { raw: responseText };
+      responseData = { raw: responseText.substring(0, 500) };
     }
-
-    console.log(`[NeuronWriter Proxy] Response status: ${response.status}`);
 
     const result: NeuronAPIResponse = {
       success: response.ok,
@@ -90,50 +101,41 @@ async function makeNeuronRequest(
       result.type = "api_error";
     }
 
-    return new Response(
-      JSON.stringify(result),
-      {
-        status: 200, // Always return 200 to caller, include actual status in body
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return result;
   } catch (error: unknown) {
     clearTimeout(timeoutId);
-
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     const isTimeout = errorMessage.includes("abort") || errorMessage.includes("timeout");
 
-    console.error(`[NeuronWriter Proxy] Error:`, errorMessage);
-
-    const result: NeuronAPIResponse = {
+    return {
       success: false,
       status: isTimeout ? 408 : 500,
-      error: isTimeout ? "Request timed out after 30s" : errorMessage,
+      error: isTimeout ? "Request timed out" : errorMessage,
       type: isTimeout ? "timeout" : "network_error",
     };
-
-    return new Response(
-      JSON.stringify(result),
-      {
-        status: 200, // Return 200 so client can parse the error
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
   }
 }
 
-export const onRequest: PagesFunction = async (context) => {
-  const { request } = context;
+export const onRequest: PagesFunction<Env> = async (context) => {
+  const { request, env } = context;
+  const origin = request.headers.get("origin");
+  const cors = getCorsHeadersForCF(origin, env.CORS_ALLOWED_ORIGINS);
 
-  // Handle CORS preflight
   if (request.method === "OPTIONS") {
-    return new Response(null, { status: 200, headers: corsHeaders });
+    return new Response(null, { status: 204, headers: cors });
+  }
+
+  // Rate limiting
+  if (!rateLimiter.tryAcquire()) {
+    return new Response(
+      JSON.stringify({ success: false, error: "Rate limit exceeded. Try again in a few seconds.", type: "rate_limit" }),
+      { status: 429, headers: { ...cors, "Content-Type": "application/json", "Retry-After": "5" } }
+    );
   }
 
   try {
     const apiKeyFromHeader = request.headers.get("X-NeuronWriter-Key") || request.headers.get("X-API-KEY");
 
-    // Handle GET requests (less common for NeuronWriter)
     if (request.method === "GET") {
       const url = new URL(request.url);
       const endpoint = url.searchParams.get("endpoint");
@@ -142,23 +144,26 @@ export const onRequest: PagesFunction = async (context) => {
       if (!endpoint || !apiKey) {
         return new Response(
           JSON.stringify({ success: false, error: "Missing endpoint or apiKey", type: "validation_error" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 400, headers: { ...cors, "Content-Type": "application/json" } }
         );
       }
 
-      return await makeNeuronRequest(endpoint, "GET", apiKey);
+      const result = await makeNeuronRequest(endpoint, "GET", apiKey);
+      const httpStatus = result.success ? 200 : (result.status || 500);
+      return new Response(JSON.stringify(result), {
+        status: httpStatus,
+        headers: { ...cors, "Content-Type": "application/json" },
+      });
     }
 
-    // Handle POST requests (primary method for NeuronWriter API)
     if (request.method === "POST") {
       let body: ProxyRequest;
-
       try {
         body = await request.json();
-      } catch (parseError) {
+      } catch {
         return new Response(
           JSON.stringify({ success: false, error: "Invalid JSON body", type: "parse_error" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 400, headers: { ...cors, "Content-Type": "application/json" } }
         );
       }
 
@@ -168,41 +173,39 @@ export const onRequest: PagesFunction = async (context) => {
       if (!endpoint) {
         return new Response(
           JSON.stringify({ success: false, error: "Missing endpoint", type: "validation_error" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 400, headers: { ...cors, "Content-Type": "application/json" } }
         );
       }
 
       if (!finalApiKey) {
         return new Response(
           JSON.stringify({ success: false, error: "Missing API key", type: "validation_error" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 400, headers: { ...cors, "Content-Type": "application/json" } }
         );
       }
 
-      // Set appropriate timeout based on endpoint
-      let timeout = 30000; // Default 30s
-      if (endpoint === "/new-query") {
-        timeout = 45000; // 45s for creating new queries
-      } else if (endpoint === "/get-query") {
-        timeout = 20000; // 20s for fetching query data
-      } else if (endpoint === "/list-queries" || endpoint === "/list-projects") {
-        timeout = 15000; // 15s for listing
-      }
+      let timeout = 30000;
+      if (endpoint === "/new-query") timeout = 45000;
+      else if (endpoint === "/get-query") timeout = 20000;
+      else if (endpoint === "/list-queries" || endpoint === "/list-projects") timeout = 15000;
 
-      return await makeNeuronRequest(endpoint, method, finalApiKey, requestBody, timeout);
+      const result = await makeNeuronRequest(endpoint, method, finalApiKey, requestBody, timeout);
+      const httpStatus = result.success ? 200 : (result.status || 500);
+      return new Response(JSON.stringify(result), {
+        status: httpStatus,
+        headers: { ...cors, "Content-Type": "application/json" },
+      });
     }
 
     return new Response(
       JSON.stringify({ success: false, error: "Method not allowed", type: "method_error" }),
-      { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 405, headers: { ...cors, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error(`[NeuronWriter Proxy] Unhandled error:`, errorMessage);
-
     return new Response(
       JSON.stringify({ success: false, error: errorMessage, type: "internal_error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...cors, "Content-Type": "application/json" } }
     );
   }
 };

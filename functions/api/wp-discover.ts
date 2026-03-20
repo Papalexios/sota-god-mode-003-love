@@ -1,34 +1,16 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import { isPublicUrl } from "../../src/lib/shared/isPublicUrl";
+import { getCorsHeadersForCF } from "../../src/lib/shared/corsHeaders";
 
 interface Env {
   CORS_ALLOWED_ORIGINS?: string;
 }
 
-function getCorsHeaders(origin: string | null, env: Env): Record<string, string> {
-  const allowed = (env.CORS_ALLOWED_ORIGINS || "")
-    .split(",")
-    .map((o) => o.trim())
-    .filter(Boolean);
-
-  const resolvedOrigin =
-    allowed.length > 0 && origin && allowed.includes(origin)
-      ? origin
-      : allowed[0] || "";
-
-  return {
-    "Access-Control-Allow-Origin": resolvedOrigin,
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
-    "Content-Type": "application/json; charset=utf-8",
-  };
-}
-
 function jsonError(msg: string, status: number, cors: Record<string, string>) {
   return new Response(
     JSON.stringify({ success: false, error: msg, status }),
-    { status, headers: cors },
+    { status, headers: { ...cors, "Content-Type": "application/json" } },
   );
 }
 
@@ -57,12 +39,12 @@ async function fetchWpLinks(
         },
         signal: controller.signal,
       });
-      const json: any = await res.json().catch(() => null);
+      const json: Array<{ link?: string }> = await res.json().catch(() => []);
       const totalPages = Number(res.headers.get("x-wp-totalpages")) || undefined;
       if (!res.ok || !Array.isArray(json)) return { links: [] as string[], totalPages };
       const links = json
-        .filter((i: any) => typeof i?.link === "string" && i.link.startsWith("http"))
-        .map((i: any) => i.link);
+        .filter((i) => typeof i?.link === "string" && i.link.startsWith("http"))
+        .map((i) => i.link as string);
       return { links, totalPages };
     } finally {
       clearTimeout(timeoutId);
@@ -101,7 +83,7 @@ async function fetchWpLinks(
 export const onRequest: PagesFunction<Env> = async (context) => {
   const { request, env } = context;
   const origin = request.headers.get("origin");
-  const cors = getCorsHeaders(origin, env);
+  const cors = getCorsHeadersForCF(origin, env.CORS_ALLOWED_ORIGINS);
 
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: cors });
@@ -112,14 +94,14 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   }
 
   try {
-    const body = await request.json<any>();
+    const body: Record<string, unknown> = await request.json();
     const siteUrl = body?.siteUrl;
 
     if (!siteUrl || typeof siteUrl !== "string") {
       return jsonError("siteUrl is required", 400, cors);
     }
 
-    const t = siteUrl.trim();
+    const t = (siteUrl as string).trim();
     const withProto = t.startsWith("http://") || t.startsWith("https://") ? t : `https://${t}`;
     if (!isPublicUrl(withProto)) {
       return jsonError("URL must be a public HTTP/HTTPS address", 400, cors);
@@ -142,9 +124,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     return new Response(
       JSON.stringify({ success: true, urls: Array.from(urls) }),
-      { status: 200, headers: cors }
+      { status: 200, headers: { ...cors, "Content-Type": "application/json" } },
     );
-  } catch (e: any) {
-    return jsonError(e?.message || String(e), 500, cors);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return jsonError(msg, 500, cors);
   }
 };
