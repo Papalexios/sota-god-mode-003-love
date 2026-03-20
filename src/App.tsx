@@ -121,6 +121,5 @@ const App = () => (
     </div>
   </AppErrorBoundary>
 );
-};
 
 export default App;
