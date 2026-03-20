@@ -23,6 +23,32 @@ import {
   DEFAULT_GOD_MODE_STATS,
 } from './sota/GodModeTypes';
 
+/** Pipeline generation config attached to each content item */
+export interface GenerationPipelineConfig {
+  model?: string;
+  tone?: 'hormozi' | 'professional' | 'conversational' | 'academic';
+  targetWordCount?: number;
+  targetAudience?: string;
+  contentType?: string;
+  enableSerpAnalysis?: boolean;
+  enableSelfCritique?: boolean;
+  enableWpImages?: boolean;
+  enableYouTube?: boolean;
+  enableReferences?: boolean;
+  maxCritiquePasses?: number;
+  /** Pre-computed gap analysis data to inject into generation */
+  gapData?: {
+    contentGaps: string[];
+    semanticEntities: string[];
+    commonHeadings: string[];
+    avgWordCount: number;
+    recommendedWordCount: number;
+    userIntent: string;
+  };
+  /** Secondary keywords to weave in */
+  secondaryKeywords?: string[];
+}
+
 export interface ContentItem {
   id: string;
   title: string;
@@ -36,6 +62,8 @@ export interface ContentItem {
   createdAt: Date;
   updatedAt: Date;
   generatedContentId?: string;
+  /** Pipeline config that flows to the orchestrator */
+  pipelineConfig?: GenerationPipelineConfig;
 }
 
 export interface GeneratedContentStore {
