@@ -1,9 +1,12 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import { useOptimizerStore } from "@/lib/store";
 import {
   BookOpen, FileText, Target, RefreshCw, FolderOpen, Image,
   Zap, Plus, Upload, Link, Trash2, AlertCircle, ArrowRight,
-  BarChart3, Search, Sparkles, Loader2, Bot, XCircle
+  BarChart3, Search, Sparkles, Loader2, Bot, XCircle,
+  Settings2, Globe, Hash, TrendingUp, CheckCircle2, Clock,
+  Layers, ChevronDown, ChevronUp, Eye, Gauge, LayoutGrid,
+  ListChecks, Brain, Rocket, ShieldCheck, Star, Wand2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -12,19 +15,51 @@ import { fetchSitemapTextRaced } from "@/lib/sitemap/fetchSitemapText";
 import { discoverWordPressUrls } from "@/lib/sitemap/wordpressDiscovery";
 import { GodModeDashboard } from "../GodModeDashboard";
 
+// ─── Tab Configuration ──────────────────────────────────────────────────────
+
 const tabs = [
-  { id: "bulk", label: "📚 Bulk Planner", icon: BookOpen },
-  { id: "single", label: "📝 Single Article", icon: FileText },
-  { id: "godmode", label: "⚡ God Mode 2.0", icon: Bot },
-  { id: "gap", label: "🎯 Gap Analysis", icon: Target },
-  { id: "refresh", label: "🔄 Quick Refresh", icon: RefreshCw },
-  { id: "hub", label: "🗂️ Content Hub", icon: FolderOpen },
-  { id: "image", label: "🖼️ Image Gen", icon: Image },
+  { id: "bulk", label: "📚 Bulk Planner", icon: BookOpen, desc: "AI-powered topic clustering" },
+  { id: "single", label: "📝 Single Article", icon: FileText, desc: "Full-control generation" },
+  { id: "godmode", label: "⚡ God Mode 2.0", icon: Bot, desc: "Autonomous engine" },
+  { id: "gap", label: "🎯 Gap Analysis", icon: Target, desc: "SERP competitive intel" },
+  { id: "refresh", label: "🔄 Quick Refresh", icon: RefreshCw, desc: "Update existing content" },
+  { id: "hub", label: "🗂️ Content Hub", icon: FolderOpen, desc: "Sitemap crawling" },
+  { id: "image", label: "🖼️ Image Gen", icon: Image, desc: "AI image creation" },
 ];
+
+// ─── Cluster type definitions ───────────────────────────────────────────────
+
+const CLUSTER_TYPES = [
+  { value: "how-to", label: "How-To Guide", icon: "🔧", desc: "Step-by-step instructional content" },
+  { value: "guide", label: "Ultimate Guide", icon: "📖", desc: "Comprehensive deep-dive on a topic" },
+  { value: "comparison", label: "Comparison", icon: "⚖️", desc: "X vs Y analysis with data" },
+  { value: "listicle", label: "Listicle", icon: "📋", desc: "Numbered list format (Top 10, Best 5)" },
+  { value: "deep-dive", label: "Deep Dive", icon: "🔬", desc: "Expert-level analysis" },
+  { value: "case-study", label: "Case Study", icon: "📊", desc: "Real-world success story" },
+  { value: "beginner", label: "Beginner's Guide", icon: "🌱", desc: "Entry-level explainer" },
+  { value: "mistakes", label: "Common Mistakes", icon: "⚠️", desc: "What to avoid" },
+] as const;
+
+const CONTENT_TYPES = [
+  { value: "pillar", label: "Pillar Page", desc: "3500-5000 words, covers entire topic" },
+  { value: "cluster", label: "Cluster Article", desc: "2000-3500 words, specific subtopic" },
+  { value: "single", label: "Standalone Article", desc: "2500-4000 words, single keyword" },
+  { value: "refresh", label: "Content Refresh", desc: "Rewrite/update existing content" },
+] as const;
+
+const TONE_OPTIONS = [
+  { value: "hormozi", label: "Hormozi/Ferriss", desc: "Direct, tactical, zero-fluff" },
+  { value: "professional", label: "Professional", desc: "Authoritative, polished" },
+  { value: "conversational", label: "Conversational", desc: "Friendly, accessible" },
+  { value: "academic", label: "Academic", desc: "Research-backed, formal" },
+] as const;
+
+// ─── Main Component ─────────────────────────────────────────────────────────
 
 export function ContentStrategy() {
   const [activeTab, setActiveTab] = useState("bulk");
   const {
+    config: appConfig,
     godModeEnabled, setGodModeEnabled,
     priorityOnlyMode, setPriorityOnlyMode,
     priorityUrls, addPriorityUrl, removePriorityUrl,
@@ -32,18 +67,60 @@ export function ContentStrategy() {
     excludedCategories, setExcludedCategories,
     sitemapUrls, setSitemapUrls,
     addContentItem,
-    setCurrentStep
+    setCurrentStep,
   } = useOptimizerStore();
 
+  // ── Bulk Planner State ──────────────────────────────────────────────────
   const [broadTopic, setBroadTopic] = useState("");
+  const [bulkTargetAudience, setBulkTargetAudience] = useState("");
+  const [bulkWordCount, setBulkWordCount] = useState(3500);
+  const [selectedClusterTypes, setSelectedClusterTypes] = useState<Set<string>>(
+    new Set(["how-to", "guide", "comparison", "listicle", "deep-dive"])
+  );
+  const [bulkPriority, setBulkPriority] = useState<"high" | "medium" | "low">("high");
+  const [showAdvancedBulk, setShowAdvancedBulk] = useState(false);
+  const [bulkSecondaryKeywords, setBulkSecondaryKeywords] = useState("");
+
+  // ── Single Article State ────────────────────────────────────────────────
   const [keywords, setKeywords] = useState("");
+  const [singleContentType, setSingleContentType] = useState<string>("single");
+  const [singleWordCount, setSingleWordCount] = useState(3500);
+  const [singleTone, setSingleTone] = useState("hormozi");
+  const [singleTargetAudience, setSingleTargetAudience] = useState("");
+  const [singleModel, setSingleModel] = useState(appConfig.primaryModel || "gemini");
+  const [showAdvancedSingle, setShowAdvancedSingle] = useState(false);
+  const [enableSerpAnalysis, setEnableSerpAnalysis] = useState(true);
+  const [enableSelfCritique, setEnableSelfCritique] = useState(true);
+  const [enableWpImages, setEnableWpImages] = useState(true);
+  const [enableYouTube, setEnableYouTube] = useState(true);
+  const [enableReferences, setEnableReferences] = useState(true);
+  const [maxCritiquePasses, setMaxCritiquePasses] = useState(3);
+
+  // ── Gap Analysis State ──────────────────────────────────────────────────
+  const [gapKeyword, setGapKeyword] = useState("");
+  const [gapAnalysisRunning, setGapAnalysisRunning] = useState(false);
+  const [gapResults, setGapResults] = useState<{
+    keyword: string;
+    competitors: Array<{ title: string; url: string; snippet: string; position: number }>;
+    contentGaps: string[];
+    semanticEntities: string[];
+    avgWordCount: number;
+    recommendedWordCount: number;
+    userIntent: string;
+    commonHeadings: string[];
+  } | null>(null);
+
+  // ── Quick Refresh State ─────────────────────────────────────────────────
   const [singleUrl, setSingleUrl] = useState("");
+  const [refreshMode, setRefreshMode] = useState<"single" | "bulk">("single");
+  const [refreshUrls, setRefreshUrls] = useState("");
+  const [refreshWordCount, setRefreshWordCount] = useState(3000);
+  const [refreshKeepStructure, setRefreshKeepStructure] = useState(true);
+
+  // ── Content Hub State ───────────────────────────────────────────────────
   const [sitemapUrl, setSitemapUrl] = useState("");
   const [newPriorityUrl, setNewPriorityUrl] = useState("");
   const [newPriority, setNewPriority] = useState<'critical' | 'high' | 'medium' | 'low'>('medium');
-  const [imagePrompt, setImagePrompt] = useState("");
-  const [imageCount, setImageCount] = useState(1);
-  const [aspectRatio, setAspectRatio] = useState("1:1");
   const [isCrawling, setIsCrawling] = useState(false);
   const [crawledUrls, setCrawledUrls] = useState<string[]>([]);
   const [crawlFoundCount, setCrawlFoundCount] = useState(0);
@@ -52,8 +129,12 @@ export function ContentStrategy() {
   const crawlRunIdRef = useRef(0);
   const crawlAbortRef = useRef<AbortController | null>(null);
 
-  // Initialize crawledUrls from persisted sitemapUrls when component mounts
-  // This ensures the crawled URLs survive navigation
+  // ── Image Gen State ─────────────────────────────────────────────────────
+  const [imagePrompt, setImagePrompt] = useState("");
+  const [imageCount, setImageCount] = useState(1);
+  const [aspectRatio, setAspectRatio] = useState("1:1");
+
+  // ── Restore crawled URLs from store ─────────────────────────────────────
   useEffect(() => {
     if (sitemapUrls.length > 0 && crawledUrls.length === 0 && !isCrawling) {
       setCrawledUrls(sitemapUrls);
@@ -62,61 +143,32 @@ export function ContentStrategy() {
     }
   }, [sitemapUrls, crawledUrls.length, isCrawling]);
 
-  // Filter to keep only blog post URLs (exclude images, feeds, categories, tags, etc.)
+  // ── URL Filtering ──────────────────────────────────────────────────────
   const filterBlogPostUrls = (urls: string[]): string[] => {
     const excludePatterns = [
-      /\/wp-content\//i,
-      /\/wp-includes\//i,
-      /\/wp-admin\//i,
-      /\/feed\/?$/i,
-      /\/rss\/?$/i,
-      /\/atom\/?$/i,
-      /\/category\//i,
-      /\/tag\//i,
-      /\/author\//i,
-      /\/page\/\d+/i,
-      /\/attachment\//i,
-      /\/trackback\/?$/i,
+      /\/wp-content\//i, /\/wp-includes\//i, /\/wp-admin\//i,
+      /\/feed\/?$/i, /\/rss\/?$/i, /\/atom\/?$/i,
+      /\/category\//i, /\/tag\//i, /\/author\//i, /\/page\/\d+/i,
+      /\/attachment\//i, /\/trackback\/?$/i,
       /\.(jpg|jpeg|png|gif|webp|svg|ico|pdf|zip|mp3|mp4|avi|mov)$/i,
-      /\/sitemap[^/]*\.xml/i,
-      /\/robots\.txt$/i,
-      /\/favicon/i,
-      /\/cdn-cgi\//i,
-      /\/cart\/?$/i,
-      /\/checkout\/?$/i,
-      /\/my-account\/?$/i,
-      /\/privacy-policy\/?$/i,
-      /\/terms/i,
-      /\/contact\/?$/i,
-      /\/about\/?$/i,
-      /\/search\/?/i,
-      /\?/,  // exclude URLs with query params
+      /\/sitemap[^/]*\.xml/i, /\/robots\.txt$/i, /\/favicon/i, /\/cdn-cgi\//i,
+      /\/cart\/?$/i, /\/checkout\/?$/i, /\/my-account\/?$/i,
+      /\/privacy-policy\/?$/i, /\/terms/i, /\/contact\/?$/i, /\/about\/?$/i,
+      /\/search\/?/i, /\?/,
     ];
-
     return urls.filter(url => {
-      // Must have a path beyond just the domain
       try {
         const parsed = new URL(url);
-        const path = parsed.pathname;
-        // Skip homepage
-        if (path === '/' || path === '') return false;
-        // Skip if matches any exclude pattern
+        if (parsed.pathname === '/' || parsed.pathname === '') return false;
         for (const pattern of excludePatterns) {
           if (pattern.test(url)) return false;
         }
         return true;
-      } catch {
-        return false;
-      }
+      } catch { return false; }
     });
   };
 
-  /**
-   * ✅ ULTRA-FAST Sitemap Fetcher - Parallel Racing Strategy
-   * 
-   * Instead of sequential fallbacks (slow!), we race multiple strategies in parallel
-   * and return the first successful result. This makes the crawl 5-10x faster.
-   */
+  // ── Sitemap Fetching ───────────────────────────────────────────────────
   const fetchSitemapText = async (targetUrl: string, externalSignal?: AbortSignal): Promise<string> => {
     return fetchSitemapTextRaced(targetUrl, {
       signal: externalSignal,
@@ -125,41 +177,181 @@ export function ContentStrategy() {
     });
   };
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // HANDLERS
+  // ═══════════════════════════════════════════════════════════════════════
+
   const handleGenerateContentPlan = () => {
     if (!broadTopic.trim()) return;
+
+    const secondaryKws = bulkSecondaryKeywords.split('\n').map(k => k.trim()).filter(Boolean);
+
     // Add pillar content
     addContentItem({
-      title: `Pillar: ${broadTopic}`,
+      title: `${broadTopic}: The Complete Guide`,
       type: 'pillar',
       status: 'pending',
       primaryKeyword: broadTopic,
     });
-    // Add some cluster content
-    const clusters = ['Beginner Guide', 'Advanced Tips', 'Common Mistakes', 'Best Practices'];
-    clusters.forEach(cluster => {
+
+    // Generate cluster content based on selected types
+    const selectedTypes = Array.from(selectedClusterTypes);
+    const clusterTemplates: Record<string, (topic: string) => string> = {
+      "how-to": (t) => `How to ${t}: A Step-by-Step Guide`,
+      "guide": (t) => `The Ultimate ${t} Guide for ${new Date().getFullYear()}`,
+      "comparison": (t) => `${t}: Comparing the Top Methods & Tools`,
+      "listicle": (t) => `Top 10 ${t} Tips That Actually Work`,
+      "deep-dive": (t) => `${t} Deep Dive: What the Research Really Says`,
+      "case-study": (t) => `${t} Case Study: Real Results From Real People`,
+      "beginner": (t) => `${t} for Beginners: Everything You Need to Know`,
+      "mistakes": (t) => `The 7 Biggest ${t} Mistakes (And How to Fix Them)`,
+    };
+
+    selectedTypes.forEach(type => {
+      const templateFn = clusterTemplates[type];
+      if (templateFn) {
+        addContentItem({
+          title: templateFn(broadTopic),
+          type: 'cluster',
+          status: 'pending',
+          primaryKeyword: `${broadTopic} ${type.replace(/-/g, ' ')}`,
+        });
+      }
+    });
+
+    // Add secondary keyword articles
+    secondaryKws.forEach(kw => {
       addContentItem({
-        title: `${broadTopic} - ${cluster}`,
+        title: kw,
         type: 'cluster',
         status: 'pending',
-        primaryKeyword: `${broadTopic} ${cluster.toLowerCase()}`,
+        primaryKeyword: kw,
       });
     });
+
+    const totalArticles = 1 + selectedTypes.length + secondaryKws.length;
+    const estWords = totalArticles * bulkWordCount;
+    const estHours = Math.ceil(totalArticles * 0.5);
+
+    toast.success(
+      `Content plan created! ${totalArticles} articles • ~${estWords.toLocaleString()} total words • ~${estHours}h generation time`,
+      { duration: 5000 }
+    );
+
     setBroadTopic("");
+    setBulkSecondaryKeywords("");
     setCurrentStep(3);
   };
 
-  const handleAddKeywords = () => {
+  const handleAddKeywords = (goToReview = false) => {
     if (!keywords.trim()) return;
     const lines = keywords.split('\n').filter(k => k.trim());
     lines.forEach(keyword => {
       addContentItem({
         title: keyword.trim(),
-        type: 'single',
+        type: singleContentType as any,
         status: 'pending',
         primaryKeyword: keyword.trim(),
       });
     });
+    toast.success(`Added ${lines.length} article${lines.length > 1 ? 's' : ''} to generation queue`);
     setKeywords("");
+    if (goToReview) setCurrentStep(3);
+  };
+
+  const handleRunGapAnalysis = async () => {
+    if (!gapKeyword.trim()) return;
+    const serperKey = appConfig.serperApiKey;
+    if (!serperKey) {
+      toast.error("Serper API key required for SERP analysis. Add it in Setup.");
+      return;
+    }
+
+    setGapAnalysisRunning(true);
+    setGapResults(null);
+
+    try {
+      const { SERPAnalyzer, createSERPAnalyzer } = await import("@/lib/sota/SERPAnalyzer");
+      const analyzer = createSERPAnalyzer(serperKey);
+      const analysis = await analyzer.analyze(gapKeyword.trim());
+
+      setGapResults({
+        keyword: gapKeyword.trim(),
+        competitors: (analysis.topCompetitors || []).slice(0, 10).map((c, i) => ({
+          title: c.title,
+          url: c.url,
+          snippet: c.snippet,
+          position: c.position || i + 1,
+        })),
+        contentGaps: analysis.contentGaps || [],
+        semanticEntities: analysis.semanticEntities || [],
+        avgWordCount: analysis.avgWordCount || 2000,
+        recommendedWordCount: analysis.recommendedWordCount || 3000,
+        userIntent: analysis.userIntent || 'informational',
+        commonHeadings: analysis.commonHeadings || [],
+      });
+      toast.success(`Gap analysis complete for "${gapKeyword}"!`);
+    } catch (e) {
+      toast.error(`Gap analysis failed: ${e instanceof Error ? e.message : 'Unknown error'}`);
+    } finally {
+      setGapAnalysisRunning(false);
+    }
+  };
+
+  const handleCreateFromGapAnalysis = () => {
+    if (!gapResults) return;
+    addContentItem({
+      title: `${gapResults.keyword}: Complete Guide (Gap-Optimized)`,
+      type: 'single',
+      status: 'pending',
+      primaryKeyword: gapResults.keyword,
+    });
+    toast.success(`Article "${gapResults.keyword}" added to queue with gap data!`);
+    setCurrentStep(3);
+  };
+
+  const handleRefreshSingle = () => {
+    if (!singleUrl.trim()) return;
+    try {
+      const urlObj = new URL(singleUrl.trim());
+      const slug = urlObj.pathname.split('/').filter(Boolean).pop() || 'untitled';
+      const title = slug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      addContentItem({
+        title: `Refresh: ${title}`,
+        type: 'refresh',
+        status: 'pending',
+        primaryKeyword: title.toLowerCase(),
+        url: singleUrl.trim(),
+      });
+      toast.success("URL added to refresh queue!");
+      setSingleUrl("");
+      setCurrentStep(3);
+    } catch {
+      toast.error("Invalid URL. Please enter a valid URL.");
+    }
+  };
+
+  const handleBulkRefresh = () => {
+    const urls = refreshUrls.split('\n').map(u => u.trim()).filter(u => {
+      try { new URL(u); return true; } catch { return false; }
+    });
+    if (urls.length === 0) { toast.error("No valid URLs found."); return; }
+
+    urls.forEach(url => {
+      const slug = new URL(url).pathname.split('/').filter(Boolean).pop() || 'untitled';
+      const title = slug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      addContentItem({
+        title: `Refresh: ${title}`,
+        type: 'refresh',
+        status: 'pending',
+        primaryKeyword: title.toLowerCase(),
+        url,
+      });
+    });
+
+    toast.success(`${urls.length} URLs added to refresh queue!`);
+    setRefreshUrls("");
+    setCurrentStep(3);
   };
 
   const handleAddPriorityUrl = () => {
@@ -168,15 +360,13 @@ export function ContentStrategy() {
     setNewPriorityUrl("");
   };
 
+  // ── Sitemap Crawl Handler ──────────────────────────────────────────────
   const handleCrawlSitemap = async () => {
     if (!sitemapUrl.trim()) return;
-
-    // Cancel any previous run immediately
     crawlAbortRef.current?.abort();
     const controller = new AbortController();
     crawlAbortRef.current = controller;
     const signal = controller.signal;
-
     const runId = (crawlRunIdRef.current += 1);
     setIsCrawling(true);
     setCrawledUrls([]);
@@ -187,48 +377,35 @@ export function ContentStrategy() {
     try {
       const input = sitemapUrl.trim();
 
-      // ✅ FASTEST PATH (WordPress): Try server-side WP REST discovery FIRST (even if a sitemap XML was provided).
-      // This bypasses giant Yoast post-sitemaps (often slow) and avoids browser CORS.
+      // WordPress API fast path
       try {
-        const tryWpDiscoverViaApi = async (): Promise<string[] | null> => {
-          const controller = new AbortController();
-          const timeoutId = window.setTimeout(() => controller.abort(), 20000);
+        const tryWpApi = async (): Promise<string[] | null> => {
+          const ctrl = new AbortController();
+          const tid = window.setTimeout(() => ctrl.abort(), 20000);
           if (signal.aborted) throw new Error("Cancelled");
-          signal.addEventListener("abort", () => controller.abort(), { once: true });
-
+          signal.addEventListener("abort", () => ctrl.abort(), { once: true });
           try {
             const res = await fetch('/api/wp-discover', {
               method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ siteUrl: input, perPage: 100, maxPages: 250, maxUrls: 100000 }),
-              signal: controller.signal,
+              signal: ctrl.signal,
             });
             const data = await res.json().catch(() => null);
             if (!res.ok || !data?.success || !Array.isArray(data?.urls)) return null;
             return data.urls as string[];
-          } finally {
-            window.clearTimeout(timeoutId);
-          }
+          } finally { window.clearTimeout(tid); }
         };
 
         setCrawlStatus("Trying WordPress API…");
-        const wpUrls =
-          (await tryWpDiscoverViaApi()) ??
-          (await discoverWordPressUrls(input, {
-            signal,
-            timeoutMs: 8000,
-            perPage: 100,
-            maxPages: 50,
-            maxUrls: 50000,
-            onProgress: (p) => {
-              if (crawlRunIdRef.current !== runId) return;
-              const total = p.totalPages ? `/${p.totalPages}` : "";
-              setCrawlStatus(`WP API • ${p.endpoint} page ${p.page}${total} • ${p.discovered.toLocaleString()} URLs`);
-              setCrawlFoundCount(p.discovered);
-            },
-          }));
+        const wpUrls = (await tryWpApi()) ?? (await discoverWordPressUrls(input, {
+          signal, timeoutMs: 8000, perPage: 100, maxPages: 50, maxUrls: 50000,
+          onProgress: (p) => {
+            if (crawlRunIdRef.current !== runId) return;
+            setCrawlStatus(`WP API • ${p.endpoint} page ${p.page} • ${p.discovered.toLocaleString()} URLs`);
+            setCrawlFoundCount(p.discovered);
+          },
+        }));
 
         if (wpUrls.length > 0) {
           if (crawlRunIdRef.current !== runId) return;
@@ -236,127 +413,78 @@ export function ContentStrategy() {
           setCrawledUrls(blogPostUrls);
           setSitemapUrls(blogPostUrls);
           setCrawlFoundCount(blogPostUrls.length);
-          setCrawlStatus(`Done (WP API) • ${blogPostUrls.length.toLocaleString()} blog posts (filtered from ${wpUrls.length.toLocaleString()} total)`);
+          setCrawlStatus(`Done (WP API) • ${blogPostUrls.length.toLocaleString()} blog posts`);
           toast.success(`Found ${blogPostUrls.length.toLocaleString()} URLs via WordPress API!`);
           return;
         }
       } catch (e) {
-        // WP API is optional; fall back to sitemap crawl
-        const msg = e instanceof Error ? e.message : String(e);
-        // eslint-disable-next-line no-console
-        console.info("[Sitemap] WordPress API discovery skipped/failed:", msg);
+        console.info("[Sitemap] WordPress API discovery skipped:", e instanceof Error ? e.message : String(e));
       }
 
-      // ✅ Enterprise robustness: if the user provides a heavy/slow sitemap (e.g. post-sitemap.xml),
-      // automatically try the common WordPress sitemap entrypoints too.
+      // Sitemap XML fallback
       const candidates: string[] = (() => {
         const normalize = (u: string) => {
           const t = u.trim();
           if (!t) return t;
-          if (t.startsWith("http://") || t.startsWith("https://")) return t;
-          return `https://${t}`;
+          return t.startsWith("http") ? t : `https://${t}`;
         };
         const primary = normalize(input);
         const out: string[] = [];
         try {
-          const url = new URL(primary);
-          const origin = url.origin;
-          const common = [
-            `${origin}/sitemap_index.xml`,
-            `${origin}/wp-sitemap.xml`,
-            `${origin}/sitemap.xml`,
-          ];
-          // ✅ Prefer fast index entrypoints first; child sitemaps like post-sitemap.xml can be huge/slow.
-          for (const c of common) if (!out.includes(c)) out.push(c);
-        } catch {
-          // If URL parsing fails, just keep the original input.
-        }
-
-        // Always include the user's exact input as a fallback (last).
+          const origin = new URL(primary).origin;
+          [`${origin}/sitemap_index.xml`, `${origin}/wp-sitemap.xml`, `${origin}/sitemap.xml`]
+            .forEach(c => { if (!out.includes(c)) out.push(c); });
+        } catch { /* noop */ }
         if (primary && !out.includes(primary)) out.push(primary);
-
         return out;
       })();
 
-      const crawlOptions = {
-        // ✅ HIGH concurrency for speed - parallel racing handles reliability
-        concurrency: 8,
-        // ✅ HARD cap per-sitemap fetch+parse time so we never “hang” on one URL
-        fetchTimeoutMs: 35000,
-        signal,
-        onProgress: (p: SitemapCrawlProgress) => {
-          if (crawlRunIdRef.current !== runId) return;
-          setCrawlFoundCount(p.discoveredUrls);
-          const speed = p.processedSitemaps > 0 ? `~${Math.round(p.discoveredUrls / Math.max(1, p.processedSitemaps))} URLs/sitemap` : '';
-          setCrawlStatus(
-            p.currentSitemap
-              ? `⚡ ${p.currentSitemap.split('/').pop()} • ${p.processedSitemaps} done • ${p.queuedSitemaps} queued • ${p.discoveredUrls} URLs ${speed}`
-              : `⚡ ${p.processedSitemaps} sitemaps • ${p.discoveredUrls} URLs ${speed}`
-          );
-        },
-        onUrlsBatch: (batch: string[]) => {
-          if (crawlRunIdRef.current !== runId) return;
-          const filtered = filterBlogPostUrls(batch);
-          setCrawledUrls((prev) => {
-            const merged = [...prev, ...filtered];
-            return Array.from(new Set(merged));
-          });
-        },
-      };
-
       let allUrls: string[] = [];
-      const candidateErrors: string[] = [];
       for (const candidate of candidates) {
         if (crawlRunIdRef.current !== runId) return;
-        setCrawlStatus(`Trying sitemap entry: ${candidate}`);
+        setCrawlStatus(`Trying: ${candidate}`);
         try {
-          allUrls = await crawlSitemapUrls(candidate, fetchSitemapText, crawlOptions);
+          allUrls = await crawlSitemapUrls(candidate, fetchSitemapText, {
+            concurrency: 8, fetchTimeoutMs: 35000, signal,
+            onProgress: (p: SitemapCrawlProgress) => {
+              if (crawlRunIdRef.current !== runId) return;
+              setCrawlFoundCount(p.discoveredUrls);
+              setCrawlStatus(`⚡ ${p.processedSitemaps} sitemaps • ${p.discoveredUrls} URLs`);
+            },
+            onUrlsBatch: (batch: string[]) => {
+              if (crawlRunIdRef.current !== runId) return;
+              setCrawledUrls(prev => Array.from(new Set([...prev, ...filterBlogPostUrls(batch)])));
+            },
+          });
           if (allUrls.length > 0) break;
-          candidateErrors.push(`${candidate}: no URLs found`);
         } catch (e) {
-          if (signal.aborted) {
-            throw new Error("Crawl cancelled");
-          }
-          const msg = e instanceof Error ? e.message : "Failed to crawl sitemap";
-          candidateErrors.push(`${candidate}: ${msg}`);
+          if (signal.aborted) throw new Error("Crawl cancelled");
         }
       }
 
-      if (allUrls.length === 0) {
-        throw new Error(`No URLs found. Attempts: ${candidateErrors.join(" | ")}`);
-      }
-
+      if (allUrls.length === 0) throw new Error("No URLs found from any sitemap source.");
       if (crawlRunIdRef.current !== runId) return;
 
-      // Filter to blog posts only
       const blogPostUrls = filterBlogPostUrls(allUrls);
       setCrawledUrls(blogPostUrls);
       setSitemapUrls(blogPostUrls);
       setCrawlFoundCount(blogPostUrls.length);
-      setCrawlStatus(`Done • ${blogPostUrls.length.toLocaleString()} blog posts (filtered from ${allUrls.length.toLocaleString()} total)`);
+      setCrawlStatus(`Done • ${blogPostUrls.length.toLocaleString()} blog posts`);
       toast.success(`Found ${blogPostUrls.length} blog post URLs!`);
     } catch (error) {
-      if (signal.aborted || (error instanceof Error && /crawl cancelled/i.test(error.message))) {
-        if (crawlRunIdRef.current === runId) {
-          setCrawlStatus("Cancelled.");
-          toast.info("Crawl cancelled");
-        }
+      if (crawlAbortRef.current?.signal.aborted) {
+        setCrawlStatus("Cancelled.");
+        toast.info("Crawl cancelled");
         return;
       }
-      console.error("[Sitemap] Crawl error:", error);
       toast.error(error instanceof Error ? error.message : "Failed to crawl sitemap");
     } finally {
-      if (crawlAbortRef.current === controller) {
-        crawlAbortRef.current = null;
-      }
-      if (crawlRunIdRef.current === runId) {
-        setIsCrawling(false);
-      }
+      if (crawlAbortRef.current === controller) crawlAbortRef.current = null;
+      if (crawlRunIdRef.current === runId) setIsCrawling(false);
     }
   };
 
   const cancelCrawl = () => {
-    // Invalidate all callbacks
     crawlRunIdRef.current += 1;
     crawlAbortRef.current?.abort();
     crawlAbortRef.current = null;
@@ -365,61 +493,48 @@ export function ContentStrategy() {
   };
 
   const toggleUrlSelection = (url: string) => {
-    setSelectedUrls(prev => {
-      const next = new Set(prev);
-      if (next.has(url)) {
-        next.delete(url);
-      } else {
-        next.add(url);
-      }
-      return next;
-    });
-  };
-
-  const selectAllUrls = () => {
-    setSelectedUrls(new Set(crawledUrls));
-  };
-
-  const deselectAllUrls = () => {
-    setSelectedUrls(new Set());
+    setSelectedUrls(prev => { const n = new Set(prev); n.has(url) ? n.delete(url) : n.add(url); return n; });
   };
 
   const handleAddSelectedToRewrite = () => {
     if (selectedUrls.size === 0) return;
-
     selectedUrls.forEach(url => {
-      // Extract a title from the URL
-      const urlPath = new URL(url).pathname;
-      const slug = urlPath.split('/').filter(Boolean).pop() || 'untitled';
+      const slug = new URL(url).pathname.split('/').filter(Boolean).pop() || 'untitled';
       const title = slug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-
-      addContentItem({
-        title: title,
-        type: 'refresh',
-        status: 'pending',
-        primaryKeyword: title.toLowerCase(),
-        url: url,
-      });
+      addContentItem({ title, type: 'refresh', status: 'pending', primaryKeyword: title.toLowerCase(), url });
     });
-
     toast.success(`Added ${selectedUrls.size} URLs to rewrite queue!`);
     setSelectedUrls(new Set());
     setCurrentStep(3);
   };
 
+  // ── Available models ───────────────────────────────────────────────────
+  const availableModels = [
+    ...(appConfig.geminiApiKey ? [{ value: "gemini", label: "Google Gemini" }] : []),
+    ...(appConfig.openaiApiKey ? [{ value: "openai", label: "OpenAI GPT-4o" }] : []),
+    ...(appConfig.anthropicApiKey ? [{ value: "anthropic", label: "Claude 3.5 Sonnet" }] : []),
+    ...(appConfig.openrouterApiKey ? [{ value: "openrouter", label: `OpenRouter${appConfig.openrouterModelId ? ` (${appConfig.openrouterModelId})` : ''}` }] : []),
+    ...(appConfig.groqApiKey ? [{ value: "groq", label: `Groq${appConfig.groqModelId ? ` (${appConfig.groqModelId})` : ''}` }] : []),
+  ];
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // RENDER
+  // ═══════════════════════════════════════════════════════════════════════
+
   return (
     <div className="space-y-8">
+      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
           <BarChart3 className="w-7 h-7 text-primary" />
           2. Content Strategy & Planning
         </h1>
         <p className="text-muted-foreground mt-1">
-          Plan, generate, and optimize your content with AI-powered tools.
+          Enterprise-grade content planning, generation, and optimization.
         </p>
       </div>
 
-      {/* Tabs */}
+      {/* Tab Bar */}
       <div className="flex flex-wrap gap-2 glass-card p-2 backdrop-blur-md">
         {tabs.map(tab => (
           <button
@@ -432,7 +547,7 @@ export function ContentStrategy() {
                 : "text-zinc-400 hover:text-white hover:bg-white/5"
             )}
           >
-            <tab.icon className={cn("w-4 h-4", activeTab === tab.id ? "text-white" : "text-zinc-500 group-hover:text-zinc-300")} />
+            <tab.icon className={cn("w-4 h-4", activeTab === tab.id ? "text-white" : "text-zinc-500")} />
             {tab.label}
           </button>
         ))}
@@ -442,271 +557,743 @@ export function ContentStrategy() {
       <div className="glass-card p-8 rounded-3xl relative overflow-hidden min-h-[500px]">
         <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-3xl -z-10 translate-x-1/3 -translate-y-1/3" />
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-500/5 rounded-full blur-3xl -z-10 -translate-x-1/3 translate-y-1/3" />
+
+        {/* ════════════════════════════════════════════════════════════════ */}
+        {/* BULK PLANNER                                                    */}
+        {/* ════════════════════════════════════════════════════════════════ */}
         {activeTab === "bulk" && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center">
-                <BookOpen className="w-6 h-6 text-primary" />
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-gradient-to-br from-primary/30 to-emerald-600/20 rounded-2xl flex items-center justify-center shadow-lg shadow-primary/10">
+                <BookOpen className="w-7 h-7 text-primary" />
               </div>
               <div>
-                <h3 className="font-semibold text-foreground">Bulk Content Planner</h3>
+                <h3 className="text-xl font-bold text-foreground">AI-Powered Bulk Content Planner</h3>
                 <p className="text-sm text-muted-foreground">
-                  Enter a broad topic to generate a pillar page and cluster content plan.
+                  Enter a topic → get a full pillar + cluster content plan with AI-optimized titles.
                 </p>
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-white mb-3">Broad Topic</label>
+
+            {/* Topic Input */}
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-white">
+                Core Topic / Pillar Theme <span className="text-red-400">*</span>
+              </label>
               <div className="relative group">
                 <input
                   type="text"
                   value={broadTopic}
                   onChange={(e) => setBroadTopic(e.target.value)}
-                  placeholder="e.g., 'Sustainable Living' or 'Python Programming'"
-                  className="w-full px-5 py-4 bg-black/20 backdrop-blur-sm border border-white/10 rounded-2xl text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-300 shadow-inner group-hover:bg-black/30"
+                  placeholder="e.g., 'Trail Running Nutrition' or 'SaaS Customer Retention'"
+                  className="w-full px-5 py-4 bg-black/20 backdrop-blur-sm border border-white/10 rounded-2xl text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all shadow-inner group-hover:bg-black/30 text-lg"
                 />
-                <Sparkles className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 group-focus-within:text-primary transition-colors" />
+                <Brain className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 group-focus-within:text-primary transition-colors" />
               </div>
             </div>
+
+            {/* Cluster Type Selection */}
+            <div className="space-y-3">
+              <label className="block text-sm font-semibold text-white">
+                Cluster Article Types <span className="text-zinc-500 font-normal">(select which types to generate)</span>
+              </label>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {CLUSTER_TYPES.map(ct => {
+                  const selected = selectedClusterTypes.has(ct.value);
+                  return (
+                    <button
+                      key={ct.value}
+                      onClick={() => {
+                        setSelectedClusterTypes(prev => {
+                          const next = new Set(prev);
+                          next.has(ct.value) ? next.delete(ct.value) : next.add(ct.value);
+                          return next;
+                        });
+                      }}
+                      className={cn(
+                        "p-4 rounded-xl border text-left transition-all duration-200 group",
+                        selected
+                          ? "bg-primary/10 border-primary/40 shadow-lg shadow-primary/5"
+                          : "bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/8"
+                      )}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-lg">{ct.icon}</span>
+                        <span className={cn("text-sm font-bold", selected ? "text-primary" : "text-zinc-300")}>{ct.label}</span>
+                        {selected && <CheckCircle2 className="w-4 h-4 text-primary ml-auto" />}
+                      </div>
+                      <p className="text-xs text-zinc-500 leading-relaxed">{ct.desc}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Advanced Options */}
+            <button
+              onClick={() => setShowAdvancedBulk(!showAdvancedBulk)}
+              className="flex items-center gap-2 text-sm font-semibold text-zinc-400 hover:text-white transition-colors"
+            >
+              <Settings2 className="w-4 h-4" />
+              Advanced Options
+              {showAdvancedBulk ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+
+            {showAdvancedBulk && (
+              <div className="space-y-4 p-5 bg-white/5 rounded-2xl border border-white/10">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-400 mb-2">Target Word Count per Article</label>
+                    <select
+                      value={bulkWordCount}
+                      onChange={(e) => setBulkWordCount(Number(e.target.value))}
+                      className="w-full px-4 py-3 bg-black/20 text-white border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    >
+                      <option value={2000}>2,000 words (Standard)</option>
+                      <option value={3000}>3,000 words (Comprehensive)</option>
+                      <option value={3500}>3,500 words (Enterprise)</option>
+                      <option value={4500}>4,500 words (Pillar-grade)</option>
+                      <option value={6000}>6,000+ words (Ultimate Guide)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-400 mb-2">Priority Level</label>
+                    <select
+                      value={bulkPriority}
+                      onChange={(e) => setBulkPriority(e.target.value as any)}
+                      className="w-full px-4 py-3 bg-black/20 text-white border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    >
+                      <option value="high">High Priority</option>
+                      <option value="medium">Medium Priority</option>
+                      <option value="low">Low Priority</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-400 mb-2">Target Audience</label>
+                    <input
+                      type="text"
+                      value={bulkTargetAudience}
+                      onChange={(e) => setBulkTargetAudience(e.target.value)}
+                      placeholder="e.g., 'Ultra marathon runners'"
+                      className="w-full px-4 py-3 bg-black/20 text-white border border-white/10 rounded-xl placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-400 mb-2">
+                    Additional Keywords <span className="text-zinc-600">(one per line — each becomes an article)</span>
+                  </label>
+                  <textarea
+                    value={bulkSecondaryKeywords}
+                    onChange={(e) => setBulkSecondaryKeywords(e.target.value)}
+                    placeholder={"trail running nutrition for beginners\nbest energy gels for ultra marathons\nelectrolyte management during long runs"}
+                    rows={4}
+                    className="w-full px-4 py-3 bg-black/20 text-white border border-white/10 rounded-xl placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Plan Summary */}
+            {broadTopic.trim() && (
+              <div className="p-5 bg-gradient-to-r from-primary/10 to-emerald-600/5 rounded-2xl border border-primary/20">
+                <div className="flex items-center gap-2 mb-3">
+                  <Layers className="w-4 h-4 text-primary" />
+                  <span className="text-sm font-bold text-primary">Content Plan Preview</span>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                  <div>
+                    <div className="text-2xl font-black text-white">{1 + selectedClusterTypes.size + bulkSecondaryKeywords.split('\n').filter(k => k.trim()).length}</div>
+                    <div className="text-xs text-zinc-400">Total Articles</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-black text-white">{((1 + selectedClusterTypes.size + bulkSecondaryKeywords.split('\n').filter(k => k.trim()).length) * bulkWordCount).toLocaleString()}</div>
+                    <div className="text-xs text-zinc-400">Est. Total Words</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-black text-white">{Math.ceil((1 + selectedClusterTypes.size) * 0.5)}h</div>
+                    <div className="text-xs text-zinc-400">Est. Gen Time</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-black text-white">1</div>
+                    <div className="text-xs text-zinc-400">Pillar Page</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Generate Button */}
             <button
               onClick={handleGenerateContentPlan}
               disabled={!broadTopic.trim()}
-              className="w-full px-6 py-4 bg-gradient-to-r from-primary to-emerald-600 text-white font-bold text-lg rounded-2xl hover:brightness-110 disabled:opacity-50 disabled:grayscale transition-all duration-300 shadow-[0_4px_20px_rgba(16,185,129,0.3)] hover:shadow-[0_8px_30px_rgba(16,185,129,0.4)] hover:-translate-y-1 flex items-center justify-center gap-3"
+              className="w-full px-6 py-5 bg-gradient-to-r from-primary to-emerald-600 text-white font-bold text-lg rounded-2xl hover:brightness-110 disabled:opacity-50 disabled:grayscale transition-all duration-300 shadow-[0_4px_20px_rgba(16,185,129,0.3)] hover:shadow-[0_8px_30px_rgba(16,185,129,0.4)] hover:-translate-y-1 flex items-center justify-center gap-3 active:scale-[0.98]"
             >
-              <Zap className="w-6 h-6 fill-current" />
-              Generate Content Plan
+              <Rocket className="w-6 h-6" />
+              Generate {1 + selectedClusterTypes.size + bulkSecondaryKeywords.split('\n').filter(k => k.trim()).length}-Article Content Plan
             </button>
           </div>
         )}
 
+        {/* ════════════════════════════════════════════════════════════════ */}
+        {/* SINGLE ARTICLE                                                  */}
+        {/* ════════════════════════════════════════════════════════════════ */}
         {activeTab === "single" && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center">
-                <FileText className="w-6 h-6 text-primary" />
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-gradient-to-br from-blue-500/30 to-indigo-600/20 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/10">
+                <FileText className="w-7 h-7 text-blue-400" />
               </div>
               <div>
-                <h3 className="font-semibold text-foreground">Single Article Generator</h3>
+                <h3 className="text-xl font-bold text-foreground">Single Article Generator</h3>
                 <p className="text-sm text-muted-foreground">
-                  Enter primary keywords (one per line) to generate articles.
+                  Full control over every aspect of content generation.
                 </p>
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-white mb-3">
-                Primary Keywords (one per line)
+
+            {/* Keywords Input */}
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-white">
+                Primary Keywords <span className="text-zinc-500 font-normal">(one per line — each becomes an article)</span>
               </label>
-              <div className="relative group">
-                <textarea
-                  value={keywords}
-                  onChange={(e) => setKeywords(e.target.value)}
-                  placeholder="best running shoes 2026&#10;how to train for marathon&#10;running injury prevention"
-                  rows={6}
-                  className="w-full px-5 py-4 bg-black/20 backdrop-blur-sm border border-white/10 rounded-2xl text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-300 shadow-inner group-hover:bg-black/30 resize-none"
-                />
+              <textarea
+                value={keywords}
+                onChange={(e) => setKeywords(e.target.value)}
+                placeholder={"best running shoes 2026\nhow to train for marathon\nrunning injury prevention tips"}
+                rows={5}
+                className="w-full px-5 py-4 bg-black/20 backdrop-blur-sm border border-white/10 rounded-2xl text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all shadow-inner resize-none font-mono text-sm"
+              />
+            </div>
+
+            {/* Quick Config Row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-zinc-400 mb-2">Content Type</label>
+                <select
+                  value={singleContentType}
+                  onChange={(e) => setSingleContentType(e.target.value)}
+                  className="w-full px-4 py-3 bg-black/20 text-white border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                >
+                  {CONTENT_TYPES.map(ct => (
+                    <option key={ct.value} value={ct.value}>{ct.label} — {ct.desc}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-zinc-400 mb-2">AI Model</label>
+                <select
+                  value={singleModel}
+                  onChange={(e) => setSingleModel(e.target.value as any)}
+                  className="w-full px-4 py-3 bg-black/20 text-white border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                >
+                  {availableModels.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                  {availableModels.length === 0 && <option disabled>No API keys configured</option>}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-zinc-400 mb-2">Writing Tone</label>
+                <select
+                  value={singleTone}
+                  onChange={(e) => setSingleTone(e.target.value)}
+                  className="w-full px-4 py-3 bg-black/20 text-white border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                >
+                  {TONE_OPTIONS.map(t => <option key={t.value} value={t.value}>{t.label} — {t.desc}</option>)}
+                </select>
               </div>
             </div>
+
+            {/* Advanced Toggle */}
+            <button
+              onClick={() => setShowAdvancedSingle(!showAdvancedSingle)}
+              className="flex items-center gap-2 text-sm font-semibold text-zinc-400 hover:text-white transition-colors"
+            >
+              <Settings2 className="w-4 h-4" />
+              Pipeline Configuration
+              {showAdvancedSingle ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+
+            {showAdvancedSingle && (
+              <div className="space-y-5 p-5 bg-white/5 rounded-2xl border border-white/10">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-400 mb-2">Target Word Count</label>
+                    <input
+                      type="number"
+                      value={singleWordCount}
+                      onChange={(e) => setSingleWordCount(Number(e.target.value))}
+                      min={1500}
+                      max={8000}
+                      step={500}
+                      className="w-full px-4 py-3 bg-black/20 text-white border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-400 mb-2">Target Audience</label>
+                    <input
+                      type="text"
+                      value={singleTargetAudience}
+                      onChange={(e) => setSingleTargetAudience(e.target.value)}
+                      placeholder="e.g., 'SaaS founders with $1M+ ARR'"
+                      className="w-full px-4 py-3 bg-black/20 text-white border border-white/10 rounded-xl placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                  </div>
+                </div>
+
+                {/* Pipeline Feature Toggles */}
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-400 mb-3">Pipeline Features</label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {[
+                      { key: 'serp', label: 'SERP Gap Analysis', icon: TrendingUp, state: enableSerpAnalysis, setter: setEnableSerpAnalysis, color: 'text-blue-400' },
+                      { key: 'critique', label: 'Self-Critique (3 passes)', icon: ShieldCheck, state: enableSelfCritique, setter: setEnableSelfCritique, color: 'text-amber-400' },
+                      { key: 'wpimg', label: 'WP Media Images', icon: Image, state: enableWpImages, setter: setEnableWpImages, color: 'text-purple-400' },
+                      { key: 'yt', label: 'YouTube Video Embed', icon: Globe, state: enableYouTube, setter: setEnableYouTube, color: 'text-red-400' },
+                      { key: 'refs', label: 'Verified References', icon: Link, state: enableReferences, setter: setEnableReferences, color: 'text-emerald-400' },
+                    ].map(f => (
+                      <label key={f.key} className={cn(
+                        "flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all",
+                        f.state ? "bg-white/5 border-white/20" : "bg-black/10 border-white/5 opacity-60"
+                      )}>
+                        <input
+                          type="checkbox"
+                          checked={f.state}
+                          onChange={() => f.setter(!f.state)}
+                          className="sr-only peer"
+                        />
+                        <div className={cn("w-8 h-5 rounded-full transition-colors relative",
+                          f.state ? "bg-primary" : "bg-zinc-700"
+                        )}>
+                          <div className={cn("absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform",
+                            f.state ? "translate-x-3.5" : "translate-x-0.5"
+                          )} />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <f.icon className={cn("w-4 h-4", f.color)} />
+                          <span className="text-xs font-semibold text-zinc-300">{f.label}</span>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {enableSelfCritique && (
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-400 mb-2">Max Self-Critique Passes</label>
+                    <div className="flex items-center gap-4">
+                      {[1, 2, 3].map(n => (
+                        <button
+                          key={n}
+                          onClick={() => setMaxCritiquePasses(n)}
+                          className={cn(
+                            "px-4 py-2 rounded-lg text-sm font-bold transition-all",
+                            maxCritiquePasses === n
+                              ? "bg-primary text-white shadow-lg shadow-primary/20"
+                              : "bg-white/5 text-zinc-400 hover:text-white"
+                          )}
+                        >
+                          {n} {n === 1 ? 'pass' : 'passes'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Action Buttons */}
             <div className="flex gap-3">
               <button
-                onClick={handleAddKeywords}
+                onClick={() => handleAddKeywords(false)}
                 disabled={!keywords.trim()}
-                className="flex-1 px-6 py-3 bg-muted text-foreground font-semibold rounded-xl hover:bg-muted/80 disabled:opacity-50 flex items-center justify-center gap-2"
+                className="flex-1 px-6 py-4 bg-white/5 border border-white/10 text-foreground font-semibold rounded-xl hover:bg-white/10 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
               >
                 <Plus className="w-5 h-5" />
-                ➕ Add to Queue
+                Add to Queue
               </button>
               <button
-                onClick={() => { handleAddKeywords(); setCurrentStep(3); }}
-                className="px-6 py-3 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 flex items-center gap-2"
+                onClick={() => handleAddKeywords(true)}
+                disabled={!keywords.trim()}
+                className="flex-1 px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold rounded-xl hover:brightness-110 disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 transition-all hover:-translate-y-0.5 active:scale-[0.98]"
               >
-                Go to Review <ArrowRight className="w-4 h-4" />
+                <Zap className="w-5 h-5 fill-current" />
+                Add & Generate Now
+                <ArrowRight className="w-4 h-4" />
               </button>
             </div>
           </div>
         )}
 
-        {activeTab === "godmode" && (
-          <GodModeDashboard />
-        )}
+        {/* ════════════════════════════════════════════════════════════════ */}
+        {/* GOD MODE 2.0                                                    */}
+        {/* ════════════════════════════════════════════════════════════════ */}
+        {activeTab === "godmode" && <GodModeDashboard />}
 
+        {/* ════════════════════════════════════════════════════════════════ */}
+        {/* GAP ANALYSIS                                                    */}
+        {/* ════════════════════════════════════════════════════════════════ */}
         {activeTab === "gap" && (
           <div className="space-y-6">
-            {/* Priority Only Mode Toggle */}
-            <label className="flex items-center gap-4 cursor-pointer p-6 glass-card rounded-2xl border border-white/5 hover:bg-white/5 transition-all duration-300">
-              <div className="relative">
-                <input
-                  type="checkbox"
-                  checked={priorityOnlyMode}
-                  onChange={(e) => setPriorityOnlyMode(e.target.checked)}
-                  className="peer sr-only"
-                />
-                <div className="w-14 h-8 bg-black/40 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-7 after:w-7 after:transition-all peer-checked:bg-primary"></div>
+            {/* Header */}
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-gradient-to-br from-amber-500/30 to-orange-600/20 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/10">
+                <Target className="w-7 h-7 text-amber-400" />
               </div>
               <div>
-                <span className="font-bold text-lg text-white block mb-1">🎯 Priority Only Mode</span>
-                <p className="text-sm text-zinc-400">
-                  Restricts God Mode to ONLY optimize URLs in your Priority Queue. Ignores sitemap scan.
+                <h3 className="text-xl font-bold text-foreground">SERP Gap Analysis Engine</h3>
+                <p className="text-sm text-muted-foreground">
+                  Analyze top-3 SERP results, identify content gaps, and build gap-optimized articles.
                 </p>
-              </div>
-            </label>
-
-            {/* Priority URL Queue */}
-            <div className="glass-card rounded-2xl p-6 border border-white/10">
-              <div className="flex items-center justify-between mb-6">
-                <h4 className="font-bold text-white flex items-center gap-2">
-                  <div className="p-2 bg-primary/20 rounded-lg">
-                    <Target className="w-5 h-5 text-primary" />
-                  </div>
-                  PRIORITY URL QUEUE
-                </h4>
-                <span className="px-3 py-1 bg-white/5 rounded-full text-xs font-medium text-zinc-400 border border-white/5">{priorityUrls.length} Total</span>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex gap-3">
-                  <select
-                    value={newPriority}
-                    onChange={(e) => setNewPriority(e.target.value as any)}
-                    className="px-4 py-3 bg-black/20 text-white border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  >
-                    <option value="critical">Critical</option>
-                    <option value="high">High</option>
-                    <option value="medium">Medium</option>
-                    <option value="low">Low</option>
-                  </select>
-                  <input
-                    type="url"
-                    value={newPriorityUrl}
-                    onChange={(e) => setNewPriorityUrl(e.target.value)}
-                    placeholder="Enter URL to Optimize"
-                    className="flex-1 px-5 py-3 bg-black/20 backdrop-blur-sm border border-white/10 rounded-xl text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-                  />
-                  <button
-                    onClick={handleAddPriorityUrl}
-                    disabled={!newPriorityUrl.trim()}
-                    className="px-5 py-3 bg-primary text-white rounded-xl hover:bg-primary/90 disabled:opacity-50 transition-all hover:scale-105 active:scale-95 shadow-lg shadow-primary/20"
-                  >
-                    <Plus className="w-5 h-5" />
-                  </button>
-                </div>
-
-                {priorityUrls.length > 0 && (
-                  <div className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
-                    {priorityUrls.map(url => (
-                      <div key={url.id} className="flex items-center gap-3 px-4 py-3 bg-white/5 border border-white/5 rounded-xl text-sm group hover:bg-white/10 transition-colors">
-                        <span className={cn(
-                          "px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider",
-                          url.priority === 'critical' && "bg-red-500/20 text-red-400 border border-red-500/20",
-                          url.priority === 'high' && "bg-orange-500/20 text-orange-400 border border-orange-500/20",
-                          url.priority === 'medium' && "bg-yellow-500/20 text-yellow-400 border border-yellow-500/20",
-                          url.priority === 'low' && "bg-emerald-500/20 text-emerald-400 border border-emerald-500/20"
-                        )}>
-                          {url.priority}
-                        </span>
-                        <span className="flex-1 truncate text-zinc-300 font-mono text-xs">{url.url}</span>
-                        <button
-                          onClick={() => removePriorityUrl(url.id)}
-                          className="text-zinc-500 hover:text-red-400 transition-colors p-2 hover:bg-red-500/10 rounded-lg opacity-0 group-hover:opacity-100"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
 
-            {/* Exclusion Controls */}
-            <div className="glass-card rounded-2xl p-6 border border-white/10">
-              <h4 className="font-bold text-white mb-6 flex items-center gap-2">
-                <div className="p-2 bg-red-500/20 rounded-lg">
-                  <XCircle className="w-5 h-5 text-red-400" />
+            {/* Gap Analysis Input */}
+            <div className="space-y-4">
+              <div className="flex gap-3">
+                <div className="flex-1 relative group">
+                  <input
+                    type="text"
+                    value={gapKeyword}
+                    onChange={(e) => setGapKeyword(e.target.value)}
+                    placeholder="Enter keyword to analyze (e.g., 'best trail running shoes 2026')"
+                    onKeyDown={(e) => e.key === 'Enter' && handleRunGapAnalysis()}
+                    className="w-full px-5 py-4 bg-black/20 backdrop-blur-sm border border-white/10 rounded-2xl text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all shadow-inner group-hover:bg-black/30 text-lg"
+                  />
+                  <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 group-focus-within:text-amber-400 transition-colors" />
                 </div>
+                <button
+                  onClick={handleRunGapAnalysis}
+                  disabled={!gapKeyword.trim() || gapAnalysisRunning || !appConfig.serperApiKey}
+                  className="px-8 py-4 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold rounded-2xl hover:brightness-110 disabled:opacity-50 disabled:grayscale transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2 active:scale-[0.98]"
+                >
+                  {gapAnalysisRunning ? (
+                    <><Loader2 className="w-5 h-5 animate-spin" /> Analyzing...</>
+                  ) : (
+                    <><TrendingUp className="w-5 h-5" /> Analyze SERP</>
+                  )}
+                </button>
+              </div>
+
+              {!appConfig.serperApiKey && (
+                <div className="flex items-center gap-2 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  Serper API key required. Add it in Setup → AI Provider config.
+                </div>
+              )}
+            </div>
+
+            {/* Gap Results */}
+            {gapResults && (
+              <div className="space-y-5">
+                {/* Overview Stats */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {[
+                    { label: "User Intent", value: gapResults.userIntent.toUpperCase(), icon: Eye, color: "text-blue-400" },
+                    { label: "Avg Competitor Words", value: gapResults.avgWordCount.toLocaleString(), icon: Hash, color: "text-emerald-400" },
+                    { label: "Recommended Length", value: `${gapResults.recommendedWordCount.toLocaleString()}+`, icon: Gauge, color: "text-amber-400" },
+                    { label: "Content Gaps Found", value: gapResults.contentGaps.length.toString(), icon: Target, color: "text-red-400" },
+                  ].map(stat => (
+                    <div key={stat.label} className="p-4 bg-white/5 border border-white/10 rounded-xl">
+                      <div className="flex items-center gap-2 mb-2">
+                        <stat.icon className={cn("w-4 h-4", stat.color)} />
+                        <span className="text-xs text-zinc-500 font-semibold">{stat.label}</span>
+                      </div>
+                      <div className="text-xl font-black text-white">{stat.value}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Top Competitors */}
+                <div className="p-5 bg-white/5 border border-white/10 rounded-2xl">
+                  <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                    <Star className="w-4 h-4 text-amber-400" />
+                    Top Competitors
+                  </h4>
+                  <div className="space-y-2">
+                    {gapResults.competitors.slice(0, 5).map((c, i) => (
+                      <div key={i} className="flex items-start gap-3 p-3 bg-black/20 rounded-xl">
+                        <span className="flex-shrink-0 w-7 h-7 bg-gradient-to-br from-amber-500 to-orange-600 text-white rounded-lg flex items-center justify-center text-xs font-black">
+                          #{c.position}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <a href={c.url} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-blue-400 hover:underline line-clamp-1">{c.title}</a>
+                          <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{c.snippet}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Content Gaps & Entities */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-5 bg-white/5 border border-white/10 rounded-2xl">
+                    <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                      <Target className="w-4 h-4 text-red-400" />
+                      Content Gaps <span className="text-zinc-500 font-normal">({gapResults.contentGaps.length})</span>
+                    </h4>
+                    <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto custom-scrollbar">
+                      {gapResults.contentGaps.slice(0, 25).map((gap, i) => (
+                        <span key={i} className="px-3 py-1.5 bg-red-500/10 border border-red-500/20 text-red-300 rounded-lg text-xs font-medium">
+                          {gap}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="p-5 bg-white/5 border border-white/10 rounded-2xl">
+                    <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                      <Globe className="w-4 h-4 text-emerald-400" />
+                      Semantic Entities <span className="text-zinc-500 font-normal">({gapResults.semanticEntities.length})</span>
+                    </h4>
+                    <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto custom-scrollbar">
+                      {gapResults.semanticEntities.slice(0, 25).map((entity, i) => (
+                        <span key={i} className="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 rounded-lg text-xs font-medium">
+                          {entity}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Common Headings */}
+                {gapResults.commonHeadings.length > 0 && (
+                  <div className="p-5 bg-white/5 border border-white/10 rounded-2xl">
+                    <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                      <ListChecks className="w-4 h-4 text-blue-400" />
+                      Common Competitor Headings
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {gapResults.commonHeadings.slice(0, 16).map((h, i) => (
+                        <div key={i} className="flex items-center gap-2 px-3 py-2 bg-black/20 rounded-lg text-xs text-zinc-300">
+                          <span className="text-blue-400 font-bold">H2</span>
+                          {h}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Action Button */}
+                <button
+                  onClick={handleCreateFromGapAnalysis}
+                  className="w-full px-6 py-5 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold text-lg rounded-2xl hover:brightness-110 transition-all shadow-lg shadow-amber-500/20 hover:-translate-y-1 flex items-center justify-center gap-3 active:scale-[0.98]"
+                >
+                  <Wand2 className="w-6 h-6" />
+                  Create Gap-Optimized Article for "{gapResults.keyword}"
+                </button>
+              </div>
+            )}
+
+            {/* Priority URL Queue (moved from old gap tab) */}
+            <div className="border-t border-white/10 pt-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary/20 rounded-lg">
+                  <Target className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-white">Priority URL Queue</h4>
+                  <p className="text-xs text-zinc-500">URLs that God Mode will process first.</p>
+                </div>
+                <span className="ml-auto px-3 py-1 bg-white/5 rounded-full text-xs font-medium text-zinc-400 border border-white/5">{priorityUrls.length} Total</span>
+              </div>
+
+              <div className="flex gap-3">
+                <select
+                  value={newPriority}
+                  onChange={(e) => setNewPriority(e.target.value as any)}
+                  className="px-4 py-3 bg-black/20 text-white border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                >
+                  <option value="critical">Critical</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
+                <input
+                  type="url"
+                  value={newPriorityUrl}
+                  onChange={(e) => setNewPriorityUrl(e.target.value)}
+                  placeholder="Enter URL to prioritize"
+                  className="flex-1 px-5 py-3 bg-black/20 border border-white/10 rounded-xl text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+                <button
+                  onClick={handleAddPriorityUrl}
+                  disabled={!newPriorityUrl.trim()}
+                  className="px-5 py-3 bg-primary text-white rounded-xl hover:bg-primary/90 disabled:opacity-50 transition-all active:scale-95 shadow-lg shadow-primary/20"
+                >
+                  <Plus className="w-5 h-5" />
+                </button>
+              </div>
+
+              {priorityUrls.length > 0 && (
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                  {priorityUrls.map(url => (
+                    <div key={url.id} className="flex items-center gap-3 px-4 py-3 bg-white/5 border border-white/5 rounded-xl text-sm group hover:bg-white/10 transition-colors">
+                      <span className={cn(
+                        "px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider",
+                        url.priority === 'critical' && "bg-red-500/20 text-red-400 border border-red-500/20",
+                        url.priority === 'high' && "bg-orange-500/20 text-orange-400 border border-orange-500/20",
+                        url.priority === 'medium' && "bg-yellow-500/20 text-yellow-400 border border-yellow-500/20",
+                        url.priority === 'low' && "bg-emerald-500/20 text-emerald-400 border border-emerald-500/20"
+                      )}>
+                        {url.priority}
+                      </span>
+                      <span className="flex-1 truncate text-zinc-300 font-mono text-xs">{url.url}</span>
+                      <button
+                        onClick={() => removePriorityUrl(url.id)}
+                        className="text-zinc-500 hover:text-red-400 transition-colors p-2 hover:bg-red-500/10 rounded-lg opacity-0 group-hover:opacity-100"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Exclusion Controls */}
+            <div className="border-t border-white/10 pt-6">
+              <h4 className="font-bold text-white mb-4 flex items-center gap-2">
+                <XCircle className="w-5 h-5 text-red-400" />
                 Exclusion Controls
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-3">
-                    Exclude URLs (one per line)
-                  </label>
+                  <label className="block text-sm font-medium text-zinc-400 mb-3">Exclude URLs (one per line)</label>
                   <textarea
                     value={excludedUrls.join('\n')}
                     onChange={(e) => setExcludedUrls(e.target.value.split('\n').filter(u => u.trim()))}
-                    rows={5}
-                    className="w-full px-4 py-3 bg-black/20 border border-white/10 rounded-xl text-sm text-zinc-300 placeholder:text-zinc-600 resize-none focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
+                    rows={4}
+                    className="w-full px-4 py-3 bg-black/20 border border-white/10 rounded-xl text-sm text-zinc-300 placeholder:text-zinc-600 resize-none focus:outline-none focus:ring-2 focus:ring-red-500/50"
                     placeholder="/privacy-policy&#10;/terms-of-service"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-3">
-                    Exclude Categories (one per line)
-                  </label>
+                  <label className="block text-sm font-medium text-zinc-400 mb-3">Exclude Categories (one per line)</label>
                   <textarea
                     value={excludedCategories.join('\n')}
                     onChange={(e) => setExcludedCategories(e.target.value.split('\n').filter(c => c.trim()))}
-                    rows={5}
-                    className="w-full px-4 py-3 bg-black/20 border border-white/10 rounded-xl text-sm text-zinc-300 placeholder:text-zinc-600 resize-none focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all"
+                    rows={4}
+                    className="w-full px-4 py-3 bg-black/20 border border-white/10 rounded-xl text-sm text-zinc-300 placeholder:text-zinc-600 resize-none focus:outline-none focus:ring-2 focus:ring-red-500/50"
                     placeholder="uncategorized&#10;archive"
                   />
                 </div>
               </div>
             </div>
+          </div>
+        )}
 
-            {sitemapUrls.length === 0 && (
-              <div className="flex items-center gap-2 px-4 py-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl text-yellow-400 text-sm">
-                <AlertCircle className="w-5 h-5" />
-                Sitemap Required: Please crawl your sitemap in the "Quick Refresh" tab first.
+        {/* ════════════════════════════════════════════════════════════════ */}
+        {/* QUICK REFRESH                                                   */}
+        {/* ════════════════════════════════════════════════════════════════ */}
+        {activeTab === "refresh" && (
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-gradient-to-br from-cyan-500/30 to-blue-600/20 rounded-2xl flex items-center justify-center shadow-lg shadow-cyan-500/10">
+                <RefreshCw className="w-7 h-7 text-cyan-400" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-foreground">Quick Refresh & Content Update</h3>
+                <p className="text-sm text-muted-foreground">
+                  Rewrite existing content with fresh data, improved SEO, and SOTA quality.
+                </p>
+              </div>
+            </div>
+
+            {/* Mode Toggle */}
+            <div className="flex gap-2 p-1 bg-white/5 rounded-xl border border-white/10 w-fit">
+              <button
+                onClick={() => setRefreshMode("single")}
+                className={cn(
+                  "px-5 py-2.5 rounded-lg text-sm font-semibold transition-all",
+                  refreshMode === "single" ? "bg-primary text-white shadow-lg" : "text-zinc-400 hover:text-white"
+                )}
+              >
+                Single URL
+              </button>
+              <button
+                onClick={() => setRefreshMode("bulk")}
+                className={cn(
+                  "px-5 py-2.5 rounded-lg text-sm font-semibold transition-all",
+                  refreshMode === "bulk" ? "bg-primary text-white shadow-lg" : "text-zinc-400 hover:text-white"
+                )}
+              >
+                Bulk URLs
+              </button>
+            </div>
+
+            {refreshMode === "single" ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-white mb-2">Post URL to Refresh</label>
+                  <div className="relative group">
+                    <input
+                      type="url"
+                      value={singleUrl}
+                      onChange={(e) => setSingleUrl(e.target.value)}
+                      placeholder="https://your-site.com/post-to-refresh"
+                      className="w-full px-5 py-4 bg-black/20 backdrop-blur-sm border border-white/10 rounded-2xl text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all shadow-inner group-hover:bg-black/30"
+                    />
+                    <Link className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 group-focus-within:text-cyan-400 transition-colors" />
+                  </div>
+                </div>
+
+                {/* Refresh info */}
+                <div className="p-4 bg-cyan-500/5 border border-cyan-500/20 rounded-xl">
+                  <div className="flex items-start gap-3">
+                    <ShieldCheck className="w-5 h-5 text-cyan-400 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-zinc-300 space-y-1">
+                      <p className="font-semibold text-cyan-300">What happens during a refresh:</p>
+                      <ul className="text-xs text-zinc-400 space-y-1 list-none">
+                        <li>• Fetches existing content from WordPress</li>
+                        <li>• Runs SERP gap analysis for the target keyword</li>
+                        <li>• Generates improved content with gap coverage</li>
+                        <li>• Adds missing YouTube videos, images, and references</li>
+                        <li>• Self-critique ensures 92+ quality score</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleRefreshSingle}
+                  disabled={!singleUrl.trim()}
+                  className="w-full px-6 py-5 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold text-lg rounded-2xl hover:brightness-110 disabled:opacity-50 disabled:grayscale transition-all duration-300 shadow-lg shadow-cyan-600/20 hover:-translate-y-1 flex items-center justify-center gap-3 active:scale-[0.98]"
+                >
+                  <RefreshCw className="w-6 h-6" />
+                  Refresh & Optimize
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-white mb-2">
+                    URLs to Refresh <span className="text-zinc-500 font-normal">(one per line)</span>
+                  </label>
+                  <textarea
+                    value={refreshUrls}
+                    onChange={(e) => setRefreshUrls(e.target.value)}
+                    placeholder={"https://your-site.com/post-1\nhttps://your-site.com/post-2\nhttps://your-site.com/post-3"}
+                    rows={8}
+                    className="w-full px-5 py-4 bg-black/20 backdrop-blur-sm border border-white/10 rounded-2xl text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all shadow-inner resize-none font-mono text-sm"
+                  />
+                </div>
+                <button
+                  onClick={handleBulkRefresh}
+                  disabled={!refreshUrls.trim()}
+                  className="w-full px-6 py-5 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold text-lg rounded-2xl hover:brightness-110 disabled:opacity-50 disabled:grayscale transition-all duration-300 shadow-lg shadow-cyan-600/20 hover:-translate-y-1 flex items-center justify-center gap-3 active:scale-[0.98]"
+                >
+                  <RefreshCw className="w-6 h-6" />
+                  Refresh {refreshUrls.split('\n').filter(u => u.trim()).length} URLs
+                </button>
               </div>
             )}
           </div>
         )}
 
-        {activeTab === "refresh" && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center">
-                <RefreshCw className="w-6 h-6 text-primary" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-foreground">Quick Refresh & Validate</h3>
-                <p className="text-sm text-muted-foreground">
-                  Update existing content with fresh data and improved SEO.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-2 mb-4">
-              <button className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium">
-                Single URL
-              </button>
-              <button className="px-4 py-2 bg-muted text-muted-foreground rounded-lg text-sm font-medium hover:text-foreground">
-                Bulk via Sitemap
-              </button>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-white mb-3">Post URL to Refresh</label>
-              <div className="relative group">
-                <input
-                  type="url"
-                  value={singleUrl}
-                  onChange={(e) => setSingleUrl(e.target.value)}
-                  placeholder="https://your-site.com/post-to-refresh"
-                  className="w-full px-5 py-4 bg-black/20 backdrop-blur-sm border border-white/10 rounded-2xl text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all shadow-inner group-hover:bg-black/30"
-                />
-              </div>
-            </div>
-            <button
-              disabled={!singleUrl.trim()}
-              className="w-full px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-lg rounded-2xl hover:brightness-110 disabled:opacity-50 disabled:grayscale transition-all duration-300 shadow-lg shadow-blue-600/20 hover:-translate-y-1 flex items-center justify-center gap-3"
-            >
-              <RefreshCw className="w-6 h-6" />
-              Refresh & Validate
-            </button>
-          </div>
-        )}
-
+        {/* ════════════════════════════════════════════════════════════════ */}
+        {/* CONTENT HUB                                                     */}
+        {/* ════════════════════════════════════════════════════════════════ */}
         {activeTab === "hub" && (
           <div className="space-y-4">
             <div className="flex items-center gap-3">
@@ -722,77 +1309,48 @@ export function ContentStrategy() {
             </div>
             <div>
               <label className="block text-sm font-medium text-white mb-3">Sitemap URL</label>
-              <div className="relative group">
-                <input
-                  type="url"
-                  value={sitemapUrl}
-                  onChange={(e) => setSitemapUrl(e.target.value)}
-                  placeholder="https://your-site.com/sitemap.xml"
-                  className="w-full px-5 py-4 bg-black/20 backdrop-blur-sm border border-white/10 rounded-2xl text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all shadow-inner group-hover:bg-black/30"
-                />
-              </div>
+              <input
+                type="url"
+                value={sitemapUrl}
+                onChange={(e) => setSitemapUrl(e.target.value)}
+                placeholder="https://your-site.com/sitemap.xml"
+                className="w-full px-5 py-4 bg-black/20 backdrop-blur-sm border border-white/10 rounded-2xl text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all shadow-inner"
+              />
             </div>
             <button
               onClick={isCrawling ? cancelCrawl : handleCrawlSitemap}
               disabled={!isCrawling && !sitemapUrl.trim()}
-              className="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-lg rounded-2xl hover:brightness-110 disabled:opacity-50 disabled:grayscale transition-all duration-300 shadow-lg shadow-purple-600/20 hover:-translate-y-1 flex items-center justify-center gap-3"
+              className="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-lg rounded-2xl hover:brightness-110 disabled:opacity-50 disabled:grayscale transition-all shadow-lg shadow-purple-600/20 hover:-translate-y-1 flex items-center justify-center gap-3 active:scale-[0.98]"
             >
               {isCrawling ? (
-                <>
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                  Crawling… ({crawlFoundCount.toLocaleString()} URLs) • Click to stop
-                </>
+                <><Loader2 className="w-6 h-6 animate-spin" /> Crawling… ({crawlFoundCount.toLocaleString()} URLs) • Click to stop</>
               ) : (
-                <>
-                  <Search className="w-6 h-6" />
-                  Crawl Sitemap
-                </>
+                <><Search className="w-6 h-6" /> Crawl Sitemap</>
               )}
             </button>
 
-            {isCrawling && crawlStatus && (
-              <div className="text-xs text-muted-foreground">{crawlStatus}</div>
-            )}
+            {isCrawling && crawlStatus && <div className="text-xs text-muted-foreground">{crawlStatus}</div>}
 
-            {/* Show crawled URLs with checkboxes */}
             {(crawledUrls.length > 0 || crawlFoundCount > 0) && (
               <div className="mt-4 p-4 bg-muted/50 rounded-xl">
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-medium text-foreground">
-                    ✅ Found {crawledUrls.length.toLocaleString()} Blog Posts
-                  </h4>
+                  <h4 className="font-medium text-foreground">✅ Found {crawledUrls.length.toLocaleString()} Blog Posts</h4>
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={selectAllUrls}
-                      className="px-3 py-1 text-xs bg-primary/20 text-primary rounded-lg hover:bg-primary/30"
-                    >
-                      Select All
-                    </button>
-                    <button
-                      onClick={deselectAllUrls}
-                      className="px-3 py-1 text-xs bg-muted text-muted-foreground rounded-lg hover:bg-muted/80"
-                    >
-                      Deselect All
-                    </button>
+                    <button onClick={() => setSelectedUrls(new Set(crawledUrls))} className="px-3 py-1 text-xs bg-primary/20 text-primary rounded-lg hover:bg-primary/30">Select All</button>
+                    <button onClick={() => setSelectedUrls(new Set())} className="px-3 py-1 text-xs bg-muted text-muted-foreground rounded-lg hover:bg-muted/80">Deselect All</button>
                   </div>
                 </div>
 
                 {selectedUrls.size > 0 && (
                   <div className="mb-3 flex items-center justify-between bg-primary/10 border border-primary/30 rounded-lg px-3 py-2">
-                    <span className="text-sm text-primary font-medium">
-                      {selectedUrls.size} URL{selectedUrls.size !== 1 ? 's' : ''} selected
-                    </span>
-                    <button
-                      onClick={handleAddSelectedToRewrite}
-                      className="px-4 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 flex items-center gap-2"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add to Rewrite Queue
+                    <span className="text-sm text-primary font-medium">{selectedUrls.size} URL{selectedUrls.size !== 1 ? 's' : ''} selected</span>
+                    <button onClick={handleAddSelectedToRewrite} className="px-4 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 flex items-center gap-2">
+                      <Plus className="w-4 h-4" /> Add to Rewrite Queue
                     </button>
                   </div>
                 )}
 
-                <div className="max-h-64 overflow-y-auto space-y-1">
+                <div className="max-h-64 overflow-y-auto space-y-1 custom-scrollbar">
                   {crawledUrls.map((url, idx) => (
                     <label
                       key={idx}
@@ -801,12 +1359,7 @@ export function ContentStrategy() {
                         selectedUrls.has(url) ? "bg-primary/10 border border-primary/30" : "hover:bg-muted/50"
                       )}
                     >
-                      <input
-                        type="checkbox"
-                        checked={selectedUrls.has(url)}
-                        onChange={() => toggleUrlSelection(url)}
-                        className="w-4 h-4 rounded border-border text-primary focus:ring-primary/50"
-                      />
+                      <input type="checkbox" checked={selectedUrls.has(url)} onChange={() => toggleUrlSelection(url)} className="w-4 h-4 rounded border-border text-primary focus:ring-primary/50" />
                       <span className="text-sm text-foreground truncate flex-1">{url}</span>
                     </label>
                   ))}
@@ -816,6 +1369,9 @@ export function ContentStrategy() {
           </div>
         )}
 
+        {/* ════════════════════════════════════════════════════════════════ */}
+        {/* IMAGE GEN                                                       */}
+        {/* ════════════════════════════════════════════════════════════════ */}
         {activeTab === "image" && (
           <div className="space-y-4">
             <div className="flex items-center gap-3">
@@ -824,9 +1380,7 @@ export function ContentStrategy() {
               </div>
               <div>
                 <h3 className="font-semibold text-foreground">SOTA Image Generator</h3>
-                <p className="text-sm text-muted-foreground">
-                  Generate high-quality images using DALL-E 3 or Gemini Imagen.
-                </p>
+                <p className="text-sm text-muted-foreground">Generate high-quality images using DALL-E 3 or Gemini Imagen.</p>
               </div>
             </div>
             <div>
@@ -842,21 +1396,13 @@ export function ContentStrategy() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">Number of Images</label>
-                <select
-                  value={imageCount}
-                  onChange={(e) => setImageCount(Number(e.target.value))}
-                  className="w-full px-4 py-2.5 bg-background border border-border rounded-xl text-foreground"
-                >
+                <select value={imageCount} onChange={(e) => setImageCount(Number(e.target.value))} className="w-full px-4 py-2.5 bg-background border border-border rounded-xl text-foreground">
                   {[1, 2, 3, 4].map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">Aspect Ratio</label>
-                <select
-                  value={aspectRatio}
-                  onChange={(e) => setAspectRatio(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-background border border-border rounded-xl text-foreground"
-                >
+                <select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)} className="w-full px-4 py-2.5 bg-background border border-border rounded-xl text-foreground">
                   <option value="1:1">1:1 (Square)</option>
                   <option value="16:9">16:9 (Landscape)</option>
                   <option value="9:16">9:16 (Portrait)</option>
@@ -866,7 +1412,7 @@ export function ContentStrategy() {
             </div>
             <button
               disabled={!imagePrompt.trim()}
-              className="w-full px-6 py-3 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full px-6 py-3 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2 active:scale-[0.98]"
             >
               <Sparkles className="w-5 h-5" />
               🎨 Generate Images
