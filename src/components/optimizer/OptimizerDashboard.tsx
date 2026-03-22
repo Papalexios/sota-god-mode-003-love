@@ -9,10 +9,10 @@ export function OptimizerDashboard() {
 
   return (
     <div className="min-h-screen gradient-bg flex relative overflow-hidden">
-      <div className="hero-glow animate-pulse-glow" style={{ opacity: 0.3 }} />
+      <div className="hero-glow" style={{ opacity: 0.2 }} />
       <OptimizerNav />
       <main className="flex-1 overflow-auto relative z-10 custom-scrollbar">
-        <div className="p-8 max-w-7xl mx-auto animate-fade-in">
+        <div className="p-6 max-w-7xl mx-auto animate-fade-in">
           {currentStep === 1 && <SetupConfig />}
           {currentStep === 2 && <ContentStrategy />}
           {currentStep === 3 && <ReviewExport />}

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@500;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@500;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,24 +6,24 @@
 
 @layer base {
   :root {
-    /* Base HSL values - SOTA God Mode Theme */
-    --background: 224 71% 4%;
+    /* SOTA God Mode — Premium Dark Theme */
+    --background: 222 47% 5%;
     --foreground: 210 40% 98%;
 
-    --card: 224 71% 6%;
+    --card: 220 40% 7%;
     --card-foreground: 210 40% 98%;
 
-    --popover: 224 71% 6%;
+    --popover: 220 40% 7%;
     --popover-foreground: 210 40% 98%;
 
     --primary: 160 84% 39%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 217 19% 27%;
+    --secondary: 217 19% 18%;
     --secondary-foreground: 210 40% 98%;
 
-    --muted: 217 19% 15%;
-    --muted-foreground: 215 20% 65%;
+    --muted: 220 20% 12%;
+    --muted-foreground: 215 20% 60%;
 
     --accent: 262 83% 58%;
     --accent-foreground: 210 40% 98%;
@@ -31,32 +31,37 @@
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 217 19% 15%;
-    --input: 217 19% 15%;
+    --border: 220 15% 14%;
+    --input: 220 15% 14%;
     --ring: 160 84% 39%;
 
     --radius: 1rem;
+
+    /* Extended palette */
+    --glow-primary: 160 84% 39%;
+    --glow-accent: 262 83% 58%;
+    --surface-elevated: 220 30% 9%;
   }
 
   .dark {
-    --background: 224 71% 4%;
+    --background: 222 47% 5%;
     --foreground: 210 40% 98%;
-    --card: 224 71% 6%;
+    --card: 220 40% 7%;
     --card-foreground: 210 40% 98%;
-    --popover: 224 71% 6%;
+    --popover: 220 40% 7%;
     --popover-foreground: 210 40% 98%;
     --primary: 160 84% 39%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 217 19% 27%;
+    --secondary: 217 19% 18%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 217 19% 15%;
-    --muted-foreground: 215 20% 65%;
+    --muted: 220 20% 12%;
+    --muted-foreground: 215 20% 60%;
     --accent: 262 83% 58%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217 19% 15%;
-    --input: 217 19% 15%;
+    --border: 220 15% 14%;
+    --input: 220 15% 14%;
     --ring: 160 84% 39%;
   }
 }
@@ -67,20 +72,25 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', system-ui, sans-serif;
     overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Outfit', sans-serif;
-    letter-spacing: -0.025em;
+    font-family: 'Outfit', system-ui, sans-serif;
+    letter-spacing: -0.03em;
+  }
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
   }
 }
 
-/* -------------------------------------------------------------------------- */
-/*                               SOTA VISUALS                                 */
-/* -------------------------------------------------------------------------- */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*                        SOTA PREMIUM VISUAL SYSTEM                         */
+/* ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Aurora / Space Background */
+/* Ambient background glow */
 body::before {
   content: "";
   position: fixed;
@@ -89,57 +99,81 @@ body::before {
   width: 100vw;
   height: 100vh;
   background: 
-    radial-gradient(circle at 15% 50%, rgba(76, 29, 149, 0.15), transparent 25%),
-    radial-gradient(circle at 85% 30%, rgba(16, 185, 129, 0.15), transparent 25%);
+    radial-gradient(ellipse 800px 600px at 10% 40%, hsla(262, 83%, 58%, 0.06), transparent),
+    radial-gradient(ellipse 600px 500px at 85% 25%, hsla(160, 84%, 39%, 0.08), transparent),
+    radial-gradient(ellipse 400px 300px at 50% 80%, hsla(217, 90%, 50%, 0.04), transparent);
   pointer-events: none;
   z-index: -1;
-  filter: blur(40px);
+  filter: blur(60px);
 }
 
-/* Gradient Text */
+/* Gradient Text — premium */
 .gradient-text {
   @apply bg-clip-text text-transparent;
-  background-image: linear-gradient(135deg, hsl(var(--primary)) 0%, #34d399 50%, #a78bfa 100%);
-  text-shadow: 0 0 30px rgba(16, 185, 129, 0.3);
+  background-image: linear-gradient(135deg, hsl(var(--primary)) 0%, #34d399 40%, #a78bfa 100%);
 }
 
 .gradient-bg {
-  background: linear-gradient(180deg, hsl(var(--background)) 0%, hsl(224, 71%, 5%) 100%);
+  background: linear-gradient(180deg, hsl(var(--background)) 0%, hsl(222, 47%, 4%) 100%);
 }
 
-/* Glass Card - Ultra Premium */
+/* Glass Card — Ultra Premium with subtle inner glow */
 .glass-card {
-  @apply backdrop-blur-xl border border-white/10 shadow-2xl;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
+  @apply backdrop-blur-xl border shadow-2xl;
+  border-color: hsla(0, 0%, 100%, 0.06);
+  background: linear-gradient(
+    165deg,
+    hsla(0, 0%, 100%, 0.04) 0%,
+    hsla(0, 0%, 100%, 0.01) 40%,
+    hsla(0, 0%, 0%, 0.02) 100%
+  );
   box-shadow: 
-    0 4px 6px -1px rgba(0, 0, 0, 0.1),
-    0 2px 4px -1px rgba(0, 0, 0, 0.06),
-    inset 0 0 20px rgba(255, 255, 255, 0.02);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    0 4px 6px -1px rgba(0, 0, 0, 0.15),
+    0 2px 4px -1px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 hsla(0, 0%, 100%, 0.04);
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.1, 1);
 }
 
 .glass-card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-2px);
   box-shadow: 
-    0 20px 25px -5px rgba(0, 0, 0, 0.2), 
-    0 10px 10px -5px rgba(0, 0, 0, 0.1),
-    0 0 20px rgba(16, 185, 129, 0.2); /* Green glow */
-  border-color: rgba(16, 185, 129, 0.3);
+    0 20px 40px -10px rgba(0, 0, 0, 0.25),
+    0 8px 16px -4px rgba(0, 0, 0, 0.15),
+    0 0 0 1px hsla(160, 84%, 39%, 0.12),
+    0 0 30px -5px hsla(160, 84%, 39%, 0.08);
+  border-color: hsla(160, 84%, 39%, 0.15);
 }
 
-/* Buttons */
+/* Premium stat cards */
+.stat-card-glow {
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-card-glow::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle at center, hsla(160, 84%, 39%, 0.03), transparent 50%);
+  pointer-events: none;
+}
+
+/* Buttons — premium feel */
 button {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 button:active {
-  transform: scale(0.98);
+  transform: scale(0.97);
 }
 
-/* Custom Scrollbar */
+/* Premium scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -147,18 +181,19 @@ button:active {
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-muted rounded-full;
-  border: 2px solid hsl(var(--background));
+  background: hsla(0, 0%, 100%, 0.08);
+  border-radius: 100px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-muted-foreground/50;
+  background: hsla(0, 0%, 100%, 0.15);
 }
 
-/* Animations */
+/* ─── Animations ───────────────────────────────────────────────────────── */
+
 @keyframes float {
   0% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
+  50% { transform: translateY(-8px); }
   100% { transform: translateY(0px); }
 }
 
@@ -167,22 +202,103 @@ button:active {
 }
 
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 20px rgba(16, 185, 129, 0.2); }
-  50% { box-shadow: 0 0 40px rgba(16, 185, 129, 0.5); }
+  0%, 100% { box-shadow: 0 0 20px hsla(160, 84%, 39%, 0.15); }
+  50% { box-shadow: 0 0 40px hsla(160, 84%, 39%, 0.35); }
 }
 
 .animate-pulse-glow {
   animation: pulse-glow 3s infinite;
 }
 
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent, hsla(0, 0%, 100%, 0.04), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.animate-fade-in {
+  animation: fade-up 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(2); opacity: 0; }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
 .hero-glow {
   position: absolute;
-  width: 600px;
-  height: 600px;
-  background: radial-gradient(closest-side, rgba(16, 185, 129, 0.15), transparent);
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(closest-side, hsla(160, 84%, 39%, 0.1), transparent);
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   pointer-events: none;
   z-index: -1;
+  filter: blur(40px);
+}
+
+/* ─── Premium section borders ─────────────────────────────────────────── */
+
+.section-gradient-border {
+  position: relative;
+}
+
+.section-gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, hsla(160, 84%, 39%, 0.2), hsla(262, 83%, 58%, 0.1), transparent);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Custom scrollbar for panels */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: hsla(0, 0%, 100%, 0.06);
+  border-radius: 100px;
+}
+
+/* ─── Status indicators ───────────────────────────────────────────────── */
+
+.status-dot-active {
+  @apply relative;
+}
+
+.status-dot-active::after {
+  content: '';
+  @apply absolute inset-0 rounded-full;
+  animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  background: currentColor;
+  opacity: 0.3;
 }
