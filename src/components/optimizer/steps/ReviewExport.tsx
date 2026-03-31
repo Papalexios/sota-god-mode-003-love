@@ -878,8 +878,9 @@ export function ReviewExport() {
                       {item.status === 'generating' && <Loader2 className="w-4 h-4 animate-spin" />}
                       {item.status === 'completed' && <CheckCircle className="w-4 h-4" />}
                       {item.status === 'error' && <XCircle className="w-4 h-4" />}
-                      {item.status}
-                    </span>
+                      {item.status === 'error' && item.error ? (
+                        <span title={item.error}>{item.error.slice(0, 60)}{item.error.length > 60 ? '…' : ''}</span>
+                      ) : item.status}
                   </td>
                   <td className="p-4">
                     <div className="flex items-center gap-2">
