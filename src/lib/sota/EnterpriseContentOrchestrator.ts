@@ -963,6 +963,17 @@ export class EnterpriseContentOrchestrator {
     this.onProgress = options.onProgress;
     this.log(`🚀 SOTA GOD-MODE PIPELINE v10.0 ENGAGED: "${options.keyword}"`);
 
+    try {
+      return await this._executeGenerationPipeline(options);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.error(`PIPELINE FATAL ERROR: ${msg}`);
+      console.error('[Orchestrator] Full error:', err);
+      throw err;
+    }
+  }
+
+  private async _executeGenerationPipeline(options: any): Promise<any> {
     this.config.currentTitle = options.title || options.keyword;
     this.config.authorName = options.authorName || 'SOTA AI Research';
 
