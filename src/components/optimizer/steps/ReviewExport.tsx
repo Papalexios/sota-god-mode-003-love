@@ -590,13 +590,13 @@ export function ReviewExport() {
               : errorMsg.includes('empty content')
                 ? 'AI returned empty content. Try switching to a different model (e.g., Gemini → GPT-4o).'
                 : errorMsg;
-        console.error(`[ReviewExport] Generation failed for "${item.title}":`, error);
+        console.error(`[ReviewExport] Generation failed for "${item.title}":`, errorMsg, error);
+        toast.error(`Generation failed: ${friendlyMsg.slice(0, 150)}`);
         updateContentItem(item.id, { status: 'error', error: friendlyMsg });
         setGeneratingItems(prev => prev.map(gi =>
-          gi.id === item.id ? { ...gi, status: 'error', error: errorMsg } : gi
+          gi.id === item.id ? { ...gi, status: 'error', error: friendlyMsg } : gi
         ));
         setGenerationError(friendlyMsg);
-        friendlyMsg.slice(0, 200)
       }
 
       completed++;
