@@ -124,23 +124,23 @@ const Index = () => {
       </main>
 
       {/* Footer */}
-      <footer className="px-6 py-12 border-t border-white/5 mt-auto bg-black/20 backdrop-blur-sm relative z-10">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
-          <div className="flex items-center gap-5">
-            <div className="w-14 h-14 bg-gradient-to-br from-primary/20 to-transparent border border-white/10 rounded-xl flex items-center justify-center backdrop-blur-md">
-              <Zap className="w-8 h-8 text-primary" />
+      <footer className="px-4 md:px-6 py-8 md:py-12 border-t border-border/20 mt-auto bg-card/20 backdrop-blur-sm relative z-10">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6 md:gap-8">
+          <div className="flex items-center gap-4 md:gap-5">
+            <div className="w-12 h-12 md:w-14 md:h-14 bg-gradient-to-br from-primary/20 to-transparent border border-border/30 rounded-xl flex items-center justify-center backdrop-blur-md">
+              <Zap className="w-6 h-6 md:w-8 md:h-8 text-primary" />
             </div>
             <div>
-              <p className="text-sm text-zinc-500 font-medium">
-                Engineered by <span className="text-white">Alexios Papaioannou</span>
+              <p className="text-sm text-muted-foreground font-medium">
+                Engineered by <span className="text-foreground">Alexios Papaioannou</span>
               </p>
-              <a href="https://affiliatemarketingforsuccess.com" className="text-xs text-primary hover:text-emerald-300 transition-colors hover:underline underline-offset-4">
+              <a href="https://affiliatemarketingforsuccess.com" className="text-xs text-primary hover:text-primary/80 transition-colors hover:underline underline-offset-4">
                 affiliatemarketingforsuccess.com
               </a>
             </div>
           </div>
 
-          <div className="flex flex-wrap justify-center gap-6 text-sm text-zinc-500 font-medium">
+          <div className="flex flex-wrap justify-center gap-4 md:gap-6 text-sm text-muted-foreground font-medium">
             {["Terms", "Privacy", "Support", "Documentation"].map((item) => (
               <a
                 key={item}
