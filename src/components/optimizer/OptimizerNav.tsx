@@ -8,7 +8,7 @@ const steps = [
   { id: 3, label: "Review & Export", sublabel: "Publish content", icon: FileText },
 ];
 
-export function OptimizerNav() {
+export function OptimizerNav({ onNavigate }: { onNavigate?: () => void } = {}) {
   const { currentStep, setCurrentStep, contentItems, godModeState } = useOptimizerStore();
 
   const totalItems = contentItems.length;
