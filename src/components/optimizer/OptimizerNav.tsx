@@ -43,7 +43,7 @@ export function OptimizerNav({ onNavigate }: { onNavigate?: () => void } = {}) {
           return (
             <button
               key={step.id}
-              onClick={() => setCurrentStep(step.id)}
+              onClick={() => { setCurrentStep(step.id); onNavigate?.(); }}
               className={cn(
                 "w-full flex items-start gap-3 p-3.5 rounded-xl text-left transition-all duration-200 group relative overflow-hidden",
                 isActive

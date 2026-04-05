@@ -741,7 +741,7 @@ export function ContentStrategy() {
       </div>
 
       {/* Tab Content */}
-      <div className="glass-card p-8 rounded-3xl relative overflow-hidden min-h-[500px]">
+      <div className="glass-card p-4 md:p-8 rounded-2xl md:rounded-3xl relative overflow-hidden min-h-[400px] md:min-h-[500px]">
         <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-3xl -z-10 translate-x-1/3 -translate-y-1/3" />
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-500/5 rounded-full blur-3xl -z-10 -translate-x-1/3 translate-y-1/3" />
 
