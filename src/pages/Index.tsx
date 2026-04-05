@@ -45,16 +45,16 @@ const Index = () => {
       <div className="hero-glow animate-pulse-glow" />
 
       {/* Header */}
-      <header className="px-6 py-4 sticky top-0 z-50 backdrop-blur-md bg-background/10 border-b border-white/5 supports-[backdrop-filter]:bg-background/20">
+      <header className="px-4 md:px-6 py-4 sticky top-0 z-50 backdrop-blur-md bg-background/10 border-b border-border/10">
         <div className="max-w-7xl mx-auto flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center glass-card shadow-[0_0_15px_rgba(16,185,129,0.3)]">
-            <Zap className="w-6 h-6 text-primary drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+          <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center glass-card shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+            <Zap className="w-5 h-5 md:w-6 md:h-6 text-primary drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
           </div>
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-white drop-shadow-sm">
+            <h1 className="text-lg md:text-xl font-bold tracking-tight text-foreground">
               WP Content Optimizer <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">PRO</span>
             </h1>
-            <p className="text-xs text-zinc-400 font-medium tracking-wide">
+            <p className="text-[10px] md:text-xs text-muted-foreground font-medium tracking-wide">
               ENTERPRISE-GRADE SEO AUTOMATION
             </p>
           </div>
