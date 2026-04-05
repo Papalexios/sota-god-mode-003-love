@@ -8,7 +8,7 @@ const steps = [
   { id: 3, label: "Review & Export", sublabel: "Publish content", icon: FileText },
 ];
 
-export function OptimizerNav() {
+export function OptimizerNav({ onNavigate }: { onNavigate?: () => void } = {}) {
   const { currentStep, setCurrentStep, contentItems, godModeState } = useOptimizerStore();
 
   const totalItems = contentItems.length;
@@ -43,7 +43,7 @@ export function OptimizerNav() {
           return (
             <button
               key={step.id}
-              onClick={() => setCurrentStep(step.id)}
+              onClick={() => { setCurrentStep(step.id); onNavigate?.(); }}
               className={cn(
                 "w-full flex items-start gap-3 p-3.5 rounded-xl text-left transition-all duration-200 group relative overflow-hidden",
                 isActive

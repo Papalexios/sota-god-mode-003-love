@@ -103,13 +103,13 @@ function SectionHeader({ icon: Icon, title, subtitle, gradient }: {
   icon: React.ElementType; title: string; subtitle: string; gradient: string;
 }) {
   return (
-    <div className="flex items-center gap-4">
-      <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg", gradient)}>
-        <Icon className="w-7 h-7 text-white" />
+    <div className="flex items-start gap-3 md:gap-4">
+      <div className={cn("w-11 h-11 md:w-14 md:h-14 rounded-xl md:rounded-2xl flex items-center justify-center shadow-lg flex-shrink-0", gradient)}>
+        <Icon className="w-5 h-5 md:w-7 md:h-7 text-primary-foreground" />
       </div>
-      <div>
-        <h3 className="text-xl font-bold text-foreground">{title}</h3>
-        <p className="text-sm text-muted-foreground">{subtitle}</p>
+      <div className="min-w-0">
+        <h3 className="text-lg md:text-xl font-bold text-foreground">{title}</h3>
+        <p className="text-xs md:text-sm text-muted-foreground">{subtitle}</p>
       </div>
     </div>
   );
@@ -719,26 +719,29 @@ export function ContentStrategy() {
       </div>
 
       {/* Tab Bar */}
-      <div className="flex flex-wrap gap-2 glass-card p-2 backdrop-blur-md">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={cn(
-              "px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center gap-2",
-              activeTab === tab.id
-                ? "bg-primary text-white shadow-[0_0_15px_rgba(16,185,129,0.3)] scale-105"
-                : "text-zinc-400 hover:text-white hover:bg-white/5"
-            )}
-          >
-            <tab.icon className={cn("w-4 h-4", activeTab === tab.id ? "text-white" : "text-zinc-500")} />
-            {tab.label}
-          </button>
-        ))}
+      <div className="glass-card p-1.5 md:p-2 backdrop-blur-md overflow-x-auto custom-scrollbar">
+        <div className="flex gap-1 md:gap-2 min-w-max md:min-w-0 md:flex-wrap">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "px-3 md:px-4 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-semibold transition-all duration-300 flex items-center gap-1.5 md:gap-2 whitespace-nowrap",
+                activeTab === tab.id
+                  ? "bg-primary text-primary-foreground shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/20"
+              )}
+            >
+              <tab.icon className={cn("w-3.5 h-3.5 md:w-4 md:h-4", activeTab === tab.id ? "text-primary-foreground" : "text-muted-foreground")} />
+              <span className="hidden sm:inline">{tab.label}</span>
+              <span className="sm:hidden">{tab.label.replace(/^[^\w]*/, '').split(' ')[0]}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Tab Content */}
-      <div className="glass-card p-8 rounded-3xl relative overflow-hidden min-h-[500px]">
+      <div className="glass-card p-4 md:p-8 rounded-2xl md:rounded-3xl relative overflow-hidden min-h-[400px] md:min-h-[500px]">
         <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-3xl -z-10 translate-x-1/3 -translate-y-1/3" />
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-500/5 rounded-full blur-3xl -z-10 -translate-x-1/3 translate-y-1/3" />
 
