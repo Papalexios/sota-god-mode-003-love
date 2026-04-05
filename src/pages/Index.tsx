@@ -100,22 +100,22 @@ const Index = () => {
         </div>
 
         {/* Feature Cards */}
-        <div className="max-w-7xl mx-auto mt-24 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="max-w-7xl mx-auto mt-12 md:mt-24 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
           {features.map((feature, idx) => (
             <div
               key={feature.title}
-              className="glass-card rounded-2xl p-8 hover:border-primary/50 transition-all duration-500 group relative overflow-hidden"
+              className="glass-card rounded-2xl p-5 md:p-8 hover:border-primary/50 transition-all duration-500 group relative overflow-hidden"
               style={{ transitionDelay: `${idx * 100}ms` }}
             >
               <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
-              <div className="w-14 h-14 bg-gradient-to-br from-gray-800 to-black border border-white/5 rounded-2xl flex items-center justify-center mb-6 shadow-inner group-hover:scale-110 transition-transform duration-500">
-                <feature.icon className="w-7 h-7 text-primary group-hover:text-emerald-300 transition-colors" />
+              <div className="w-11 h-11 md:w-14 md:h-14 bg-gradient-to-br from-secondary to-card border border-border/30 rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-6 shadow-inner group-hover:scale-110 transition-transform duration-500">
+                <feature.icon className="w-5 h-5 md:w-7 md:h-7 text-primary group-hover:text-emerald-300 transition-colors" />
               </div>
-              <h3 className="text-xl font-bold text-white mb-3 group-hover:text-primary transition-colors">
+              <h3 className="text-lg md:text-xl font-bold text-foreground mb-2 md:mb-3 group-hover:text-primary transition-colors">
                 {feature.title}
               </h3>
-              <p className="text-sm text-zinc-400 leading-relaxed group-hover:text-zinc-300 transition-colors">
+              <p className="text-xs md:text-sm text-muted-foreground leading-relaxed group-hover:text-muted-foreground/80 transition-colors">
                 {feature.description}
               </p>
             </div>
