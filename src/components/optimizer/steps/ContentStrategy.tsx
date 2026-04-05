@@ -719,22 +719,25 @@ export function ContentStrategy() {
       </div>
 
       {/* Tab Bar */}
-      <div className="flex flex-wrap gap-2 glass-card p-2 backdrop-blur-md">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={cn(
-              "px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center gap-2",
-              activeTab === tab.id
-                ? "bg-primary text-white shadow-[0_0_15px_rgba(16,185,129,0.3)] scale-105"
-                : "text-zinc-400 hover:text-white hover:bg-white/5"
-            )}
-          >
-            <tab.icon className={cn("w-4 h-4", activeTab === tab.id ? "text-white" : "text-zinc-500")} />
-            {tab.label}
-          </button>
-        ))}
+      <div className="glass-card p-1.5 md:p-2 backdrop-blur-md overflow-x-auto custom-scrollbar">
+        <div className="flex gap-1 md:gap-2 min-w-max md:min-w-0 md:flex-wrap">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "px-3 md:px-4 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-semibold transition-all duration-300 flex items-center gap-1.5 md:gap-2 whitespace-nowrap",
+                activeTab === tab.id
+                  ? "bg-primary text-primary-foreground shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/20"
+              )}
+            >
+              <tab.icon className={cn("w-3.5 h-3.5 md:w-4 md:h-4", activeTab === tab.id ? "text-primary-foreground" : "text-muted-foreground")} />
+              <span className="hidden sm:inline">{tab.label}</span>
+              <span className="sm:hidden">{tab.label.replace(/^[^\w]*/, '').split(' ')[0]}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Tab Content */}
