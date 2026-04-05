@@ -103,13 +103,13 @@ function SectionHeader({ icon: Icon, title, subtitle, gradient }: {
   icon: React.ElementType; title: string; subtitle: string; gradient: string;
 }) {
   return (
-    <div className="flex items-center gap-4">
-      <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg", gradient)}>
-        <Icon className="w-7 h-7 text-white" />
+    <div className="flex items-start gap-3 md:gap-4">
+      <div className={cn("w-11 h-11 md:w-14 md:h-14 rounded-xl md:rounded-2xl flex items-center justify-center shadow-lg flex-shrink-0", gradient)}>
+        <Icon className="w-5 h-5 md:w-7 md:h-7 text-primary-foreground" />
       </div>
-      <div>
-        <h3 className="text-xl font-bold text-foreground">{title}</h3>
-        <p className="text-sm text-muted-foreground">{subtitle}</p>
+      <div className="min-w-0">
+        <h3 className="text-lg md:text-xl font-bold text-foreground">{title}</h3>
+        <p className="text-xs md:text-sm text-muted-foreground">{subtitle}</p>
       </div>
     </div>
   );
