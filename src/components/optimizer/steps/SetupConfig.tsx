@@ -422,36 +422,101 @@ export function SetupConfig() {
       </div>
 
       {/* Save / Load Configuration */}
-      <section className="glass-card rounded-2xl p-6 sm:p-8 border border-primary/20">
+      <section className="glass-card rounded-2xl p-6 sm:p-8 border border-primary/20 space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center shrink-0">
               <Save className="w-5 h-5 text-primary" />
             </div>
-            <div>
+            <div className="min-w-0">
               <h2 className="text-lg font-bold text-foreground">Configuration Snapshots</h2>
               <p className="text-xs text-muted-foreground mt-1">
-                {hasSnapshot
-                  ? <>Last saved: <span className="text-primary font-medium">{snapshotMeta}</span></>
-                  : 'No snapshot saved yet. Click "Save" to store your current setup.'}
+                {hasSnapshot && currentRecord
+                  ? <>Active: <span className="text-primary font-semibold">{activeSnapshot || '(none selected)'}</span> · Last saved <span className="text-foreground/80">{snapshotMeta}</span></>
+                  : 'No profiles saved yet. Click "Save As" to create your first profile.'}
               </p>
             </div>
           </div>
+
           <div className="flex flex-wrap items-center gap-2">
+            {/* Profile selector */}
+            {hasSnapshot && !renameMode && (
+              <select
+                value={activeSnapshot}
+                onChange={(e) => {
+                  const name = e.target.value;
+                  setActive(name);
+                  if (name) handleLoadSnapshot(name);
+                }}
+                className="px-3 py-2 rounded-lg bg-background border border-border text-foreground text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/40 min-w-[160px]"
+              >
+                <option value="">Select profile…</option>
+                {snapshotNames.map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            )}
+
+            {renameMode && (
+              <div className="flex items-center gap-1">
+                <input
+                  autoFocus
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') commitRename();
+                    if (e.key === 'Escape') setRenameMode(false);
+                  }}
+                  placeholder="New profile name"
+                  className="px-3 py-2 rounded-lg bg-background border border-primary/40 text-foreground text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/40 min-w-[180px]"
+                />
+                <button
+                  onClick={commitRename}
+                  className="px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90"
+                >
+                  <Check className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setRenameMode(false)}
+                  className="px-3 py-2 rounded-lg border border-border text-foreground text-sm hover:bg-accent"
+                >
+                  <XCircle className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
             <button
               onClick={handleSaveSnapshot}
+              title={activeSnapshot ? `Overwrite "${activeSnapshot}"` : 'Save current configuration'}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all font-semibold text-sm shadow-md hover:shadow-lg"
             >
               <Save className="w-4 h-4" />
-              Save
+              {activeSnapshot ? 'Save' : 'Save'}
             </button>
             <button
-              onClick={handleLoadSnapshot}
-              disabled={!hasSnapshot}
+              onClick={handleSaveAsSnapshot}
+              title="Save as a new named profile"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20 transition-all font-semibold text-sm"
+            >
+              <Save className="w-4 h-4" />
+              Save As…
+            </button>
+            <button
+              onClick={() => handleLoadSnapshot()}
+              disabled={!activeSnapshot}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-all font-semibold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <RotateCcw className="w-4 h-4" />
               Load
+            </button>
+            <button
+              onClick={handleRenameSnapshot}
+              disabled={!activeSnapshot || renameMode}
+              title="Rename active profile"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-foreground hover:bg-accent transition-all text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Settings className="w-4 h-4" />
+              Rename
             </button>
             <button
               onClick={handleExportConfig}
@@ -474,17 +539,58 @@ export function SetupConfig() {
               onChange={handleImportConfig}
               className="hidden"
             />
-            {hasSnapshot && (
+            {activeSnapshot && (
               <button
-                onClick={handleDeleteSnapshot}
+                onClick={() => handleDeleteSnapshot()}
                 className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-destructive/30 text-destructive hover:bg-destructive/10 transition-all text-sm"
-                title="Delete saved snapshot"
+                title={`Delete "${activeSnapshot}"`}
               >
                 <Trash2 className="w-4 h-4" />
               </button>
             )}
           </div>
         </div>
+
+        {/* Saved profiles list */}
+        {snapshotNames.length > 0 && (
+          <div className="pt-4 border-t border-border/50">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground font-semibold mb-2">Saved profiles ({snapshotNames.length})</p>
+            <div className="flex flex-wrap gap-2">
+              {snapshotNames.map((n) => {
+                const isActive = n === activeSnapshot;
+                return (
+                  <div
+                    key={n}
+                    className={cn(
+                      'group flex items-center gap-1 rounded-lg border text-sm transition-all',
+                      isActive
+                        ? 'border-primary/50 bg-primary/10'
+                        : 'border-border bg-background hover:border-primary/30'
+                    )}
+                  >
+                    <button
+                      onClick={() => handleLoadSnapshot(n)}
+                      className={cn(
+                        'px-3 py-1.5 font-medium',
+                        isActive ? 'text-primary' : 'text-foreground'
+                      )}
+                      title={`Load "${n}" (saved ${new Date(snapshots[n].savedAt).toLocaleString()})`}
+                    >
+                      {n}
+                    </button>
+                    <button
+                      onClick={() => handleDeleteSnapshot(n)}
+                      className="px-2 py-1.5 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                      title={`Delete "${n}"`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </section>
 
 
