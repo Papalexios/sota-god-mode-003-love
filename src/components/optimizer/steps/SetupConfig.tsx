@@ -216,6 +216,100 @@ export function SetupConfig() {
     }
   };
 
+  // ─── Save / Load Snapshot Configuration ─────────────────────────────────────
+  const SNAPSHOT_KEY = 'wp-optimizer-config-snapshot';
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [hasSnapshot, setHasSnapshot] = useState<boolean>(() => {
+    try { return !!localStorage.getItem(SNAPSHOT_KEY); } catch { return false; }
+  });
+  const [snapshotMeta, setSnapshotMeta] = useState<string | null>(() => {
+    try {
+      const raw = localStorage.getItem(SNAPSHOT_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed?.savedAt ? new Date(parsed.savedAt).toLocaleString() : null;
+    } catch { return null; }
+  });
+
+  const handleSaveSnapshot = () => {
+    try {
+      const payload = { version: 1, savedAt: new Date().toISOString(), config };
+      localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(payload));
+      setHasSnapshot(true);
+      setSnapshotMeta(new Date(payload.savedAt).toLocaleString());
+      toast.success('Configuration saved', { description: 'Snapshot stored locally. Use "Load" to restore anytime.' });
+    } catch (err) {
+      toast.error('Failed to save snapshot', { description: String((err as Error)?.message ?? err) });
+    }
+  };
+
+  const handleLoadSnapshot = () => {
+    try {
+      const raw = localStorage.getItem(SNAPSHOT_KEY);
+      if (!raw) { toast.error('No saved snapshot found'); return; }
+      const parsed = JSON.parse(raw);
+      if (!parsed?.config || typeof parsed.config !== 'object') {
+        toast.error('Snapshot is corrupted'); return;
+      }
+      setConfig(parsed.config);
+      if (parsed.config.supabaseUrl) setSbUrl(parsed.config.supabaseUrl);
+      if (parsed.config.supabaseAnonKey) setSbAnonKey(parsed.config.supabaseAnonKey);
+      toast.success('Configuration loaded', { description: `Restored from ${snapshotMeta ?? 'previous save'}.` });
+    } catch (err) {
+      toast.error('Failed to load snapshot', { description: String((err as Error)?.message ?? err) });
+    }
+  };
+
+  const handleExportConfig = () => {
+    try {
+      const payload = { version: 1, exportedAt: new Date().toISOString(), config };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `wp-optimizer-config-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('Configuration exported', { description: 'Saved as JSON in your downloads.' });
+    } catch (err) {
+      toast.error('Export failed', { description: String((err as Error)?.message ?? err) });
+    }
+  };
+
+  const handleImportConfig = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const parsed = JSON.parse(String(ev.target?.result ?? ''));
+        const cfg = parsed?.config ?? parsed;
+        if (!cfg || typeof cfg !== 'object') throw new Error('Invalid file');
+        setConfig(cfg);
+        if (cfg.supabaseUrl) setSbUrl(cfg.supabaseUrl);
+        if (cfg.supabaseAnonKey) setSbAnonKey(cfg.supabaseAnonKey);
+        toast.success('Configuration imported', { description: 'All fields populated from the file.' });
+      } catch {
+        toast.error('Import failed', { description: 'Make sure the file is a valid JSON config export.' });
+      } finally {
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+    };
+    reader.onerror = () => toast.error('Could not read file');
+    reader.readAsText(file);
+  };
+
+  const handleDeleteSnapshot = () => {
+    try {
+      localStorage.removeItem(SNAPSHOT_KEY);
+      setHasSnapshot(false);
+      setSnapshotMeta(null);
+      toast.success('Saved snapshot deleted');
+    } catch {
+      toast.error('Failed to delete snapshot');
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div>
@@ -227,6 +321,73 @@ export function SetupConfig() {
           Connect your AI services and configure WordPress integration.
         </p>
       </div>
+
+      {/* Save / Load Configuration */}
+      <section className="glass-card rounded-2xl p-6 sm:p-8 border border-primary/20">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center shrink-0">
+              <Save className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-foreground">Configuration Snapshots</h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                {hasSnapshot
+                  ? <>Last saved: <span className="text-primary font-medium">{snapshotMeta}</span></>
+                  : 'No snapshot saved yet. Click "Save" to store your current setup.'}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={handleSaveSnapshot}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all font-semibold text-sm shadow-md hover:shadow-lg"
+            >
+              <Save className="w-4 h-4" />
+              Save
+            </button>
+            <button
+              onClick={handleLoadSnapshot}
+              disabled={!hasSnapshot}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-all font-semibold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Load
+            </button>
+            <button
+              onClick={handleExportConfig}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-foreground hover:bg-accent transition-all font-medium text-sm"
+            >
+              <Download className="w-4 h-4" />
+              Export
+            </button>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-foreground hover:bg-accent transition-all font-medium text-sm"
+            >
+              <Upload className="w-4 h-4" />
+              Import
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json,.json"
+              onChange={handleImportConfig}
+              className="hidden"
+            />
+            {hasSnapshot && (
+              <button
+                onClick={handleDeleteSnapshot}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-destructive/30 text-destructive hover:bg-destructive/10 transition-all text-sm"
+                title="Delete saved snapshot"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
+
 
       {/* API Keys Section */}
       <section className="glass-card rounded-2xl p-8 hover:shadow-lg transition-all duration-300 group">
