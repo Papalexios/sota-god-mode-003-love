@@ -391,11 +391,13 @@ Use REAL comparison data, not generic filler. Build with the premium table templ
 [7] FINAL VERDICT:
 An opinionated H2 like "My Honest Take After ${targetWordCount > 3000 ? '3+ Years' : '18 Months'} of Testing"
 3-4 paragraphs of genuine expert opinion. Be specific. Take a clear side. Name what works and what doesn't.
-End with:
+End with a CTA card built EXACTLY like the template below, BUT you MUST replace the bracketed placeholders with REAL, topic-specific copy. NEVER output the literal text "[Action-oriented headline...]" or any "[...]" bracket placeholder — those are instructions to YOU, not content. If a bracket placeholder appears in your output, the article will be REJECTED.
+
+Template (replace the two bracketed lines with real copy about ${targetWordCount > 0 ? 'the topic' : 'the topic'}):
 <div style="background:linear-gradient(135deg,#059669 0%,#047857 50%,#065f46 100%);color:white;border-radius:24px;padding:44px;margin:48px 0;text-align:center;box-shadow:0 20px 60px rgba(5,150,105,0.3),0 1px 3px rgba(0,0,0,0.1);position:relative;overflow:hidden;">
 <div style="position:absolute;top:-40%;right:-15%;width:280px;height:280px;background:radial-gradient(circle,rgba(52,211,153,0.15) 0%,transparent 70%);pointer-events:none;"></div>
-<div style="font-size:clamp(22px,3vw,28px);font-weight:900;margin-bottom:18px;letter-spacing:-0.02em;line-height:1.3;">[Action-oriented headline — tell them exactly what to do FIRST]</div>
-<p style="margin:0 auto;opacity:0.92;font-size:17px;line-height:1.75;max-width:600px;">[2 sentences of ultra-specific, practical guidance with a number or timeframe]</p>
+<div style="font-size:clamp(22px,3vw,28px);font-weight:900;margin-bottom:18px;letter-spacing:-0.02em;line-height:1.3;">WRITE A REAL ACTION-ORIENTED HEADLINE HERE — e.g. "Start With This One Thing Today" — tailored to the actual topic, NO BRACKETS</div>
+<p style="margin:0 auto;opacity:0.92;font-size:17px;line-height:1.75;max-width:600px;">WRITE 2 REAL SENTENCES of ultra-specific guidance with a number or timeframe — tailored to the actual topic, NO BRACKETS.</p>
 </div>
 
 [8] DO NOT generate a "References" or "Sources & Further Reading" section. The system auto-injects verified clickable sources. Any AI-generated reference section will be STRIPPED.
