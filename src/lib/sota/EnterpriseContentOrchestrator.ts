@@ -746,11 +746,12 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
   private async applyPremiumStyling(html: string): Promise<string> {
     let output = html;
 
-    // ── 1. UNWRAP BARE ARTICLE TAG — ensure consistent wrapper ─────────────
-    // Normalize the article wrapper to our premium styled version
+    // ── 1. UNWRAP BARE ARTICLE TAG — ensure consistent wrapper with FORCED visibility ─
+    // Normalize the article wrapper so it's fully readable on ANY WordPress theme
+    // (light, dark, or custom). Background:#ffffff + color:#1e293b lock visibility.
     output = output.replace(
       /<article[^>]*>/i,
-      `<article style="font-family:'Georgia','Times New Roman',serif;max-width:860px;margin:0 auto;color:#1e293b;line-height:1.85;font-size:17.5px;letter-spacing:-0.01em;padding:0 20px;">`
+      `<article style="font-family:'Georgia','Iowan Old Style','Times New Roman',serif;max-width:860px;margin:0 auto;background:#ffffff;color:#1e293b;line-height:1.85;font-size:18px;letter-spacing:-0.01em;padding:32px 24px;border-radius:8px;">`
     );
 
     // ── 2. PREMIUM HERO HEADER ─────────────────────────────────────────────
@@ -813,10 +814,14 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
       }
     }
 
-    // ── 4. STYLE ALL PARAGRAPHS ─────────────────────────────────────────────
-    output = output.replace(/<p(?!\s+style=)(?=[^>]*>)/gi, '<p style="margin:0 0 22px 0;line-height:1.85;"');
+    // ── 4. STYLE ALL PARAGRAPHS — explicit dark color for visibility on any theme ─
+    output = output.replace(/<p(?!\s+style=)(?=[^>]*>)/gi, '<p style="margin:0 0 22px 0;line-height:1.85;color:#1e293b;font-size:18px;"');
     // Don't double-style within callout boxes
-    output = output.replace(/<p style="margin:0 0 22px 0;line-height:1\.85;" style="/gi, '<p style="');
+    output = output.replace(/<p style="margin:0 0 22px 0;line-height:1\.85;color:#1e293b;font-size:18px;" style="/gi, '<p style="');
+    // Style any unstyled list items / lists with explicit dark color
+    output = output.replace(/<ul(?!\s+[^>]*style=)([^>]*)>/gi, '<ul$1 style="margin:0 0 24px 0;padding-left:28px;color:#1e293b;font-size:17px;line-height:1.85;">');
+    output = output.replace(/<ol(?!\s+[^>]*style=)([^>]*)>/gi, '<ol$1 style="margin:0 0 24px 0;padding-left:28px;color:#1e293b;font-size:17px;line-height:1.85;">');
+    output = output.replace(/<li(?!\s+[^>]*style=)([^>]*)>/gi, '<li$1 style="margin:8px 0;color:#1e293b;">');
 
     // ── 5. STYLE ALL HEADINGS ───────────────────────────────────────────────
     output = output.replace(/<h2(?!\s+[^>]*style=)([^>]*)>/gi,
