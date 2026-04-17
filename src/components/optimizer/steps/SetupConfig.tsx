@@ -216,45 +216,139 @@ export function SetupConfig() {
     }
   };
 
-  // ─── Save / Load Snapshot Configuration ─────────────────────────────────────
-  const SNAPSHOT_KEY = 'wp-optimizer-config-snapshot';
+  // ─── Save / Load Snapshot Configuration (Multi-Profile) ─────────────────────
+  const SNAPSHOTS_KEY = 'wp-optimizer-config-snapshots';
+  const LEGACY_SNAPSHOT_KEY = 'wp-optimizer-config-snapshot';
+  const ACTIVE_SNAPSHOT_KEY = 'wp-optimizer-active-snapshot';
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [hasSnapshot, setHasSnapshot] = useState<boolean>(() => {
-    try { return !!localStorage.getItem(SNAPSHOT_KEY); } catch { return false; }
-  });
-  const [snapshotMeta, setSnapshotMeta] = useState<string | null>(() => {
+
+  type SnapshotRecord = { name: string; savedAt: string; config: AppConfig };
+  type SnapshotMap = Record<string, SnapshotRecord>;
+  // We need AppConfig type — fall back to typeof config
+  // (kept loose to avoid extra imports)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  type AppConfig = any;
+
+  const loadSnapshotsFromStorage = (): SnapshotMap => {
     try {
-      const raw = localStorage.getItem(SNAPSHOT_KEY);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      return parsed?.savedAt ? new Date(parsed.savedAt).toLocaleString() : null;
-    } catch { return null; }
+      const raw = localStorage.getItem(SNAPSHOTS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') return parsed as SnapshotMap;
+      }
+      // Migrate legacy single snapshot
+      const legacy = localStorage.getItem(LEGACY_SNAPSHOT_KEY);
+      if (legacy) {
+        const p = JSON.parse(legacy);
+        if (p?.config) {
+          const migrated: SnapshotMap = {
+            Default: { name: 'Default', savedAt: p.savedAt ?? new Date().toISOString(), config: p.config },
+          };
+          localStorage.setItem(SNAPSHOTS_KEY, JSON.stringify(migrated));
+          return migrated;
+        }
+      }
+    } catch { /* ignore */ }
+    return {};
+  };
+
+  const [snapshots, setSnapshots] = useState<SnapshotMap>(() => loadSnapshotsFromStorage());
+  const [activeSnapshot, setActiveSnapshot] = useState<string>(() => {
+    try { return localStorage.getItem(ACTIVE_SNAPSHOT_KEY) ?? ''; } catch { return ''; }
   });
+  const [renameMode, setRenameMode] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
+
+  const persistSnapshots = (map: SnapshotMap) => {
+    localStorage.setItem(SNAPSHOTS_KEY, JSON.stringify(map));
+    setSnapshots({ ...map });
+  };
+  const setActive = (name: string) => {
+    setActiveSnapshot(name);
+    try { localStorage.setItem(ACTIVE_SNAPSHOT_KEY, name); } catch { /* ignore */ }
+  };
+
+  const snapshotNames = Object.keys(snapshots).sort((a, b) => a.localeCompare(b));
+  const hasSnapshot = snapshotNames.length > 0;
+  const currentRecord = activeSnapshot ? snapshots[activeSnapshot] : undefined;
+  const snapshotMeta = currentRecord ? new Date(currentRecord.savedAt).toLocaleString() : null;
 
   const handleSaveSnapshot = () => {
+    // Quick save: overwrite active profile, or prompt for first name
+    const name = activeSnapshot || (typeof window !== 'undefined' ? window.prompt('Name this configuration:', 'Default') : 'Default');
+    if (!name || !name.trim()) return;
+    const trimmed = name.trim();
     try {
-      const payload = { version: 1, savedAt: new Date().toISOString(), config };
-      localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(payload));
-      setHasSnapshot(true);
-      setSnapshotMeta(new Date(payload.savedAt).toLocaleString());
-      toast.success('Configuration saved', { description: 'Snapshot stored locally. Use "Load" to restore anytime.' });
+      const map = { ...snapshots };
+      map[trimmed] = { name: trimmed, savedAt: new Date().toISOString(), config };
+      persistSnapshots(map);
+      setActive(trimmed);
+      toast.success(`Saved "${trimmed}"`, { description: 'Configuration stored locally.' });
     } catch (err) {
       toast.error('Failed to save snapshot', { description: String((err as Error)?.message ?? err) });
     }
   };
 
-  const handleLoadSnapshot = () => {
+  const handleSaveAsSnapshot = () => {
+    const suggested = activeSnapshot ? `${activeSnapshot} (copy)` : `Profile ${snapshotNames.length + 1}`;
+    const name = typeof window !== 'undefined' ? window.prompt('Save configuration as:', suggested) : suggested;
+    if (!name || !name.trim()) return;
+    const trimmed = name.trim();
+    if (snapshots[trimmed]) {
+      const ok = window.confirm(`A profile named "${trimmed}" already exists. Overwrite?`);
+      if (!ok) return;
+    }
     try {
-      const raw = localStorage.getItem(SNAPSHOT_KEY);
-      if (!raw) { toast.error('No saved snapshot found'); return; }
-      const parsed = JSON.parse(raw);
-      if (!parsed?.config || typeof parsed.config !== 'object') {
-        toast.error('Snapshot is corrupted'); return;
-      }
-      setConfig(parsed.config);
-      if (parsed.config.supabaseUrl) setSbUrl(parsed.config.supabaseUrl);
-      if (parsed.config.supabaseAnonKey) setSbAnonKey(parsed.config.supabaseAnonKey);
-      toast.success('Configuration loaded', { description: `Restored from ${snapshotMeta ?? 'previous save'}.` });
+      const map = { ...snapshots };
+      map[trimmed] = { name: trimmed, savedAt: new Date().toISOString(), config };
+      persistSnapshots(map);
+      setActive(trimmed);
+      toast.success(`Saved as "${trimmed}"`);
+    } catch (err) {
+      toast.error('Failed to save', { description: String((err as Error)?.message ?? err) });
+    }
+  };
+
+  const handleRenameSnapshot = () => {
+    if (!activeSnapshot) { toast.error('Select a profile to rename'); return; }
+    setRenameValue(activeSnapshot);
+    setRenameMode(true);
+  };
+
+  const commitRename = () => {
+    const newName = renameValue.trim();
+    if (!newName) { setRenameMode(false); return; }
+    if (newName === activeSnapshot) { setRenameMode(false); return; }
+    if (snapshots[newName]) {
+      toast.error(`A profile named "${newName}" already exists`);
+      return;
+    }
+    try {
+      const map = { ...snapshots };
+      const rec = map[activeSnapshot];
+      if (!rec) { setRenameMode(false); return; }
+      delete map[activeSnapshot];
+      map[newName] = { ...rec, name: newName };
+      persistSnapshots(map);
+      setActive(newName);
+      setRenameMode(false);
+      toast.success(`Renamed to "${newName}"`);
+    } catch (err) {
+      toast.error('Rename failed', { description: String((err as Error)?.message ?? err) });
+    }
+  };
+
+  const handleLoadSnapshot = (nameArg?: string) => {
+    const name = nameArg ?? activeSnapshot;
+    if (!name) { toast.error('Select a profile to load'); return; }
+    const rec = snapshots[name];
+    if (!rec?.config) { toast.error('Snapshot is corrupted'); return; }
+    try {
+      setConfig(rec.config);
+      if (rec.config.supabaseUrl) setSbUrl(rec.config.supabaseUrl);
+      if (rec.config.supabaseAnonKey) setSbAnonKey(rec.config.supabaseAnonKey);
+      setActive(name);
+      toast.success(`Loaded "${name}"`, { description: `Saved ${new Date(rec.savedAt).toLocaleString()}` });
     } catch (err) {
       toast.error('Failed to load snapshot', { description: String((err as Error)?.message ?? err) });
     }
