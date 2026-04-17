@@ -103,8 +103,21 @@ export function removeAIPatterns(html: string): string {
     cleaned = cleaned.replace(pattern, '');
   }
 
-  // Clean up leftover artifacts
+  // SOTA: Strip leaked template placeholders like "[Action-oriented headline ...]" or "[2 sentences of ...]"
+  // These are prompt instructions to the LLM, never meant to appear in the published article.
+  const PLACEHOLDER_PATTERN = /\[([^\]\n]{6,200})\]/g;
+  cleaned = cleaned.replace(PLACEHOLDER_PATTERN, (match, inner: string) => {
+    const lower = inner.toLowerCase();
+    const looksLikeInstruction =
+      /\b(headline|sentence|paragraph|topic|placeholder|insert here|write|action[-\s]oriented|tell them|guidance|timeframe|cta|call to action|ultra-specific|practical|number or|first person|your\s+\w+\s+here)\b/.test(
+        lower,
+      );
+    return looksLikeInstruction ? '' : match;
+  });
+
+  // Clean up leftover artifacts (including empty containers from stripped placeholders)
   cleaned = cleaned.replace(/<p[^>]*>\s*<\/p>/g, '');
+  cleaned = cleaned.replace(/<div[^>]*>\s*<\/div>/g, '');
   cleaned = cleaned.replace(/\.\s*\./g, '.');
   cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
   cleaned = cleaned.replace(/\s{2,}/g, ' ');
