@@ -977,6 +977,33 @@ export class EnterpriseContentOrchestrator {
     this.config.currentTitle = options.title || options.keyword;
     this.config.authorName = options.authorName || 'SOTA AI Research';
 
+    // ── Phase 0a: SOTA Title Rewrite (refresh items + URL-derived titles) ───
+    // For refresh content, the incoming "title" is just a slug-derived guess
+    // (e.g. "Blue House Plants"). Generate a SOTA SEO/AEO/GEO-optimized title.
+    const isRefresh = options.contentType === 'refresh';
+    const looksLikeSlugTitle = !options.title || options.title === options.keyword ||
+      /^[A-Z][a-z]+( [A-Z][a-z]+)*$/.test(String(options.title || '').trim());
+
+    if (isRefresh || looksLikeSlugTitle) {
+      try {
+        this.log('Phase 0a: Rewriting title to SOTA SEO/AEO/GEO standard...');
+        const newTitle = await this.generateSOTATitle(
+          options.keyword,
+          options.title,
+          options.url,
+          isRefresh,
+        );
+        if (newTitle && newTitle.length >= 20 && newTitle.length <= 90) {
+          this.log(`Phase 0a ✅ Title rewritten: "${newTitle}"`);
+          options.title = newTitle;
+          this.config.currentTitle = newTitle;
+          options.onTitleRewritten?.(newTitle);
+        }
+      } catch (e) {
+        this.warn(`Phase 0a: Title rewrite skipped (${e instanceof Error ? e.message : e}). Using original.`);
+      }
+    }
+
     // ── Phase 0: Top-3 SERP Scan + Gap Analysis ─────────────────────────────
     this.log('Phase 0: Top-3 SERP ranking scan and gap analysis...');
     const serpAnalysis = await this.serpAnalyzer.analyze(options.keyword);
