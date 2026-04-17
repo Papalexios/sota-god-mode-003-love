@@ -393,12 +393,17 @@ export function SetupConfig() {
     reader.readAsText(file);
   };
 
-  const handleDeleteSnapshot = () => {
+  const handleDeleteSnapshot = (nameArg?: string) => {
+    const name = nameArg ?? activeSnapshot;
+    if (!name) return;
+    const ok = window.confirm(`Delete profile "${name}"? This cannot be undone.`);
+    if (!ok) return;
     try {
-      localStorage.removeItem(SNAPSHOT_KEY);
-      setHasSnapshot(false);
-      setSnapshotMeta(null);
-      toast.success('Saved snapshot deleted');
+      const map = { ...snapshots };
+      delete map[name];
+      persistSnapshots(map);
+      if (activeSnapshot === name) setActive('');
+      toast.success(`Deleted "${name}"`);
     } catch {
       toast.error('Failed to delete snapshot');
     }
