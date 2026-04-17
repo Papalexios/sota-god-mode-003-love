@@ -219,13 +219,16 @@ export function useDataSync() {
     });
   }, []);
 
+  // Treat unreachable Supabase (network/CORS) as "offline mode" too — local persistence still works.
+  const offline = !getSupabaseConfig().configured || (!isConnected && !tableMissing && !error && !isLoading);
+
   return {
     isLoading,
     isConnected,
     lastSyncTime,
     error,
     tableMissing,
-    isOfflineMode: !getSupabaseConfig().configured,
+    isOfflineMode: offline,
     loadFromDatabase,
     saveToDatabase,
     deleteFromDatabase,
