@@ -4,7 +4,8 @@ import { createNeuronWriterService } from "@/lib/sota/NeuronWriterService";
 import {
   Key, Globe, User, Building, Image, UserCircle,
   Sparkles, MapPin, Check, AlertCircle, ExternalLink, Database,
-  Settings, Loader2, FolderOpen, RefreshCw, XCircle, Bot, Zap
+  Settings, Loader2, FolderOpen, RefreshCw, XCircle, Bot, Zap,
+  Save, Download, Upload, RotateCcw, Trash2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getSupabaseConfig, saveSupabaseConfig, clearSupabaseConfig, validateSupabaseConfig } from "@/lib/supabaseClient";
