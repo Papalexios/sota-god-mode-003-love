@@ -216,45 +216,139 @@ export function SetupConfig() {
     }
   };
 
-  // ─── Save / Load Snapshot Configuration ─────────────────────────────────────
-  const SNAPSHOT_KEY = 'wp-optimizer-config-snapshot';
+  // ─── Save / Load Snapshot Configuration (Multi-Profile) ─────────────────────
+  const SNAPSHOTS_KEY = 'wp-optimizer-config-snapshots';
+  const LEGACY_SNAPSHOT_KEY = 'wp-optimizer-config-snapshot';
+  const ACTIVE_SNAPSHOT_KEY = 'wp-optimizer-active-snapshot';
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [hasSnapshot, setHasSnapshot] = useState<boolean>(() => {
-    try { return !!localStorage.getItem(SNAPSHOT_KEY); } catch { return false; }
-  });
-  const [snapshotMeta, setSnapshotMeta] = useState<string | null>(() => {
+
+  type SnapshotRecord = { name: string; savedAt: string; config: AppConfig };
+  type SnapshotMap = Record<string, SnapshotRecord>;
+  // We need AppConfig type — fall back to typeof config
+  // (kept loose to avoid extra imports)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  type AppConfig = any;
+
+  const loadSnapshotsFromStorage = (): SnapshotMap => {
     try {
-      const raw = localStorage.getItem(SNAPSHOT_KEY);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      return parsed?.savedAt ? new Date(parsed.savedAt).toLocaleString() : null;
-    } catch { return null; }
+      const raw = localStorage.getItem(SNAPSHOTS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') return parsed as SnapshotMap;
+      }
+      // Migrate legacy single snapshot
+      const legacy = localStorage.getItem(LEGACY_SNAPSHOT_KEY);
+      if (legacy) {
+        const p = JSON.parse(legacy);
+        if (p?.config) {
+          const migrated: SnapshotMap = {
+            Default: { name: 'Default', savedAt: p.savedAt ?? new Date().toISOString(), config: p.config },
+          };
+          localStorage.setItem(SNAPSHOTS_KEY, JSON.stringify(migrated));
+          return migrated;
+        }
+      }
+    } catch { /* ignore */ }
+    return {};
+  };
+
+  const [snapshots, setSnapshots] = useState<SnapshotMap>(() => loadSnapshotsFromStorage());
+  const [activeSnapshot, setActiveSnapshot] = useState<string>(() => {
+    try { return localStorage.getItem(ACTIVE_SNAPSHOT_KEY) ?? ''; } catch { return ''; }
   });
+  const [renameMode, setRenameMode] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
+
+  const persistSnapshots = (map: SnapshotMap) => {
+    localStorage.setItem(SNAPSHOTS_KEY, JSON.stringify(map));
+    setSnapshots({ ...map });
+  };
+  const setActive = (name: string) => {
+    setActiveSnapshot(name);
+    try { localStorage.setItem(ACTIVE_SNAPSHOT_KEY, name); } catch { /* ignore */ }
+  };
+
+  const snapshotNames = Object.keys(snapshots).sort((a, b) => a.localeCompare(b));
+  const hasSnapshot = snapshotNames.length > 0;
+  const currentRecord = activeSnapshot ? snapshots[activeSnapshot] : undefined;
+  const snapshotMeta = currentRecord ? new Date(currentRecord.savedAt).toLocaleString() : null;
 
   const handleSaveSnapshot = () => {
+    // Quick save: overwrite active profile, or prompt for first name
+    const name = activeSnapshot || (typeof window !== 'undefined' ? window.prompt('Name this configuration:', 'Default') : 'Default');
+    if (!name || !name.trim()) return;
+    const trimmed = name.trim();
     try {
-      const payload = { version: 1, savedAt: new Date().toISOString(), config };
-      localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(payload));
-      setHasSnapshot(true);
-      setSnapshotMeta(new Date(payload.savedAt).toLocaleString());
-      toast.success('Configuration saved', { description: 'Snapshot stored locally. Use "Load" to restore anytime.' });
+      const map = { ...snapshots };
+      map[trimmed] = { name: trimmed, savedAt: new Date().toISOString(), config };
+      persistSnapshots(map);
+      setActive(trimmed);
+      toast.success(`Saved "${trimmed}"`, { description: 'Configuration stored locally.' });
     } catch (err) {
       toast.error('Failed to save snapshot', { description: String((err as Error)?.message ?? err) });
     }
   };
 
-  const handleLoadSnapshot = () => {
+  const handleSaveAsSnapshot = () => {
+    const suggested = activeSnapshot ? `${activeSnapshot} (copy)` : `Profile ${snapshotNames.length + 1}`;
+    const name = typeof window !== 'undefined' ? window.prompt('Save configuration as:', suggested) : suggested;
+    if (!name || !name.trim()) return;
+    const trimmed = name.trim();
+    if (snapshots[trimmed]) {
+      const ok = window.confirm(`A profile named "${trimmed}" already exists. Overwrite?`);
+      if (!ok) return;
+    }
     try {
-      const raw = localStorage.getItem(SNAPSHOT_KEY);
-      if (!raw) { toast.error('No saved snapshot found'); return; }
-      const parsed = JSON.parse(raw);
-      if (!parsed?.config || typeof parsed.config !== 'object') {
-        toast.error('Snapshot is corrupted'); return;
-      }
-      setConfig(parsed.config);
-      if (parsed.config.supabaseUrl) setSbUrl(parsed.config.supabaseUrl);
-      if (parsed.config.supabaseAnonKey) setSbAnonKey(parsed.config.supabaseAnonKey);
-      toast.success('Configuration loaded', { description: `Restored from ${snapshotMeta ?? 'previous save'}.` });
+      const map = { ...snapshots };
+      map[trimmed] = { name: trimmed, savedAt: new Date().toISOString(), config };
+      persistSnapshots(map);
+      setActive(trimmed);
+      toast.success(`Saved as "${trimmed}"`);
+    } catch (err) {
+      toast.error('Failed to save', { description: String((err as Error)?.message ?? err) });
+    }
+  };
+
+  const handleRenameSnapshot = () => {
+    if (!activeSnapshot) { toast.error('Select a profile to rename'); return; }
+    setRenameValue(activeSnapshot);
+    setRenameMode(true);
+  };
+
+  const commitRename = () => {
+    const newName = renameValue.trim();
+    if (!newName) { setRenameMode(false); return; }
+    if (newName === activeSnapshot) { setRenameMode(false); return; }
+    if (snapshots[newName]) {
+      toast.error(`A profile named "${newName}" already exists`);
+      return;
+    }
+    try {
+      const map = { ...snapshots };
+      const rec = map[activeSnapshot];
+      if (!rec) { setRenameMode(false); return; }
+      delete map[activeSnapshot];
+      map[newName] = { ...rec, name: newName };
+      persistSnapshots(map);
+      setActive(newName);
+      setRenameMode(false);
+      toast.success(`Renamed to "${newName}"`);
+    } catch (err) {
+      toast.error('Rename failed', { description: String((err as Error)?.message ?? err) });
+    }
+  };
+
+  const handleLoadSnapshot = (nameArg?: string) => {
+    const name = nameArg ?? activeSnapshot;
+    if (!name) { toast.error('Select a profile to load'); return; }
+    const rec = snapshots[name];
+    if (!rec?.config) { toast.error('Snapshot is corrupted'); return; }
+    try {
+      setConfig(rec.config);
+      if (rec.config.supabaseUrl) setSbUrl(rec.config.supabaseUrl);
+      if (rec.config.supabaseAnonKey) setSbAnonKey(rec.config.supabaseAnonKey);
+      setActive(name);
+      toast.success(`Loaded "${name}"`, { description: `Saved ${new Date(rec.savedAt).toLocaleString()}` });
     } catch (err) {
       toast.error('Failed to load snapshot', { description: String((err as Error)?.message ?? err) });
     }
@@ -299,12 +393,17 @@ export function SetupConfig() {
     reader.readAsText(file);
   };
 
-  const handleDeleteSnapshot = () => {
+  const handleDeleteSnapshot = (nameArg?: string) => {
+    const name = nameArg ?? activeSnapshot;
+    if (!name) return;
+    const ok = window.confirm(`Delete profile "${name}"? This cannot be undone.`);
+    if (!ok) return;
     try {
-      localStorage.removeItem(SNAPSHOT_KEY);
-      setHasSnapshot(false);
-      setSnapshotMeta(null);
-      toast.success('Saved snapshot deleted');
+      const map = { ...snapshots };
+      delete map[name];
+      persistSnapshots(map);
+      if (activeSnapshot === name) setActive('');
+      toast.success(`Deleted "${name}"`);
     } catch {
       toast.error('Failed to delete snapshot');
     }
@@ -323,36 +422,101 @@ export function SetupConfig() {
       </div>
 
       {/* Save / Load Configuration */}
-      <section className="glass-card rounded-2xl p-6 sm:p-8 border border-primary/20">
+      <section className="glass-card rounded-2xl p-6 sm:p-8 border border-primary/20 space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center shrink-0">
               <Save className="w-5 h-5 text-primary" />
             </div>
-            <div>
+            <div className="min-w-0">
               <h2 className="text-lg font-bold text-foreground">Configuration Snapshots</h2>
               <p className="text-xs text-muted-foreground mt-1">
-                {hasSnapshot
-                  ? <>Last saved: <span className="text-primary font-medium">{snapshotMeta}</span></>
-                  : 'No snapshot saved yet. Click "Save" to store your current setup.'}
+                {hasSnapshot && currentRecord
+                  ? <>Active: <span className="text-primary font-semibold">{activeSnapshot || '(none selected)'}</span> · Last saved <span className="text-foreground/80">{snapshotMeta}</span></>
+                  : 'No profiles saved yet. Click "Save As" to create your first profile.'}
               </p>
             </div>
           </div>
+
           <div className="flex flex-wrap items-center gap-2">
+            {/* Profile selector */}
+            {hasSnapshot && !renameMode && (
+              <select
+                value={activeSnapshot}
+                onChange={(e) => {
+                  const name = e.target.value;
+                  setActive(name);
+                  if (name) handleLoadSnapshot(name);
+                }}
+                className="px-3 py-2 rounded-lg bg-background border border-border text-foreground text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/40 min-w-[160px]"
+              >
+                <option value="">Select profile…</option>
+                {snapshotNames.map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            )}
+
+            {renameMode && (
+              <div className="flex items-center gap-1">
+                <input
+                  autoFocus
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') commitRename();
+                    if (e.key === 'Escape') setRenameMode(false);
+                  }}
+                  placeholder="New profile name"
+                  className="px-3 py-2 rounded-lg bg-background border border-primary/40 text-foreground text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/40 min-w-[180px]"
+                />
+                <button
+                  onClick={commitRename}
+                  className="px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90"
+                >
+                  <Check className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setRenameMode(false)}
+                  className="px-3 py-2 rounded-lg border border-border text-foreground text-sm hover:bg-accent"
+                >
+                  <XCircle className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
             <button
               onClick={handleSaveSnapshot}
+              title={activeSnapshot ? `Overwrite "${activeSnapshot}"` : 'Save current configuration'}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all font-semibold text-sm shadow-md hover:shadow-lg"
             >
               <Save className="w-4 h-4" />
-              Save
+              {activeSnapshot ? 'Save' : 'Save'}
             </button>
             <button
-              onClick={handleLoadSnapshot}
-              disabled={!hasSnapshot}
+              onClick={handleSaveAsSnapshot}
+              title="Save as a new named profile"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20 transition-all font-semibold text-sm"
+            >
+              <Save className="w-4 h-4" />
+              Save As…
+            </button>
+            <button
+              onClick={() => handleLoadSnapshot()}
+              disabled={!activeSnapshot}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-all font-semibold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <RotateCcw className="w-4 h-4" />
               Load
+            </button>
+            <button
+              onClick={handleRenameSnapshot}
+              disabled={!activeSnapshot || renameMode}
+              title="Rename active profile"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-foreground hover:bg-accent transition-all text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Settings className="w-4 h-4" />
+              Rename
             </button>
             <button
               onClick={handleExportConfig}
@@ -375,17 +539,58 @@ export function SetupConfig() {
               onChange={handleImportConfig}
               className="hidden"
             />
-            {hasSnapshot && (
+            {activeSnapshot && (
               <button
-                onClick={handleDeleteSnapshot}
+                onClick={() => handleDeleteSnapshot()}
                 className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-destructive/30 text-destructive hover:bg-destructive/10 transition-all text-sm"
-                title="Delete saved snapshot"
+                title={`Delete "${activeSnapshot}"`}
               >
                 <Trash2 className="w-4 h-4" />
               </button>
             )}
           </div>
         </div>
+
+        {/* Saved profiles list */}
+        {snapshotNames.length > 0 && (
+          <div className="pt-4 border-t border-border/50">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground font-semibold mb-2">Saved profiles ({snapshotNames.length})</p>
+            <div className="flex flex-wrap gap-2">
+              {snapshotNames.map((n) => {
+                const isActive = n === activeSnapshot;
+                return (
+                  <div
+                    key={n}
+                    className={cn(
+                      'group flex items-center gap-1 rounded-lg border text-sm transition-all',
+                      isActive
+                        ? 'border-primary/50 bg-primary/10'
+                        : 'border-border bg-background hover:border-primary/30'
+                    )}
+                  >
+                    <button
+                      onClick={() => handleLoadSnapshot(n)}
+                      className={cn(
+                        'px-3 py-1.5 font-medium',
+                        isActive ? 'text-primary' : 'text-foreground'
+                      )}
+                      title={`Load "${n}" (saved ${new Date(snapshots[n].savedAt).toLocaleString()})`}
+                    >
+                      {n}
+                    </button>
+                    <button
+                      onClick={() => handleDeleteSnapshot(n)}
+                      className="px-2 py-1.5 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                      title={`Delete "${n}"`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </section>
 
 
