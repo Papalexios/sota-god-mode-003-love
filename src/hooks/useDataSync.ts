@@ -52,17 +52,28 @@ export function useDataSync() {
         const detail = getLastDbCheckError();
         if (detail?.kind === 'missing_table') {
           setError('Supabase is reachable but the table generated_blog_posts is missing. Create it in Supabase SQL Editor.');
+          setTableMissing(true);
+          setIsConnected(false);
         } else if (detail?.kind === 'rls') {
           setError('Supabase is reachable but RLS is blocking access. Fix RLS policy for anon/authenticated.');
+          setTableMissing(false);
+          setIsConnected(false);
         } else if (detail?.kind === 'permission') {
           setError('Supabase is reachable but permissions are blocking access. Check API settings and table grants.');
+          setTableMissing(false);
+          setIsConnected(false);
         } else if (detail?.kind === 'network') {
-          setError(`Network / CORS issue connecting to Supabase: ${detail.message}`);
+          // Network/CORS error: gracefully degrade to offline mode instead of showing a scary error.
+          // Local persistence (Zustand persist) keeps everything safe.
+          console.warn('[DataSync] Supabase unreachable, falling back to offline mode:', detail.message);
+          setError(null);
+          setTableMissing(false);
+          setIsConnected(false);
         } else {
-          setError(detail?.message || 'Database connection failed.');
+          setError(detail?.message || null);
+          setTableMissing(false);
+          setIsConnected(false);
         }
-        setTableMissing(detail?.kind === 'missing_table');
-        setIsConnected(false);
         setIsLoading(false);
         return;
       }
@@ -208,13 +219,16 @@ export function useDataSync() {
     });
   }, []);
 
+  // Treat unreachable Supabase (network/CORS) as "offline mode" too — local persistence still works.
+  const offline = !getSupabaseConfig().configured || (!isConnected && !tableMissing && !error && !isLoading);
+
   return {
     isLoading,
     isConnected,
     lastSyncTime,
     error,
     tableMissing,
-    isOfflineMode: !getSupabaseConfig().configured,
+    isOfflineMode: offline,
     loadFromDatabase,
     saveToDatabase,
     deleteFromDatabase,
