@@ -368,6 +368,58 @@ export class EnterpriseContentOrchestrator {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // SOTA TITLE REWRITER (SEO + AEO + GEO optimized)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  private async generateSOTATitle(
+    keyword: string,
+    originalTitle: string | undefined,
+    sourceUrl: string | undefined,
+    isRefresh: boolean,
+  ): Promise<string> {
+    const cleanOriginal = (originalTitle || '').replace(/^\s*(refresh|rewrite)\s*:\s*/i, '').trim();
+    const context = isRefresh
+      ? `You are rewriting an EXISTING blog post title to make it 1000x more powerful.
+Original/working title: "${cleanOriginal}"
+${sourceUrl ? `Source URL: ${sourceUrl}` : ''}
+Primary keyword: "${keyword}"
+
+Generate ONE world-class replacement title that will outrank the existing version.`
+      : `Generate ONE world-class SEO title for a brand-new article.
+Topic / working title: "${cleanOriginal || keyword}"
+Primary keyword: "${keyword}"`;
+
+    const prompt = `${context}
+
+REQUIREMENTS — every single one is mandatory:
+1. SEO: Include the primary keyword "${keyword}" naturally near the start (front-loaded if possible).
+2. AEO (Answer Engine Optimization): Phrase it so ChatGPT, Perplexity, and Google AI Overviews would directly quote it as the canonical answer.
+3. GEO (Generative Engine Optimization): Include a concrete number, year (2026), or quantifier where natural.
+4. Length: 50-70 characters total. NEVER exceed 70.
+5. Power: Use ONE high-impact modifier (e.g. "Ultimate", "Definitive", "Proven", "Complete", "Honest", "Real", "Tested"). Pick the one that fits the topic — never multiple.
+6. Title case (capitalize main words). No ALL CAPS. No emojis. No quotes around the title. NO "Refresh:", "Rewrite:", "Update:", "New:" prefixes — EVER.
+7. Specific over generic. Promise a concrete outcome, framework, or insight — not vague descriptions.
+8. Must read like a #1-ranking title from Healthline, NYT Wirecutter, or Backlinko — never AI slop.
+
+OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no markdown. Just the title text on a single line.`;
+
+    const result = await this.engine.generateWithModel({
+      prompt,
+      systemPrompt: 'You are a world-class SEO title strategist. You write titles that rank #1 on Google and get cited by AI engines. You output ONE title and nothing else — no quotes, no preamble, no explanations.',
+      model: this.config.primaryModel || 'gemini',
+      apiKeys: this.config.apiKeys,
+      maxTokens: 120,
+      temperature: 0.7,
+    } as any);
+
+    let title = (result.content || '').trim();
+    title = title.split('\n')[0].trim();
+    title = title.replace(/^["'`*\-•\d.)\s]+/, '').replace(/["'`*]+$/, '').trim();
+    title = title.replace(/^\s*(refresh|rewrite|update|new)\s*:\s*/i, '').trim();
+    return title;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // YOUTUBE VIDEO DISCOVERY & INJECTION
   // ─────────────────────────────────────────────────────────────────────────
 
