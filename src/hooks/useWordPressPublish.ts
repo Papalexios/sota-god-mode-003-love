@@ -62,17 +62,24 @@ export function useWordPressPublish() {
         existingPostId: options?.existingPostId,
       };
 
-      // ===== Strategy 1: Express server proxy (handles CORS, works in dev + production) =====
+      // ===== Strategy 1: Try local/Cloudflare proxy first (only if it returns JSON) =====
       try {
         const res = await fetch('/api/wordpress-publish', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
           body: JSON.stringify(body),
         });
 
+        const contentType = res.headers.get('content-type') || '';
+        // If route is missing on host, SPA returns text/html — skip to Supabase fallback
+        if (!contentType.includes('application/json')) {
+          console.warn('[WordPressPublish] /api/wordpress-publish unavailable (non-JSON response). Using Supabase Edge Function.');
+          throw new Error('__FALLBACK__');
+        }
+
         const json = await res.json().catch(() => null);
 
-        if (res.ok && json?.success) {
+        if (json?.success) {
           const post = json.post as Record<string, unknown> | undefined;
           const result: PublishResult = {
             success: true,
@@ -96,17 +103,18 @@ export function useWordPressPublish() {
           }
           throw new Error(errorMsg);
         }
-
-        console.warn('[WordPressPublish] Server proxy returned non-OK without error, trying Supabase fallback');
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        if (msg.includes('authentication') || msg.includes('Permission') || msg.includes('REST API') || msg.includes('not configured')) {
+        if (msg === '__FALLBACK__') {
+          // Intentional fallback to Supabase
+        } else if (msg.includes('authentication') || msg.includes('Permission') || msg.includes('REST API') || msg.includes('not configured')) {
           throw e;
+        } else {
+          console.warn('[WordPressPublish] Server proxy failed, falling back to Supabase:', msg);
         }
-        console.warn('[WordPressPublish] Server proxy failed, falling back to Supabase:', msg);
       }
 
-      // ===== Strategy 2: Supabase Edge Function fallback =====
+      // ===== Strategy 2: Supabase Edge Function (primary in production) =====
       const { configured } = getSupabaseConfig();
 
       if (!configured) {
