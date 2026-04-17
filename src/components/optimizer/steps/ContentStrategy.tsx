@@ -463,15 +463,16 @@ export function ContentStrategy() {
         contentType: 'refresh',
       });
 
+      // NO "Refresh:" prefix — the orchestrator will rewrite the title to a SOTA SEO/AEO/GEO title
       addContentItem({
-        title: `Refresh: ${title}`,
+        title,
         type: 'refresh',
         status: 'pending',
         primaryKeyword: title.toLowerCase(),
         url: singleUrl.trim(),
         pipelineConfig: pipeline,
       });
-      toast.success("URL added to refresh queue with full pipeline!");
+      toast.success("URL queued — title will be rewritten to a SOTA SEO/AEO/GEO version during generation.");
       setSingleUrl("");
       setCurrentStep(3);
     } catch {
@@ -499,8 +500,9 @@ export function ContentStrategy() {
     urls.forEach(url => {
       const slug = new URL(url).pathname.split('/').filter(Boolean).pop() || 'untitled';
       const title = slug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      // NO "Refresh:" prefix — orchestrator rewrites the title to a SOTA version
       addContentItem({
-        title: `Refresh: ${title}`,
+        title,
         type: 'refresh',
         status: 'pending',
         primaryKeyword: title.toLowerCase(),
@@ -509,7 +511,7 @@ export function ContentStrategy() {
       });
     });
 
-    toast.success(`${urls.length} URLs added to refresh queue!`);
+    toast.success(`${urls.length} URLs queued — titles will be rewritten to SOTA versions during generation.`);
     setRefreshUrls("");
     setCurrentStep(3);
   };
