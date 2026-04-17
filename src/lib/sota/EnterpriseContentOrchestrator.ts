@@ -368,6 +368,58 @@ export class EnterpriseContentOrchestrator {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // SOTA TITLE REWRITER (SEO + AEO + GEO optimized)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  private async generateSOTATitle(
+    keyword: string,
+    originalTitle: string | undefined,
+    sourceUrl: string | undefined,
+    isRefresh: boolean,
+  ): Promise<string> {
+    const cleanOriginal = (originalTitle || '').replace(/^\s*(refresh|rewrite)\s*:\s*/i, '').trim();
+    const context = isRefresh
+      ? `You are rewriting an EXISTING blog post title to make it 1000x more powerful.
+Original/working title: "${cleanOriginal}"
+${sourceUrl ? `Source URL: ${sourceUrl}` : ''}
+Primary keyword: "${keyword}"
+
+Generate ONE world-class replacement title that will outrank the existing version.`
+      : `Generate ONE world-class SEO title for a brand-new article.
+Topic / working title: "${cleanOriginal || keyword}"
+Primary keyword: "${keyword}"`;
+
+    const prompt = `${context}
+
+REQUIREMENTS — every single one is mandatory:
+1. SEO: Include the primary keyword "${keyword}" naturally near the start (front-loaded if possible).
+2. AEO (Answer Engine Optimization): Phrase it so ChatGPT, Perplexity, and Google AI Overviews would directly quote it as the canonical answer.
+3. GEO (Generative Engine Optimization): Include a concrete number, year (2026), or quantifier where natural.
+4. Length: 50-70 characters total. NEVER exceed 70.
+5. Power: Use ONE high-impact modifier (e.g. "Ultimate", "Definitive", "Proven", "Complete", "Honest", "Real", "Tested"). Pick the one that fits the topic — never multiple.
+6. Title case (capitalize main words). No ALL CAPS. No emojis. No quotes around the title. NO "Refresh:", "Rewrite:", "Update:", "New:" prefixes — EVER.
+7. Specific over generic. Promise a concrete outcome, framework, or insight — not vague descriptions.
+8. Must read like a #1-ranking title from Healthline, NYT Wirecutter, or Backlinko — never AI slop.
+
+OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no markdown. Just the title text on a single line.`;
+
+    const result = await this.engine.generateWithModel({
+      prompt,
+      systemPrompt: 'You are a world-class SEO title strategist. You write titles that rank #1 on Google and get cited by AI engines. You output ONE title and nothing else — no quotes, no preamble, no explanations.',
+      model: this.config.primaryModel || 'gemini',
+      apiKeys: this.config.apiKeys,
+      maxTokens: 120,
+      temperature: 0.7,
+    } as any);
+
+    let title = (result.content || '').trim();
+    title = title.split('\n')[0].trim();
+    title = title.replace(/^["'`*\-•\d.)\s]+/, '').replace(/["'`*]+$/, '').trim();
+    title = title.replace(/^\s*(refresh|rewrite|update|new)\s*:\s*/i, '').trim();
+    return title;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // YOUTUBE VIDEO DISCOVERY & INJECTION
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -694,11 +746,12 @@ export class EnterpriseContentOrchestrator {
   private async applyPremiumStyling(html: string): Promise<string> {
     let output = html;
 
-    // ── 1. UNWRAP BARE ARTICLE TAG — ensure consistent wrapper ─────────────
-    // Normalize the article wrapper to our premium styled version
+    // ── 1. UNWRAP BARE ARTICLE TAG — ensure consistent wrapper with FORCED visibility ─
+    // Normalize the article wrapper so it's fully readable on ANY WordPress theme
+    // (light, dark, or custom). Background:#ffffff + color:#1e293b lock visibility.
     output = output.replace(
       /<article[^>]*>/i,
-      `<article style="font-family:'Georgia','Times New Roman',serif;max-width:860px;margin:0 auto;color:#1e293b;line-height:1.85;font-size:17.5px;letter-spacing:-0.01em;padding:0 20px;">`
+      `<article style="font-family:'Georgia','Iowan Old Style','Times New Roman',serif;max-width:860px;margin:0 auto;background:#ffffff;color:#1e293b;line-height:1.85;font-size:18px;letter-spacing:-0.01em;padding:32px 24px;border-radius:8px;">`
     );
 
     // ── 2. PREMIUM HERO HEADER ─────────────────────────────────────────────
@@ -761,10 +814,14 @@ export class EnterpriseContentOrchestrator {
       }
     }
 
-    // ── 4. STYLE ALL PARAGRAPHS ─────────────────────────────────────────────
-    output = output.replace(/<p(?!\s+style=)(?=[^>]*>)/gi, '<p style="margin:0 0 22px 0;line-height:1.85;"');
+    // ── 4. STYLE ALL PARAGRAPHS — explicit dark color for visibility on any theme ─
+    output = output.replace(/<p(?!\s+style=)(?=[^>]*>)/gi, '<p style="margin:0 0 22px 0;line-height:1.85;color:#1e293b;font-size:18px;"');
     // Don't double-style within callout boxes
-    output = output.replace(/<p style="margin:0 0 22px 0;line-height:1\.85;" style="/gi, '<p style="');
+    output = output.replace(/<p style="margin:0 0 22px 0;line-height:1\.85;color:#1e293b;font-size:18px;" style="/gi, '<p style="');
+    // Style any unstyled list items / lists with explicit dark color
+    output = output.replace(/<ul(?!\s+[^>]*style=)([^>]*)>/gi, '<ul$1 style="margin:0 0 24px 0;padding-left:28px;color:#1e293b;font-size:17px;line-height:1.85;">');
+    output = output.replace(/<ol(?!\s+[^>]*style=)([^>]*)>/gi, '<ol$1 style="margin:0 0 24px 0;padding-left:28px;color:#1e293b;font-size:17px;line-height:1.85;">');
+    output = output.replace(/<li(?!\s+[^>]*style=)([^>]*)>/gi, '<li$1 style="margin:8px 0;color:#1e293b;">');
 
     // ── 5. STYLE ALL HEADINGS ───────────────────────────────────────────────
     output = output.replace(/<h2(?!\s+[^>]*style=)([^>]*)>/gi,
@@ -976,6 +1033,33 @@ export class EnterpriseContentOrchestrator {
   private async _executeGenerationPipeline(options: any): Promise<any> {
     this.config.currentTitle = options.title || options.keyword;
     this.config.authorName = options.authorName || 'SOTA AI Research';
+
+    // ── Phase 0a: SOTA Title Rewrite (refresh items + URL-derived titles) ───
+    // For refresh content, the incoming "title" is just a slug-derived guess
+    // (e.g. "Blue House Plants"). Generate a SOTA SEO/AEO/GEO-optimized title.
+    const isRefresh = options.contentType === 'refresh';
+    const looksLikeSlugTitle = !options.title || options.title === options.keyword ||
+      /^[A-Z][a-z]+( [A-Z][a-z]+)*$/.test(String(options.title || '').trim());
+
+    if (isRefresh || looksLikeSlugTitle) {
+      try {
+        this.log('Phase 0a: Rewriting title to SOTA SEO/AEO/GEO standard...');
+        const newTitle = await this.generateSOTATitle(
+          options.keyword,
+          options.title,
+          options.url,
+          isRefresh,
+        );
+        if (newTitle && newTitle.length >= 20 && newTitle.length <= 90) {
+          this.log(`Phase 0a ✅ Title rewritten: "${newTitle}"`);
+          options.title = newTitle;
+          this.config.currentTitle = newTitle;
+          options.onTitleRewritten?.(newTitle);
+        }
+      } catch (e) {
+        this.warn(`Phase 0a: Title rewrite skipped (${e instanceof Error ? e.message : e}). Using original.`);
+      }
+    }
 
     // ── Phase 0: Top-3 SERP Scan + Gap Analysis ─────────────────────────────
     this.log('Phase 0: Top-3 SERP ranking scan and gap analysis...');

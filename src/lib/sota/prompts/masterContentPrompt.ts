@@ -402,11 +402,16 @@ End with:
 
 [9] DO NOT embed YouTube videos or iframes. The system auto-injects verified YouTube embeds. Any AI-generated iframe will be STRIPPED.
 
-OUTPUT FORMAT:
-- Wrap in: <article style="font-family:'Georgia','Times New Roman',serif;max-width:860px;margin:0 auto;color:#1e293b;line-height:1.85;font-size:17.5px;letter-spacing:-0.01em;padding:0 20px;">
-- All <p>: style="margin:0 0 24px 0;line-height:1.85;font-size:17.5px;"
-- All <h2>: style="font-size:clamp(1.6em,3.5vw,2em);font-weight:900;color:#0f172a;margin:64px 0 24px 0;line-height:1.15;letter-spacing:-0.03em;font-family:'Inter','Helvetica Neue',system-ui,sans-serif;border-bottom:3px solid linear-gradient(90deg,#6366f1,#8b5cf6);padding-bottom:14px;position:relative;"
-- All <h3>: style="font-size:1.35em;font-weight:800;color:#1e293b;margin:44px 0 16px 0;letter-spacing:-0.015em;font-family:'Inter','Helvetica Neue',system-ui,sans-serif;"
+OUTPUT FORMAT — VISIBILITY IS NON-NEGOTIABLE:
+- Wrap in: <article style="font-family:'Georgia','Iowan Old Style','Times New Roman',serif;max-width:860px;margin:0 auto;background:#ffffff;color:#1e293b;line-height:1.85;font-size:18px;letter-spacing:-0.01em;padding:32px 24px;border-radius:8px;">
+- All <p>: style="margin:0 0 24px 0;line-height:1.85;font-size:18px;color:#1e293b;"
+- All <h2>: style="font-size:clamp(1.65em,3.5vw,2.05em);font-weight:900;color:#0f172a;margin:64px 0 24px 0;line-height:1.18;letter-spacing:-0.025em;font-family:'Inter','Helvetica Neue',system-ui,sans-serif;border-bottom:3px solid #6366f1;padding-bottom:14px;"
+- All <h3>: style="font-size:1.4em;font-weight:800;color:#1e293b;margin:44px 0 16px 0;letter-spacing:-0.015em;font-family:'Inter','Helvetica Neue',system-ui,sans-serif;"
+- All <ul>/<ol>: style="margin:0 0 24px 0;padding-left:28px;color:#1e293b;font-size:17px;line-height:1.85;"
+- All <li>: style="margin:8px 0;color:#1e293b;"
+- All <strong> in body: style="color:#0f172a;font-weight:700;"
+- EVERY text element MUST have an explicit color (#0f172a or #1e293b for body, white only inside dark-background callouts). Never rely on theme inheritance.
+- The <article> root MUST set background:#ffffff so the article is fully readable on ANY WordPress theme (light, dark, custom).
 - PURE HTML. No markdown. No backticks. No code blocks. No explanations.
 - Begin with <article and end with </article>.
 - WRITE THE COMPLETE ARTICLE. ALL SECTIONS. DO NOT STOP. DO NOT TRUNCATE.

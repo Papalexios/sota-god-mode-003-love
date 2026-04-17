@@ -425,6 +425,12 @@ export function ReviewExport() {
         const result = await orchestrator.generateContent({
           keyword: item.primaryKeyword,
           title: item.title,
+          contentType: item.type,
+          url: item.url,
+          onTitleRewritten: (newTitle: string) => {
+            // Persist the SOTA-rewritten title back to the item so the UI reflects it
+            updateContentItem(item.id, { title: newTitle });
+          },
           onProgress: (msg) => {
             const lowerMsg = msg.toLowerCase();
             let detectedStep = -1;
