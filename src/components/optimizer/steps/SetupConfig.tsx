@@ -168,10 +168,130 @@ export function SetupConfig() {
   const handleVerifyWordPress = async () => {
     if (!config.wpUrl || !config.wpUsername || !config.wpAppPassword) return;
     setVerifyingWp(true);
+    setWpVerified(null);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // Normalize URL
+      let baseUrl = config.wpUrl.trim().replace(/\/+$/, '');
+      if (!baseUrl.startsWith('http')) baseUrl = `https://${baseUrl}`;
+
+      // Validate URL format
+      try {
+        const parsed = new URL(baseUrl);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+          throw new Error('URL must use HTTP or HTTPS');
+        }
+      } catch {
+        toast.error('❌ Invalid WordPress URL', {
+          description: 'Please enter a valid URL (e.g. https://yoursite.com)',
+        });
+        setWpVerified(false);
+        return;
+      }
+
+      const authBase64 = btoa(`${config.wpUsername}:${config.wpAppPassword}`);
+      const authHeaders = {
+        Authorization: `Basic ${authBase64}`,
+        Accept: 'application/json',
+      };
+
+      // Step 1: Check REST API root reachable (no auth required, validates WP + REST API)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      let rootRes: Response;
+      try {
+        rootRes = await fetch(`${baseUrl}/wp-json/`, {
+          method: 'GET',
+          signal: controller.signal,
+        });
+      } catch (e) {
+        clearTimeout(timeoutId);
+        const msg = e instanceof Error ? e.message : String(e);
+        const isTimeout = msg.includes('abort');
+        const isCors = msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('cors');
+        toast.error('❌ Cannot reach WordPress', {
+          description: isTimeout
+            ? 'Request timed out after 15s. Check the URL and that the site is online.'
+            : isCors
+              ? 'Network/CORS error. The site may be blocking browser requests, but publishing via the server proxy may still work.'
+              : `Could not reach ${baseUrl}: ${msg}`,
+        });
+        setWpVerified(false);
+        return;
+      }
+      clearTimeout(timeoutId);
+
+      if (!rootRes.ok) {
+        toast.error('❌ WordPress REST API not found', {
+          description: `Got ${rootRes.status} from ${baseUrl}/wp-json/. Ensure permalinks are enabled (Settings → Permalinks → Save).`,
+        });
+        setWpVerified(false);
+        return;
+      }
+
+      // Step 2: Authenticated check — GET /users/me requires valid credentials
+      const ctrl2 = new AbortController();
+      const t2 = setTimeout(() => ctrl2.abort(), 15000);
+      let meRes: Response;
+      try {
+        meRes = await fetch(`${baseUrl}/wp-json/wp/v2/users/me?context=edit`, {
+          method: 'GET',
+          headers: authHeaders,
+          signal: ctrl2.signal,
+        });
+      } catch (e) {
+        clearTimeout(t2);
+        const msg = e instanceof Error ? e.message : String(e);
+        toast.error('⚠️ Auth check blocked by browser', {
+          description: `Could not verify credentials directly: ${msg}. Publishing may still work via the server proxy.`,
+        });
+        setWpVerified(false);
+        return;
+      }
+      clearTimeout(t2);
+
+      if (meRes.status === 401) {
+        toast.error('❌ Authentication failed', {
+          description: 'Username or Application Password is incorrect. Generate a new App Password under Users → Profile → Application Passwords.',
+        });
+        setWpVerified(false);
+        return;
+      }
+      if (meRes.status === 403) {
+        toast.error('❌ Permission denied', {
+          description: 'Credentials are valid but the user lacks edit/publish capabilities. Use an Admin or Editor account.',
+        });
+        setWpVerified(false);
+        return;
+      }
+      if (!meRes.ok) {
+        toast.error('❌ Verification failed', {
+          description: `WordPress returned ${meRes.status}. Check your URL and credentials.`,
+        });
+        setWpVerified(false);
+        return;
+      }
+
+      const me = await meRes.json().catch(() => null) as { name?: string; slug?: string; capabilities?: Record<string, boolean> } | null;
+      const canPublish = me?.capabilities
+        ? !!(me.capabilities.publish_posts || me.capabilities.edit_posts || me.capabilities.administrator)
+        : true;
+
+      if (!canPublish) {
+        toast.error('⚠️ User cannot publish posts', {
+          description: `Logged in as "${me?.name || me?.slug || config.wpUsername}" but the role lacks publish_posts capability.`,
+        });
+        setWpVerified(false);
+        return;
+      }
+
+      toast.success('✅ WordPress verified', {
+        description: `Connected as ${me?.name || me?.slug || config.wpUsername}. Ready to publish.`,
+      });
       setWpVerified(true);
-    } catch {
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Unknown error';
+      toast.error('❌ Verification error', { description: msg });
       setWpVerified(false);
     } finally {
       setVerifyingWp(false);
