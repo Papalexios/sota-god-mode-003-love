@@ -181,10 +181,8 @@ export function SetupConfig() {
           throw new Error('URL must use HTTP or HTTPS');
         }
       } catch {
-        toast({
-          title: '❌ Invalid WordPress URL',
+        toast.error('❌ Invalid WordPress URL', {
           description: 'Please enter a valid URL (e.g. https://yoursite.com)',
-          variant: 'destructive',
         });
         setWpVerified(false);
         return;
@@ -211,14 +209,12 @@ export function SetupConfig() {
         const msg = e instanceof Error ? e.message : String(e);
         const isTimeout = msg.includes('abort');
         const isCors = msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('cors');
-        toast({
-          title: '❌ Cannot reach WordPress',
+        toast.error('❌ Cannot reach WordPress', {
           description: isTimeout
             ? 'Request timed out after 15s. Check the URL and that the site is online.'
             : isCors
               ? 'Network/CORS error. The site may be blocking browser requests, but publishing via the server proxy may still work.'
               : `Could not reach ${baseUrl}: ${msg}`,
-          variant: 'destructive',
         });
         setWpVerified(false);
         return;
@@ -226,10 +222,8 @@ export function SetupConfig() {
       clearTimeout(timeoutId);
 
       if (!rootRes.ok) {
-        toast({
-          title: '❌ WordPress REST API not found',
+        toast.error('❌ WordPress REST API not found', {
           description: `Got ${rootRes.status} from ${baseUrl}/wp-json/. Ensure permalinks are enabled (Settings → Permalinks → Save).`,
-          variant: 'destructive',
         });
         setWpVerified(false);
         return;
@@ -248,10 +242,8 @@ export function SetupConfig() {
       } catch (e) {
         clearTimeout(t2);
         const msg = e instanceof Error ? e.message : String(e);
-        toast({
-          title: '⚠️ Auth check blocked by browser',
+        toast.error('⚠️ Auth check blocked by browser', {
           description: `Could not verify credentials directly: ${msg}. Publishing may still work via the server proxy.`,
-          variant: 'destructive',
         });
         setWpVerified(false);
         return;
@@ -259,28 +251,22 @@ export function SetupConfig() {
       clearTimeout(t2);
 
       if (meRes.status === 401) {
-        toast({
-          title: '❌ Authentication failed',
+        toast.error('❌ Authentication failed', {
           description: 'Username or Application Password is incorrect. Generate a new App Password under Users → Profile → Application Passwords.',
-          variant: 'destructive',
         });
         setWpVerified(false);
         return;
       }
       if (meRes.status === 403) {
-        toast({
-          title: '❌ Permission denied',
+        toast.error('❌ Permission denied', {
           description: 'Credentials are valid but the user lacks edit/publish capabilities. Use an Admin or Editor account.',
-          variant: 'destructive',
         });
         setWpVerified(false);
         return;
       }
       if (!meRes.ok) {
-        toast({
-          title: '❌ Verification failed',
+        toast.error('❌ Verification failed', {
           description: `WordPress returned ${meRes.status}. Check your URL and credentials.`,
-          variant: 'destructive',
         });
         setWpVerified(false);
         return;
@@ -292,27 +278,20 @@ export function SetupConfig() {
         : true;
 
       if (!canPublish) {
-        toast({
-          title: '⚠️ User cannot publish posts',
+        toast.error('⚠️ User cannot publish posts', {
           description: `Logged in as "${me?.name || me?.slug || config.wpUsername}" but the role lacks publish_posts capability.`,
-          variant: 'destructive',
         });
         setWpVerified(false);
         return;
       }
 
-      toast({
-        title: '✅ WordPress verified',
+      toast.success('✅ WordPress verified', {
         description: `Connected as ${me?.name || me?.slug || config.wpUsername}. Ready to publish.`,
       });
       setWpVerified(true);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Unknown error';
-      toast({
-        title: '❌ Verification error',
-        description: msg,
-        variant: 'destructive',
-      });
+      toast.error('❌ Verification error', { description: msg });
       setWpVerified(false);
     } finally {
       setVerifyingWp(false);
