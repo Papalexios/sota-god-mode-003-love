@@ -245,7 +245,7 @@ export class SOTAContentGenerationEngine {
     };
     if (systemPrompt) requestBody.system_instruction = { parts: [{ text: systemPrompt }] };
 
-    const response = await fetch(url, {
+    const response = await this.fetchWithTimeout(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requestBody)
@@ -264,7 +264,7 @@ export class SOTAContentGenerationEngine {
     if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
     messages.push({ role: 'user', content: prompt });
 
-    const response = await fetch(this.modelConfigs.openai.endpoint, {
+    const response = await this.fetchWithTimeout(this.modelConfigs.openai.endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -287,7 +287,7 @@ export class SOTAContentGenerationEngine {
   }
 
   private async callAnthropic(apiKey: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 4096): Promise<{ content: string; tokens: number }> {
-    const response = await fetch(this.modelConfigs.anthropic.endpoint, {
+    const response = await this.fetchWithTimeout(this.modelConfigs.anthropic.endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -320,7 +320,7 @@ export class SOTAContentGenerationEngine {
     if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
     messages.push({ role: 'user', content: prompt });
 
-    const response = await fetch(endpoint, {
+    const response = await this.fetchWithTimeout(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
