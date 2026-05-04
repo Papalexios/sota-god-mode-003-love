@@ -144,7 +144,8 @@ export class SOTAContentGenerationEngine {
       const msg = error.message;
       return RETRYABLE_STATUS_CODES.some(code => msg.includes(String(code))) ||
         msg.includes('ECONNRESET') || msg.includes('ETIMEDOUT') ||
-        msg.includes('ERR_HTTP2_PROTOCOL_ERROR') || msg.includes('fetch failed');
+        msg.includes('ERR_HTTP2_PROTOCOL_ERROR') || msg.includes('fetch failed') ||
+        msg.includes('timed out') || msg.includes('AbortError');
     }
     return false;
   }
