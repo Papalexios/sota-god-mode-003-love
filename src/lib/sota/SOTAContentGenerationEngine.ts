@@ -118,6 +118,27 @@ export class SOTAContentGenerationEngine {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  /**
+   * Hard timeout for any AI provider call. Without this, a stalled stream
+   * (e.g. OpenRouter routing to a slow DeepInfra/Novita backend) can hang
+   * the entire pipeline indefinitely while still burning tokens on retries.
+   * Default: 4 minutes per attempt.
+   */
+  private async fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 240_000): Promise<Response> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...init, signal: controller.signal });
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        throw new Error(`AI request timed out after ${Math.round(timeoutMs / 1000)}s — provider stalled. Falling back...`);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   private isRetryableError(error: unknown): boolean {
     if (error instanceof Error) {
       const msg = error.message;
