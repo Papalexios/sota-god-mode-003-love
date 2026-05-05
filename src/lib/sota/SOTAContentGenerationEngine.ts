@@ -62,7 +62,7 @@ export interface ExtendedAPIKeys extends APIKeys {
   fallbackModels?: string[];
 }
 
-const MAX_RETRIES = 3; // Increased for SOTA resilience
+const MAX_RETRIES = 2; // Fail fast enough to avoid runaway token burn, then use fallback.
 const RETRYABLE_STATUS_CODES = [429, 500, 502, 503, 504];
 const PROVIDER_TIMEOUT_MS = 120_000;
 const TRUNCATED_FINISH_REASONS = new Set(['length', 'max_tokens', 'max_output_tokens', 'MAX_TOKENS']);
