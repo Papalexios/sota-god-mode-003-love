@@ -130,9 +130,9 @@ export class SOTAContentGenerationEngine {
    * Hard timeout for any AI provider call. Without this, a stalled stream
    * (e.g. OpenRouter routing to a slow DeepInfra/Novita backend) can hang
    * the entire pipeline indefinitely while still burning tokens on retries.
-   * Default: 4 minutes per attempt.
+   * Default: 2 minutes per attempt, then retry/fallback.
    */
-  private async fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 240_000): Promise<Response> {
+  private async fetchWithTimeout(url: string, init: RequestInit, timeoutMs = PROVIDER_TIMEOUT_MS): Promise<Response> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -319,7 +319,7 @@ export class SOTAContentGenerationEngine {
     };
   }
 
-  private async callOpenAI(apiKey: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 4096): Promise<{ content: string; tokens: number }> {
+  private async callOpenAI(apiKey: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 4096): Promise<ProviderCallResult> {
     const messages: any[] = [];
     if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
     messages.push({ role: 'user', content: prompt });
@@ -338,15 +338,20 @@ export class SOTAContentGenerationEngine {
       })
     });
 
-    if (!response.ok) throw new Error(`OpenAI API error ${response.status}`);
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      throw new Error(`OpenAI API error ${response.status}: ${errorText.slice(0, 500)}`);
+    }
     const data = await response.json();
+    const choice = data.choices?.[0] || {};
     return {
-      content: data.choices?.[0]?.message?.content || '',
-      tokens: data.usage?.total_tokens || 0
+      content: choice.message?.content || '',
+      tokens: data.usage?.total_tokens || 0,
+      finishReason: choice.finish_reason,
     };
   }
 
-  private async callAnthropic(apiKey: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 4096): Promise<{ content: string; tokens: number }> {
+  private async callAnthropic(apiKey: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 4096): Promise<ProviderCallResult> {
     const response = await this.fetchWithTimeout(this.modelConfigs.anthropic.endpoint, {
       method: 'POST',
       headers: {
@@ -371,11 +376,12 @@ export class SOTAContentGenerationEngine {
     const data = await response.json();
     return {
       content: data.content?.[0]?.text || '',
-      tokens: (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0)
+      tokens: (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0),
+      finishReason: data.stop_reason,
     };
   }
 
-  private async callOpenAICompatible(endpoint: string, apiKey: string, modelId: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 4096): Promise<{ content: string; tokens: number }> {
+  private async callOpenAICompatible(endpoint: string, apiKey: string, modelId: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 4096): Promise<ProviderCallResult> {
     const messages: any[] = [];
     if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
     messages.push({ role: 'user', content: prompt });
@@ -394,11 +400,16 @@ export class SOTAContentGenerationEngine {
       })
     });
 
-    if (!response.ok) throw new Error(`${modelId} API error ${response.status}`);
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      throw new Error(`${modelId} API error ${response.status}: ${errorText.slice(0, 500)}`);
+    }
     const data = await response.json();
+    const choice = data.choices?.[0] || {};
     return {
-      content: data.choices?.[0]?.message?.content || '',
-      tokens: data.usage?.total_tokens || 0
+      content: choice.message?.content || '',
+      tokens: data.usage?.total_tokens || 0,
+      finishReason: choice.finish_reason,
     };
   }
 
