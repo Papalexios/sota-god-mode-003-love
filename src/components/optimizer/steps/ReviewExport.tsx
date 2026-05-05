@@ -173,8 +173,8 @@ export function ReviewExport() {
   // Supabase sync for database persistence
   const { saveToSupabase, isConnected: dbConnected, isLoading: dbLoading, tableMissing, error: dbError, isOfflineMode } = useSupabaseSyncContext();
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
-  const [sortField, setSortField] = useState<'title' | 'type' | 'status'>('title');
-  const [sortAsc, setSortAsc] = useState(true);
+  const [sortField, setSortField] = useState<'title' | 'type' | 'status' | 'generatedAt'>('generatedAt');
+  const [sortAsc, setSortAsc] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
 
   // Content Viewer State - now uses persisted store
