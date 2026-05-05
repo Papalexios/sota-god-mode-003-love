@@ -615,12 +615,22 @@ export function ReviewExport() {
   };
 
   const sortedItems = useMemo(() => [...contentItems].sort((a, b) => {
+    if (sortField === 'generatedAt') {
+      const aDate = generatedContentsStore[a.id]?.generatedAt || '';
+      const bDate = generatedContentsStore[b.id]?.generatedAt || '';
+      // Empty (not yet generated) items sort to the bottom regardless of asc/desc
+      if (!aDate && bDate) return 1;
+      if (aDate && !bDate) return -1;
+      if (aDate < bDate) return sortAsc ? -1 : 1;
+      if (aDate > bDate) return sortAsc ? 1 : -1;
+      return 0;
+    }
     const aVal = a[sortField];
     const bVal = b[sortField];
     if (aVal < bVal) return sortAsc ? -1 : 1;
     if (aVal > bVal) return sortAsc ? 1 : -1;
     return 0;
-  }), [contentItems, sortField, sortAsc]);
+  }), [contentItems, sortField, sortAsc, generatedContentsStore]);
 
   // Content viewer navigation
   const viewingIndex = viewingItem ? sortedItems.findIndex(i => i.id === viewingItem.id) : -1;
