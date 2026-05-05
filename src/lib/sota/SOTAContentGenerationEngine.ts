@@ -153,9 +153,7 @@ export class SOTAContentGenerationEngine {
       return RETRYABLE_STATUS_CODES.some(code => msg.includes(String(code))) ||
         msg.includes('ECONNRESET') || msg.includes('ETIMEDOUT') ||
         msg.includes('ERR_HTTP2_PROTOCOL_ERROR') || msg.includes('fetch failed') ||
-        msg.includes('timed out') || msg.includes('AbortError') ||
-        msg.includes('empty response') || msg.includes('truncated') ||
-        msg.includes('invalid article HTML') || msg.includes('insufficient generated content');
+        msg.includes('timed out') || msg.includes('AbortError');
     }
     return false;
   }
@@ -266,16 +264,26 @@ export class SOTAContentGenerationEngine {
         const fallbackProvider = (colonIdx > 0 ? fallbackEntry.substring(0, colonIdx) : fallbackEntry) as AIModel;
         const fallbackModelId = colonIdx > 0 ? fallbackEntry.substring(colonIdx + 1) : undefined;
 
-        if (fallbackProvider === model && !fallbackModelId) continue;
+        const activeModelId = (this.modelConfigs[model] || DEFAULT_MODEL_CONFIGS[model])?.modelId;
+        if (fallbackProvider === model && (!fallbackModelId || fallbackModelId === activeModelId)) continue;
 
         const fallbackApiKey = this.getApiKey(fallbackProvider);
         if (!fallbackApiKey) continue;
 
         this.log(`Engaging fallback: ${fallbackProvider} ${fallbackModelId || ''}`);
+        const previousConfig = this.modelConfigs[fallbackProvider];
         try {
+          if (fallbackModelId) {
+            this.modelConfigs[fallbackProvider] = {
+              ...(this.modelConfigs[fallbackProvider] || DEFAULT_MODEL_CONFIGS[fallbackProvider]),
+              modelId: fallbackModelId,
+            };
+          }
           return await this.generateWithModel({ ...params, model: fallbackProvider });
         } catch {
           continue;
+        } finally {
+          if (fallbackModelId && previousConfig) this.modelConfigs[fallbackProvider] = previousConfig;
         }
       }
     }
@@ -283,7 +291,7 @@ export class SOTAContentGenerationEngine {
     throw lastError;
   }
 
-  private async callGemini(apiKey: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 8192): Promise<string> {
+  private async callGemini(apiKey: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 8192): Promise<ProviderCallResult> {
     const url = `${this.modelConfigs.gemini.endpoint}/${this.modelConfigs.gemini.modelId}:generateContent?key=${apiKey}`;
     const contents = [{ role: 'user', parts: [{ text: prompt }] }];
     const requestBody: any = {
@@ -303,7 +311,12 @@ export class SOTAContentGenerationEngine {
       throw new Error(`Gemini API error ${response.status}: ${JSON.stringify(errorData)}`);
     }
     const data = await response.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const candidate = data.candidates?.[0] || {};
+    return {
+      content: candidate.content?.parts?.map((p: any) => p.text || '').join('') || '',
+      tokens: data.usageMetadata?.totalTokenCount || 0,
+      finishReason: candidate.finishReason,
+    };
   }
 
   private async callOpenAI(apiKey: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 4096): Promise<{ content: string; tokens: number }> {
