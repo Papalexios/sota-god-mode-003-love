@@ -993,7 +993,8 @@ export function ReviewExport() {
                     </div>
                   </td>
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>
