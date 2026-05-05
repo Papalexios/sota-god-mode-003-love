@@ -579,7 +579,33 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
 
   private async fetchWordPressImages(keyword: string): Promise<WordPressMediaItem[]> {
     try {
-      const images = await this.wpMediaService.getRelevantImages(keyword, 2);
+      // Pass 1: keyword-scored images
+      let images = await this.wpMediaService.getRelevantImages(keyword, 4);
+
+      // Pass 2: if fewer than 2 found, broaden the search using token-based queries
+      if (images.length < 2) {
+        const tokens = keyword.toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length > 3).slice(0, 3);
+        for (const token of tokens) {
+          if (images.length >= 2) break;
+          const more = await this.wpMediaService.getRelevantImages(token, 4);
+          const seen = new Set(images.map(i => i.sourceUrl));
+          for (const m of more) {
+            if (images.length >= 2) break;
+            if (!seen.has(m.sourceUrl)) images.push(m);
+          }
+        }
+      }
+
+      // Pass 3: last-resort — pull ANY images from media library
+      if (images.length < 2) {
+        const fallback = await this.wpMediaService.getRelevantImages('', 6);
+        const seen = new Set(images.map(i => i.sourceUrl));
+        for (const m of fallback) {
+          if (images.length >= 2) break;
+          if (!seen.has(m.sourceUrl)) images.push(m);
+        }
+      }
+
       return images.slice(0, 2);
     } catch {
       return [];

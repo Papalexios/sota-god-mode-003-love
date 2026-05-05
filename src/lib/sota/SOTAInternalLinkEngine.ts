@@ -168,24 +168,38 @@ export class SOTAInternalLinkEngine {
     // Sort by relevance (highest first)
     scored.sort((a, b) => b.relevanceScore - a.relevanceScore);
 
-    // Select top candidates, ensuring URL diversity
+    // Select top candidates, ensuring URL diversity.
+    // PASS 1: high-relevance picks (score ≥ 5)
+    // PASS 2: if we still don't have MIN_LINKS, fill from remaining candidates
+    //         regardless of score so we ALWAYS hit the 6-12 contextual link target.
     const selected: LinkCandidate[] = [];
     const usedDomainPaths = new Set<string>();
+
+    const tryAdd = (candidate: LinkCandidate) => {
+      try {
+        const urlObj = new URL(candidate.page.url);
+        const pathKey = urlObj.pathname.replace(/\/$/, '');
+        if (usedDomainPaths.has(pathKey)) return false;
+        usedDomainPaths.add(pathKey);
+        selected.push(candidate);
+        return true;
+      } catch {
+        return false;
+      }
+    };
 
     for (const candidate of scored) {
       if (selected.length >= effectiveMax) break;
       if (candidate.relevanceScore < 5) continue;
+      tryAdd(candidate);
+    }
 
-      try {
-        const urlObj = new URL(candidate.page.url);
-        const pathKey = urlObj.pathname.replace(/\/$/, '');
-        if (usedDomainPaths.has(pathKey)) continue;
-        usedDomainPaths.add(pathKey);
-      } catch {
-        continue;
+    if (selected.length < MIN_LINKS) {
+      for (const candidate of scored) {
+        if (selected.length >= MIN_LINKS) break;
+        if (candidate.relevanceScore >= 5) continue; // already considered above
+        tryAdd(candidate);
       }
-
-      selected.push(candidate);
     }
 
     // Assign positions (distribute across content)
