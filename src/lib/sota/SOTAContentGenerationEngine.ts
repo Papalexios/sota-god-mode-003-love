@@ -92,6 +92,7 @@ export class SOTAContentGenerationEngine {
   private apiKeys: ExtendedAPIKeys;
   private onProgress?: (message: string) => void;
   private modelConfigs: Record<string, ModelConfig>;
+  private fallbackInFlight = new Set<string>();
 
   constructor(apiKeys: ExtendedAPIKeys, onProgress?: (message: string) => void) {
     this.apiKeys = apiKeys;
@@ -279,6 +280,8 @@ export class SOTAContentGenerationEngine {
 
         const activeModelId = (this.modelConfigs[model] || DEFAULT_MODEL_CONFIGS[model])?.modelId;
         if (fallbackProvider === model && (!fallbackModelId || fallbackModelId === activeModelId)) continue;
+        const fallbackKey = `${fallbackProvider}:${fallbackModelId || (this.modelConfigs[fallbackProvider] || DEFAULT_MODEL_CONFIGS[fallbackProvider])?.modelId || 'default'}`;
+        if (this.fallbackInFlight.has(fallbackKey)) continue;
 
         const fallbackApiKey = this.getApiKey(fallbackProvider);
         if (!fallbackApiKey) continue;
@@ -286,6 +289,7 @@ export class SOTAContentGenerationEngine {
         this.log(`Engaging fallback: ${fallbackProvider} ${fallbackModelId || ''}`);
         const previousConfig = this.modelConfigs[fallbackProvider];
         try {
+          this.fallbackInFlight.add(fallbackKey);
           if (fallbackModelId) {
             this.modelConfigs[fallbackProvider] = {
               ...(this.modelConfigs[fallbackProvider] || DEFAULT_MODEL_CONFIGS[fallbackProvider]),
@@ -297,6 +301,7 @@ export class SOTAContentGenerationEngine {
           continue;
         } finally {
           if (fallbackModelId && previousConfig) this.modelConfigs[fallbackProvider] = previousConfig;
+          this.fallbackInFlight.delete(fallbackKey);
         }
       }
     }
