@@ -62,7 +62,7 @@ export interface ExtendedAPIKeys extends APIKeys {
   fallbackModels?: string[];
 }
 
-const MAX_RETRIES = 1; // Fail fast enough to avoid runaway token burn, then use fallback.
+const MAX_RETRIES = 3; // Respect user's chosen model — retry it before considering user-defined fallbacks.
 const RETRYABLE_STATUS_CODES = [429, 500, 502, 503, 504];
 const PROVIDER_TIMEOUT_MS = 90_000;
 const TRUNCATED_FINISH_REASONS = new Set(['length', 'max_tokens', 'max_output_tokens', 'MAX_TOKENS']);
