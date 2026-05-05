@@ -114,59 +114,136 @@ export function useWordPressPublish() {
         }
       }
 
-      // ===== Strategy 2: Supabase Edge Function (primary in production) =====
-      const { configured } = getSupabaseConfig();
+      // ===== Strategy 2: Supabase Edge Function via direct fetch (bypass supabase-js) =====
+      const { url: sbUrl, anonKey: sbKey, configured } = getSupabaseConfig();
 
-      if (!configured) {
-        throw new Error(
-          'Publishing failed. The server proxy is not available and Supabase is not configured. ' +
-          'Ensure the Express dev server is running (npm run dev:server) or configure Supabase in Setup.'
-        );
-      }
-
-      const client = getSupabaseClient();
-      if (!client) {
-        throw new Error('Supabase client not available. Save & Reload your Supabase config.');
-      }
-
-      const maxAttempts = 3;
-      let lastError: Error | null = null;
       let data: Record<string, unknown> | null = null;
+      let lastError: Error | null = null;
 
-      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      if (configured) {
+        const fnUrl = `${sbUrl.replace(/\/+$/, '')}/functions/v1/wordpress-publish`;
+        const maxAttempts = 2;
+
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 90_000);
+            let res: Response;
+            try {
+              res = await fetch(fnUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json',
+                  'apikey': sbKey,
+                  'Authorization': `Bearer ${sbKey}`,
+                  'x-client-info': 'wp-content-optimizer-pro',
+                },
+                body: JSON.stringify(body),
+                signal: controller.signal,
+              });
+            } finally {
+              clearTimeout(timeoutId);
+            }
+
+            const text = await res.text();
+            try {
+              data = JSON.parse(text);
+            } catch {
+              throw new Error(
+                `Edge Function returned non-JSON (${res.status}). The function may not be deployed. ` +
+                `Response: ${text.slice(0, 200)}`
+              );
+            }
+            break;
+          } catch (e) {
+            lastError = e instanceof Error ? e : new Error(String(e));
+            const msg = lastError.message || '';
+            if (attempt < maxAttempts - 1) {
+              await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+              continue;
+            }
+            if (msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('network') || msg.toLowerCase().includes('abort')) {
+              console.warn('[WordPressPublish] Edge Function unreachable, attempting direct WP REST publish:', msg);
+              data = null;
+            } else {
+              throw lastError;
+            }
+          }
+        }
+      }
+
+      // ===== Strategy 3: Direct WordPress REST API from browser (last resort) =====
+      if (!data) {
         try {
-          const { data: fnData, error } = await client.functions.invoke('wordpress-publish', {
-            body,
+          const wpBase = (config.wpUrl.startsWith('http') ? config.wpUrl : `https://${config.wpUrl}`).replace(/\/+$/, '');
+          const auth = btoa(`${config.wpUsername}:${config.wpAppPassword}`);
+          const apiUrl = `${wpBase}/wp-json/wp/v2/posts`;
+
+          // Try to find existing post by slug
+          let existingId: number | null = options?.existingPostId ?? null;
+          if (!existingId && safeSlug) {
+            try {
+              const sr = await fetch(`${apiUrl}?slug=${encodeURIComponent(safeSlug)}&status=any`, {
+                headers: { Authorization: `Basic ${auth}`, Accept: 'application/json' },
+              });
+              if (sr.ok) {
+                const arr = await sr.json();
+                if (Array.isArray(arr) && arr.length > 0) existingId = arr[0].id;
+              }
+            } catch { /* ignore */ }
+          }
+
+          const postData: Record<string, unknown> = {
+            title, content, status: options?.status || 'draft',
+          };
+          if (options?.excerpt) postData.excerpt = options.excerpt;
+          if (safeSlug) postData.slug = safeSlug;
+          if (options?.metaDescription || options?.seoTitle) {
+            postData.meta = {
+              _yoast_wpseo_metadesc: options.metaDescription || '',
+              _yoast_wpseo_title: options.seoTitle || title,
+              rank_math_description: options.metaDescription || '',
+              rank_math_title: options.seoTitle || title,
+            };
+          }
+
+          const targetUrl = existingId ? `${apiUrl}/${existingId}` : apiUrl;
+          const wpRes = await fetch(targetUrl, {
+            method: existingId ? 'PUT' : 'POST',
+            headers: {
+              Authorization: `Basic ${auth}`,
+              'Content-Type': 'application/json',
+              Accept: 'application/json',
+            },
+            body: JSON.stringify(postData),
           });
 
-          if (error) {
-            throw new Error(error.message || 'Supabase function error');
+          const wpText = await wpRes.text();
+          let wpJson: any = {};
+          try { wpJson = JSON.parse(wpText); } catch { /* */ }
+
+          if (!wpRes.ok) {
+            const errMsg = wpJson?.message || `WordPress error (${wpRes.status})`;
+            if (wpRes.status === 401) throw new Error('WordPress authentication failed. Check username and application password.');
+            if (wpRes.status === 403) throw new Error('Permission denied. Ensure the WordPress user has publishing capabilities.');
+            throw new Error(errMsg);
           }
 
-          data = (fnData as any) || null;
-          break;
-        } catch (e) {
-          lastError = e instanceof Error ? e : new Error(String(e));
-          const msg = lastError.message || '';
-          const isRetryable =
-            !msg.toLowerCase().includes('not configured') &&
-            !msg.toLowerCase().includes('invalid wordpress url') &&
-            !msg.toLowerCase().includes('authentication');
-
-          if (attempt < maxAttempts - 1 && isRetryable) {
-            await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
-            continue;
-          }
-
-          if (msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('network')) {
+          data = {
+            success: true,
+            post: { id: wpJson.id, url: wpJson.link, link: wpJson.link, status: wpJson.status, slug: wpJson.slug },
+          };
+        } catch (directErr) {
+          const dMsg = directErr instanceof Error ? directErr.message : String(directErr);
+          if (dMsg.toLowerCase().includes('failed to fetch') || dMsg.toLowerCase().includes('cors')) {
             throw new Error(
-              'Failed to publish: Could not reach the API endpoint. ' +
-              'If running locally, ensure the Express dev server is started with `npm run dev:server`. ' +
-              'If deployed, verify the /api/wordpress-publish route exists on your Vercel or Cloudflare deployment.'
+              'Failed to publish: Edge Function unreachable AND direct browser publish blocked by CORS. ' +
+              `Original error: ${lastError?.message || 'unknown'}. ` +
+              'Fix: ensure the Supabase Edge Function "wordpress-publish" is deployed, OR enable CORS for the WP REST API on your site.'
             );
           }
-
-          throw lastError;
+          throw directErr;
         }
       }
 
