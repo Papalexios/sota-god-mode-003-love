@@ -970,6 +970,7 @@ export function ReviewExport() {
                       <span className="text-xs text-muted-foreground italic">Not yet generated</span>
                     )}
                   </td>
+                  <td className="p-4">
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => setViewingItem(item)}
