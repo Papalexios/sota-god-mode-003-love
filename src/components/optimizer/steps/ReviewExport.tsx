@@ -847,6 +847,18 @@ export function ReviewExport() {
                   Status <ArrowUpDown className="w-3 h-3" />
                 </span>
               </th>
+              <th className="p-4 text-left text-sm font-medium text-foreground">
+                Quality / Words
+              </th>
+              <th
+                className="p-4 text-left text-sm font-medium text-foreground cursor-pointer hover:text-primary"
+                onClick={() => { setSortField('generatedAt'); setSortAsc(!sortAsc); }}
+                title="Sort by generation date/time"
+              >
+                <span className="flex items-center gap-1">
+                  Generated <ArrowUpDown className="w-3 h-3" />
+                </span>
+              </th>
               <th className="p-4 text-left text-sm font-medium text-foreground">Actions</th>
             </tr>
           </thead>
