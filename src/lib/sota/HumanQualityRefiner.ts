@@ -99,6 +99,11 @@ export async function refineWithSelfCritique(options: SelfCritiqueOptions): Prom
         apiKeys: {} as any,
         temperature: 0.25,
         maxTokens: 16384,
+        validation: {
+          type: 'article-html',
+          requireCompleteArticle: true,
+          minWords: Math.max(900, Math.floor(countWords(workingHtml) * 0.82)),
+        },
       });
 
       const candidate = extractArticleHtml(rewrite.content);
