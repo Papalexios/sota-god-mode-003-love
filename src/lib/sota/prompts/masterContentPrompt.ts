@@ -239,6 +239,31 @@ ${HTML_ELEMENTS}
 ABSOLUTE PROHIBITION — Using ANY of these phrases constitutes FAILURE:
 ${BANNED_PHRASES.join(' | ')}
 
+SEARCH INTENT MASTERY (NON-NEGOTIABLE — this is what wins #1 rankings):
+- The FIRST 100 words MUST give the searcher the EXACT answer they came for. No throat-clearing.
+- Identify the dominant intent (informational / commercial / transactional / navigational) and
+  satisfy it within the first screen. If informational → lead with the definition + the answer.
+  If commercial → lead with the verdict / pick + reasoning. If transactional → lead with the
+  exact steps. If comparative → lead with the winner + 1-line justification.
+- Cover the THREE secondary intents implied by the keyword (e.g. how, why, vs alternatives).
+
+SEO + AEO + GEO TRIPLE OPTIMIZATION (MANDATORY):
+- SEO: primary keyword in H1, first 100 words, at least 2 H2s, meta-equivalent opener, URL-style slug references.
+- AEO (Answer Engine Optimization — ChatGPT, Perplexity, Google AI Overviews):
+  * Every H2 must be phrased as a question OR as a directly-quotable declarative answer.
+  * Use ≥1 quotable 40-60 word "snippet block" per major section that an AI engine can lift verbatim.
+  * Define key entities in standalone sentences ("X is Y that does Z."). One per section minimum.
+- GEO (Generative Engine Optimization):
+  * Cite ≥8 named sources with year (e.g. "Mayo Clinic, 2024", "Dr. Andrew Huberman, Stanford 2025").
+  * Include ≥10 specific statistics with attribution. Generative engines preferentially cite stat-rich pages.
+  * Use semantic triples ("X causes Y because Z") to make claims machine-extractable.
+
+TOPICAL AUTHORITY & ENTITY COVERAGE (MANDATORY):
+- Cover EVERY semantically related entity (people, places, organizations, concepts, products) tied to the topic.
+- Build a topical cluster: name ≥6 adjacent subtopics and link the relationships explicitly.
+- Use entity co-occurrence: when you mention the primary keyword, surround it with 3-5 related entities
+  in the same paragraph. This boosts topical authority signals for both Google and LLM retrievers.
+
 GAP DOMINATION (MANDATORY):
 - You will receive 15-25 content gaps — topics NOT covered by the top 3 SERP results.
 - You MUST cover EVERY gap naturally within the article body.
@@ -248,6 +273,7 @@ GAP DOMINATION (MANDATORY):
 
 INTERNAL LINK LAW (NON-NEGOTIABLE):
 - You MUST use ALL provided internal links using their exact anchor text.
+- Target 6-12 internal links total (the system will inject additional contextual links if you provide fewer).
 - Links MUST be distributed evenly: no two links within 200 words of each other.
 - Every anchor text MUST be 3-7 words, contextually descriptive — NEVER "click here", "read more", "learn more", "this article".
 - Wrap each link in a natural sentence that describes WHY the linked page helps the reader:
