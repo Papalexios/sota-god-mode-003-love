@@ -1149,16 +1149,18 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
       ? videos.slice(0, 3).map(v => ({ videoId: v.id, title: v.title }))
       : undefined;
 
+    const targetWordCount = Math.max(
+      Number(neuron?.analysis?.recommended_length || 0),
+      Number(serpAnalysis.recommendedWordCount || 0),
+      Number(options.targetWordCount || 3500),
+    );
+
     const userPrompt = buildMasterUserPrompt({
       primaryKeyword: options.keyword,
       secondaryKeywords: gapTargets,
       title: options.title || options.keyword,
       contentType: options.contentType || 'pillar',
-      targetWordCount: Math.max(
-        Number(neuron?.analysis?.recommended_length || 0),
-        Number(serpAnalysis.recommendedWordCount || 0),
-        Number(options.targetWordCount || 3500),
-      ),
+      targetWordCount,
       neuronWriterSection,
       authorName: this.config.authorName,
       internalLinks: options.internalLinks || [],
@@ -1176,7 +1178,13 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
       model: options.model || this.config.primaryModel || 'gemini',
       apiKeys: this.config.apiKeys,
       maxTokens: 16384,
-      temperature: 0.85
+      temperature: 0.85,
+      validation: {
+        type: 'article-html',
+        requireCompleteArticle: true,
+        minChars: MIN_VALID_CONTENT_LENGTH,
+        minWords: Math.min(1400, Math.max(700, Math.floor(targetWordCount * 0.35))),
+      },
     });
 
     let html = genResult.content;
