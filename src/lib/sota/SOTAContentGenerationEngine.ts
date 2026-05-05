@@ -257,20 +257,15 @@ export class SOTAContentGenerationEngine {
       }
     }
 
-    // Fallback logic
-    const configuredFallbacks = (this.apiKeys.fallbackModels || []) as string[];
-    const emergencyFallbacks = [
-      ...(this.apiKeys.geminiApiKey ? ['gemini'] : []),
-      ...(this.apiKeys.openaiApiKey ? ['openai'] : []),
-      ...(this.apiKeys.anthropicApiKey ? ['anthropic'] : []),
-      ...(this.apiKeys.groqApiKey ? ['groq:llama-3.3-70b-versatile'] : []),
-      ...(this.apiKeys.openrouterApiKey ? [
-        'openrouter:openrouter/auto',
-        'openrouter:anthropic/claude-3.5-sonnet',
-        'openrouter:google/gemini-2.5-flash',
-      ] : []),
-    ];
-    const fallbackModels = Array.from(new Set([...configuredFallbacks, ...emergencyFallbacks]));
+    // STRICT MODEL POLICY: Only use fallbacks the user EXPLICITLY configured.
+    // Never silently switch to another provider/model — that burns user credits
+    // on models they did not choose. If the user picked e.g. a free OpenRouter
+    // model, we must respect that choice and fail loudly instead of falling
+    // back to a paid model behind their back.
+    const fallbackModels = Array.from(new Set((this.apiKeys.fallbackModels || []) as string[]));
+    if (fallbackModels.length === 0) {
+      this.log(`Strict model policy: no user-defined fallbacks. Failing on ${model} instead of switching providers.`);
+    }
     if (fallbackModels.length > 0) {
       for (const fallbackEntry of fallbackModels) {
         const colonIdx = fallbackEntry.indexOf(':');
