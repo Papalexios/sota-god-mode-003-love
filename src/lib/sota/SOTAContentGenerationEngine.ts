@@ -62,8 +62,16 @@ export interface ExtendedAPIKeys extends APIKeys {
   fallbackModels?: string[];
 }
 
-const MAX_RETRIES = 3; // Increased for SOTA resilience
+const MAX_RETRIES = 1; // Fail fast enough to avoid runaway token burn, then use fallback.
 const RETRYABLE_STATUS_CODES = [429, 500, 502, 503, 504];
+const PROVIDER_TIMEOUT_MS = 90_000;
+const TRUNCATED_FINISH_REASONS = new Set(['length', 'max_tokens', 'max_output_tokens', 'MAX_TOKENS']);
+
+interface ProviderCallResult {
+  content: string;
+  tokens: number;
+  finishReason?: string;
+}
 
 function simpleHash(str: string): string {
   let h1 = 0xdeadbeef;
@@ -84,6 +92,7 @@ export class SOTAContentGenerationEngine {
   private apiKeys: ExtendedAPIKeys;
   private onProgress?: (message: string) => void;
   private modelConfigs: Record<string, ModelConfig>;
+  private fallbackInFlight = new Set<string>();
 
   constructor(apiKeys: ExtendedAPIKeys, onProgress?: (message: string) => void) {
     this.apiKeys = apiKeys;
@@ -122,9 +131,9 @@ export class SOTAContentGenerationEngine {
    * Hard timeout for any AI provider call. Without this, a stalled stream
    * (e.g. OpenRouter routing to a slow DeepInfra/Novita backend) can hang
    * the entire pipeline indefinitely while still burning tokens on retries.
-   * Default: 4 minutes per attempt.
+   * Default: 2 minutes per attempt, then retry/fallback.
    */
-  private async fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 240_000): Promise<Response> {
+  private async fetchWithTimeout(url: string, init: RequestInit, timeoutMs = PROVIDER_TIMEOUT_MS): Promise<Response> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -150,20 +159,60 @@ export class SOTAContentGenerationEngine {
     return false;
   }
 
+  private countWords(text: string): number {
+    return text.replace(/<[^>]*>/g, ' ').split(/\s+/).filter(Boolean).length;
+  }
+
+  private validateGeneration(content: string, params: GenerationParams, finishReason?: string, modelId?: string): void {
+    const trimmed = (content || '').trim();
+    const validation = params.validation;
+    const label = `${params.model}${modelId ? `/${modelId}` : ''}`;
+
+    if (!trimmed) throw new Error(`${label} returned an empty response.`);
+    if (finishReason && TRUNCATED_FINISH_REASONS.has(finishReason)) {
+      throw new Error(`${label} output was truncated by token limits (${finishReason}). Falling back...`);
+    }
+    if (!validation) return;
+
+    const minChars = validation.minChars ?? 0;
+    const minWords = validation.minWords ?? 0;
+    if (minChars > 0 && trimmed.length < minChars) {
+      throw new Error(`${label} returned insufficient generated content (${trimmed.length}/${minChars} chars).`);
+    }
+    if (minWords > 0 && this.countWords(trimmed) < minWords) {
+      throw new Error(`${label} returned insufficient generated content (${this.countWords(trimmed)}/${minWords} words).`);
+    }
+    if (validation.type === 'article-html' || validation.requireCompleteArticle) {
+      const hasOpeningArticle = /<article\b/i.test(trimmed);
+      const hasClosingArticle = /<\/article>\s*$/i.test(trimmed) || /<\/article>/i.test(trimmed);
+      const hasHeadings = /<h[12]\b/i.test(trimmed);
+      const hasParagraphs = (trimmed.match(/<p\b/gi) || []).length >= 4;
+      if (!hasOpeningArticle || !hasClosingArticle || !hasHeadings || !hasParagraphs) {
+        throw new Error(`${label} returned invalid article HTML. Falling back...`);
+      }
+    }
+  }
+
   async generateWithModel(params: GenerationParams): Promise<GenerationResult> {
     const { prompt, model, systemPrompt, temperature = 0.7, maxTokens } = params;
     const apiKey = this.getApiKey(model);
     if (!apiKey) throw new Error(`No API key configured for ${model}`);
 
-    const cacheKey = `${model}:${simpleHash(prompt)}:${simpleHash(systemPrompt || '')}`;
+    const config = (this.modelConfigs[model] || DEFAULT_MODEL_CONFIGS[model]) as ModelConfig;
+    const cacheKey = `${model}:${config.modelId}:${simpleHash(prompt)}:${simpleHash(systemPrompt || '')}`;
     const cached = generationCache.get<GenerationResult>(cacheKey);
     if (cached) {
-      generationCache.recordHit();
-      return { ...cached, cached: true };
+      try {
+        this.validateGeneration(cached.content, params, cached.finishReason, cached.modelId || config.modelId);
+        generationCache.recordHit();
+        return { ...cached, cached: true };
+      } catch {
+        generationCache.recordMiss();
+      }
+    } else {
+      generationCache.recordMiss();
     }
-    generationCache.recordMiss();
 
-    const config = (this.modelConfigs[model] || DEFAULT_MODEL_CONFIGS[model]) as ModelConfig;
     const finalMaxTokens = maxTokens || config.maxTokens;
     let lastError: unknown;
 
@@ -176,31 +225,28 @@ export class SOTAContentGenerationEngine {
 
       const startTime = Date.now();
       try {
-        let content = '';
-        let tokensUsed = 0;
+        let providerResult: ProviderCallResult = { content: '', tokens: 0 };
 
         if (model === 'gemini') {
-          content = await this.callGemini(apiKey, prompt, systemPrompt, temperature, finalMaxTokens);
+          providerResult = await this.callGemini(apiKey, prompt, systemPrompt, temperature, finalMaxTokens);
         } else if (model === 'openai') {
-          const r = await this.callOpenAI(apiKey, prompt, systemPrompt, temperature, finalMaxTokens);
-          content = r.content;
-          tokensUsed = r.tokens;
+          providerResult = await this.callOpenAI(apiKey, prompt, systemPrompt, temperature, finalMaxTokens);
         } else if (model === 'anthropic') {
-          const r = await this.callAnthropic(apiKey, prompt, systemPrompt, temperature, finalMaxTokens);
-          content = r.content;
-          tokensUsed = r.tokens;
+          providerResult = await this.callAnthropic(apiKey, prompt, systemPrompt, temperature, finalMaxTokens);
         } else if (model === 'openrouter' || model === 'groq') {
-          const r = await this.callOpenAICompatible(config.endpoint, apiKey, config.modelId, prompt, systemPrompt, temperature, finalMaxTokens);
-          content = r.content;
-          tokensUsed = r.tokens;
+          providerResult = await this.callOpenAICompatible(config.endpoint, apiKey, config.modelId, prompt, systemPrompt, temperature, finalMaxTokens);
         }
 
+        this.validateGeneration(providerResult.content, params, providerResult.finishReason, config.modelId);
+
         const result: GenerationResult = {
-          content,
+          content: providerResult.content,
           model,
-          tokensUsed,
+          modelId: config.modelId,
+          tokensUsed: providerResult.tokens,
           duration: Date.now() - startTime,
-          cached: false
+          cached: false,
+          finishReason: providerResult.finishReason
         };
         generationCache.set(cacheKey, result);
         return result;
@@ -212,23 +258,50 @@ export class SOTAContentGenerationEngine {
     }
 
     // Fallback logic
-    const fallbackModels = (this.apiKeys.fallbackModels || []) as string[];
+    const configuredFallbacks = (this.apiKeys.fallbackModels || []) as string[];
+    const emergencyFallbacks = [
+      ...(this.apiKeys.geminiApiKey ? ['gemini'] : []),
+      ...(this.apiKeys.openaiApiKey ? ['openai'] : []),
+      ...(this.apiKeys.anthropicApiKey ? ['anthropic'] : []),
+      ...(this.apiKeys.groqApiKey ? ['groq:llama-3.3-70b-versatile'] : []),
+      ...(this.apiKeys.openrouterApiKey ? [
+        'openrouter:openrouter/auto',
+        'openrouter:anthropic/claude-3.5-sonnet',
+        'openrouter:google/gemini-2.5-flash',
+      ] : []),
+    ];
+    const fallbackModels = Array.from(new Set([...configuredFallbacks, ...emergencyFallbacks]));
     if (fallbackModels.length > 0) {
       for (const fallbackEntry of fallbackModels) {
         const colonIdx = fallbackEntry.indexOf(':');
         const fallbackProvider = (colonIdx > 0 ? fallbackEntry.substring(0, colonIdx) : fallbackEntry) as AIModel;
         const fallbackModelId = colonIdx > 0 ? fallbackEntry.substring(colonIdx + 1) : undefined;
+        if (!DEFAULT_MODEL_CONFIGS[fallbackProvider]) continue;
 
-        if (fallbackProvider === model && !fallbackModelId) continue;
+        const activeModelId = (this.modelConfigs[model] || DEFAULT_MODEL_CONFIGS[model])?.modelId;
+        if (fallbackProvider === model && (!fallbackModelId || fallbackModelId === activeModelId)) continue;
+        const fallbackKey = `${fallbackProvider}:${fallbackModelId || (this.modelConfigs[fallbackProvider] || DEFAULT_MODEL_CONFIGS[fallbackProvider])?.modelId || 'default'}`;
+        if (this.fallbackInFlight.has(fallbackKey)) continue;
 
         const fallbackApiKey = this.getApiKey(fallbackProvider);
         if (!fallbackApiKey) continue;
 
         this.log(`Engaging fallback: ${fallbackProvider} ${fallbackModelId || ''}`);
+        const previousConfig = this.modelConfigs[fallbackProvider];
         try {
+          this.fallbackInFlight.add(fallbackKey);
+          if (fallbackModelId) {
+            this.modelConfigs[fallbackProvider] = {
+              ...(this.modelConfigs[fallbackProvider] || DEFAULT_MODEL_CONFIGS[fallbackProvider]),
+              modelId: fallbackModelId,
+            };
+          }
           return await this.generateWithModel({ ...params, model: fallbackProvider });
         } catch {
           continue;
+        } finally {
+          if (fallbackModelId && previousConfig) this.modelConfigs[fallbackProvider] = previousConfig;
+          this.fallbackInFlight.delete(fallbackKey);
         }
       }
     }
@@ -236,7 +309,7 @@ export class SOTAContentGenerationEngine {
     throw lastError;
   }
 
-  private async callGemini(apiKey: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 8192): Promise<string> {
+  private async callGemini(apiKey: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 8192): Promise<ProviderCallResult> {
     const url = `${this.modelConfigs.gemini.endpoint}/${this.modelConfigs.gemini.modelId}:generateContent?key=${apiKey}`;
     const contents = [{ role: 'user', parts: [{ text: prompt }] }];
     const requestBody: any = {
@@ -256,10 +329,15 @@ export class SOTAContentGenerationEngine {
       throw new Error(`Gemini API error ${response.status}: ${JSON.stringify(errorData)}`);
     }
     const data = await response.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const candidate = data.candidates?.[0] || {};
+    return {
+      content: candidate.content?.parts?.map((p: any) => p.text || '').join('') || '',
+      tokens: data.usageMetadata?.totalTokenCount || 0,
+      finishReason: candidate.finishReason,
+    };
   }
 
-  private async callOpenAI(apiKey: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 4096): Promise<{ content: string; tokens: number }> {
+  private async callOpenAI(apiKey: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 4096): Promise<ProviderCallResult> {
     const messages: any[] = [];
     if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
     messages.push({ role: 'user', content: prompt });
@@ -278,15 +356,20 @@ export class SOTAContentGenerationEngine {
       })
     });
 
-    if (!response.ok) throw new Error(`OpenAI API error ${response.status}`);
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      throw new Error(`OpenAI API error ${response.status}: ${errorText.slice(0, 500)}`);
+    }
     const data = await response.json();
+    const choice = data.choices?.[0] || {};
     return {
-      content: data.choices?.[0]?.message?.content || '',
-      tokens: data.usage?.total_tokens || 0
+      content: choice.message?.content || '',
+      tokens: data.usage?.total_tokens || 0,
+      finishReason: choice.finish_reason,
     };
   }
 
-  private async callAnthropic(apiKey: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 4096): Promise<{ content: string; tokens: number }> {
+  private async callAnthropic(apiKey: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 4096): Promise<ProviderCallResult> {
     const response = await this.fetchWithTimeout(this.modelConfigs.anthropic.endpoint, {
       method: 'POST',
       headers: {
@@ -311,11 +394,12 @@ export class SOTAContentGenerationEngine {
     const data = await response.json();
     return {
       content: data.content?.[0]?.text || '',
-      tokens: (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0)
+      tokens: (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0),
+      finishReason: data.stop_reason,
     };
   }
 
-  private async callOpenAICompatible(endpoint: string, apiKey: string, modelId: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 4096): Promise<{ content: string; tokens: number }> {
+  private async callOpenAICompatible(endpoint: string, apiKey: string, modelId: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 4096): Promise<ProviderCallResult> {
     const messages: any[] = [];
     if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
     messages.push({ role: 'user', content: prompt });
@@ -334,11 +418,16 @@ export class SOTAContentGenerationEngine {
       })
     });
 
-    if (!response.ok) throw new Error(`${modelId} API error ${response.status}`);
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      throw new Error(`${modelId} API error ${response.status}: ${errorText.slice(0, 500)}`);
+    }
     const data = await response.json();
+    const choice = data.choices?.[0] || {};
     return {
-      content: data.choices?.[0]?.message?.content || '',
-      tokens: data.usage?.total_tokens || 0
+      content: choice.message?.content || '',
+      tokens: data.usage?.total_tokens || 0,
+      finishReason: choice.finish_reason,
     };
   }
 

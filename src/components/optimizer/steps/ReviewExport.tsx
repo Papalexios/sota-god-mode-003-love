@@ -382,6 +382,7 @@ export function ReviewExport() {
         serperApiKey: config.serperApiKey,
         openrouterModelId: config.openrouterModelId,
         groqModelId: config.groqModelId,
+        fallbackModels: config.fallbackModels || [],
       },
       organizationName: config.organizationName || 'Content Hub',
       organizationUrl: config.wpUrl || 'https://example.com',

@@ -23,14 +23,22 @@ export interface GenerationParams {
   temperature?: number;
   maxTokens?: number;
   systemPrompt?: string;
+  validation?: {
+    type?: 'article-html' | 'html' | 'text';
+    minChars?: number;
+    minWords?: number;
+    requireCompleteArticle?: boolean;
+  };
 }
 
 export interface GenerationResult {
   content: string;
   model: AIModel;
+  modelId?: string;
   tokensUsed: number;
   duration: number;
   cached: boolean;
+  finishReason?: string;
 }
 
 export interface ConsensusResult {
