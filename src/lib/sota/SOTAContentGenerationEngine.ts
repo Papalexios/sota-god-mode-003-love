@@ -199,15 +199,21 @@ export class SOTAContentGenerationEngine {
     const apiKey = this.getApiKey(model);
     if (!apiKey) throw new Error(`No API key configured for ${model}`);
 
-    const cacheKey = `${model}:${simpleHash(prompt)}:${simpleHash(systemPrompt || '')}`;
+    const config = (this.modelConfigs[model] || DEFAULT_MODEL_CONFIGS[model]) as ModelConfig;
+    const cacheKey = `${model}:${config.modelId}:${simpleHash(prompt)}:${simpleHash(systemPrompt || '')}`;
     const cached = generationCache.get<GenerationResult>(cacheKey);
     if (cached) {
-      generationCache.recordHit();
-      return { ...cached, cached: true };
+      try {
+        this.validateGeneration(cached.content, params, cached.finishReason, cached.modelId || config.modelId);
+        generationCache.recordHit();
+        return { ...cached, cached: true };
+      } catch {
+        generationCache.recordMiss();
+      }
+    } else {
+      generationCache.recordMiss();
     }
-    generationCache.recordMiss();
 
-    const config = (this.modelConfigs[model] || DEFAULT_MODEL_CONFIGS[model]) as ModelConfig;
     const finalMaxTokens = maxTokens || config.maxTokens;
     let lastError: unknown;
 
@@ -220,31 +226,28 @@ export class SOTAContentGenerationEngine {
 
       const startTime = Date.now();
       try {
-        let content = '';
-        let tokensUsed = 0;
+        let providerResult: ProviderCallResult = { content: '', tokens: 0 };
 
         if (model === 'gemini') {
-          content = await this.callGemini(apiKey, prompt, systemPrompt, temperature, finalMaxTokens);
+          providerResult = await this.callGemini(apiKey, prompt, systemPrompt, temperature, finalMaxTokens);
         } else if (model === 'openai') {
-          const r = await this.callOpenAI(apiKey, prompt, systemPrompt, temperature, finalMaxTokens);
-          content = r.content;
-          tokensUsed = r.tokens;
+          providerResult = await this.callOpenAI(apiKey, prompt, systemPrompt, temperature, finalMaxTokens);
         } else if (model === 'anthropic') {
-          const r = await this.callAnthropic(apiKey, prompt, systemPrompt, temperature, finalMaxTokens);
-          content = r.content;
-          tokensUsed = r.tokens;
+          providerResult = await this.callAnthropic(apiKey, prompt, systemPrompt, temperature, finalMaxTokens);
         } else if (model === 'openrouter' || model === 'groq') {
-          const r = await this.callOpenAICompatible(config.endpoint, apiKey, config.modelId, prompt, systemPrompt, temperature, finalMaxTokens);
-          content = r.content;
-          tokensUsed = r.tokens;
+          providerResult = await this.callOpenAICompatible(config.endpoint, apiKey, config.modelId, prompt, systemPrompt, temperature, finalMaxTokens);
         }
 
+        this.validateGeneration(providerResult.content, params, providerResult.finishReason, config.modelId);
+
         const result: GenerationResult = {
-          content,
+          content: providerResult.content,
           model,
-          tokensUsed,
+          modelId: config.modelId,
+          tokensUsed: providerResult.tokens,
           duration: Date.now() - startTime,
-          cached: false
+          cached: false,
+          finishReason: providerResult.finishReason
         };
         generationCache.set(cacheKey, result);
         return result;
