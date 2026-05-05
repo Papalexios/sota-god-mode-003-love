@@ -201,6 +201,10 @@ export function ContentStrategy() {
   const [crawlFoundCount, setCrawlFoundCount] = useState(0);
   const [crawlStatus, setCrawlStatus] = useState<string>("");
   const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
+  const [hubSearch, setHubSearch] = useState("");
+  const [hubSort, setHubSort] = useState<'a-z' | 'z-a' | 'shortest' | 'longest' | 'default'>('default');
+  const [hubPageSize, setHubPageSize] = useState<number>(100);
+  const [hubVisibleCount, setHubVisibleCount] = useState<number>(100);
   const crawlRunIdRef = useRef(0);
   const crawlAbortRef = useRef<AbortController | null>(null);
 
