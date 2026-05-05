@@ -623,42 +623,49 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
   }
 
   private injectWordPressImages(html: string, images: WordPressMediaItem[], keyword: string): string {
-    if (!images.length || html.includes('data-wp-inline-image')) return html;
+    if (!images.length) return html;
+    // Idempotency guard: if images already injected, don't double-inject
+    if (html.includes('data-wp-inline-image')) return html;
 
+    const variants: Array<'primary' | 'secondary'> = ['primary', 'secondary', 'secondary'];
     const figures = images
-      .slice(0, 2)
-      .map((img, idx) => this.wpMediaService.buildInlineImageFigureHtml(img, keyword, idx === 0 ? 'primary' : 'secondary'))
+      .slice(0, 3)
+      .map((img, idx) => this.wpMediaService.buildInlineImageFigureHtml(img, keyword, variants[idx] || 'secondary'))
       .filter(Boolean);
 
     if (figures.length === 0) return html;
 
     const paragraphMatches = [...html.matchAll(/<\/p>/gi)];
+
+    // No paragraphs found — inject all figures before </article>, or append.
     if (paragraphMatches.length === 0) {
-      return html.replace('</article>', `${figures.join('\n')}\n</article>`);
+      const block = figures.join('\n');
+      if (/<\/article>/i.test(html)) return html.replace(/<\/article>/i, `${block}\n</article>`);
+      return `${html}\n${block}`;
     }
 
-    const firstTargetIdx = Math.min(1, paragraphMatches.length - 1);
-    let secondTargetIdx = Math.min(
-      Math.max(firstTargetIdx + 2, Math.floor(paragraphMatches.length * 0.55)),
-      paragraphMatches.length - 1,
-    );
-    if (secondTargetIdx === firstTargetIdx && paragraphMatches.length > 2) {
-      secondTargetIdx = Math.min(firstTargetIdx + 2, paragraphMatches.length - 1);
+    // Distribute up to 3 images evenly through the article.
+    const totalP = paragraphMatches.length;
+    const slots = figures.map((_, i) => {
+      const ratio = (i + 1) / (figures.length + 1); // 1/4, 2/4, 3/4 for 3 images
+      return Math.min(totalP - 1, Math.max(0, Math.floor(totalP * ratio)));
+    });
+
+    // Ensure unique slot indices
+    const usedSlots = new Set<number>();
+    const finalSlots: number[] = [];
+    for (const s of slots) {
+      let idx = s;
+      while (usedSlots.has(idx) && idx < totalP - 1) idx++;
+      while (usedSlots.has(idx) && idx > 0) idx--;
+      usedSlots.add(idx);
+      finalSlots.push(idx);
     }
 
-    const insertions: Array<{ position: number; markup: string }> = [
-      {
-        position: (paragraphMatches[firstTargetIdx].index || 0) + 4,
-        markup: figures[0],
-      },
-    ];
-
-    if (figures[1]) {
-      insertions.push({
-        position: (paragraphMatches[secondTargetIdx].index || 0) + 4,
-        markup: figures[1],
-      });
-    }
+    const insertions = figures.map((markup, i) => ({
+      position: (paragraphMatches[finalSlots[i]].index || 0) + 4,
+      markup,
+    }));
 
     insertions.sort((a, b) => b.position - a.position);
 
@@ -666,7 +673,6 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
     for (const insertion of insertions) {
       result = `${result.slice(0, insertion.position)}\n${insertion.markup}\n${result.slice(insertion.position)}`;
     }
-
     return result;
   }
 
