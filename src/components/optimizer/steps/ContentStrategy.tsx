@@ -1711,51 +1711,188 @@ export function ContentStrategy() {
 
             {isCrawling && crawlStatus && <div className="text-xs text-muted-foreground">{crawlStatus}</div>}
 
-            {(crawledUrls.length > 0 || crawlFoundCount > 0) && (
-              <div className="mt-4 p-4 bg-muted/50 rounded-xl">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-medium text-foreground">✅ Found {crawledUrls.length.toLocaleString()} Blog Posts</h4>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => setSelectedUrls(new Set(crawledUrls))} className="px-3 py-1 text-xs bg-primary/20 text-primary rounded-lg hover:bg-primary/30">Select All</button>
-                    <button onClick={() => setSelectedUrls(new Set())} className="px-3 py-1 text-xs bg-muted text-zinc-400 rounded-lg hover:bg-muted/80">Clear</button>
+            {(crawledUrls.length > 0 || crawlFoundCount > 0) && (() => {
+              const q = hubSearch.trim().toLowerCase();
+              const filtered = q ? crawledUrls.filter(u => u.toLowerCase().includes(q)) : crawledUrls.slice();
+              const sorted = (() => {
+                const arr = filtered.slice();
+                if (hubSort === 'a-z') arr.sort((a, b) => a.localeCompare(b));
+                else if (hubSort === 'z-a') arr.sort((a, b) => b.localeCompare(a));
+                else if (hubSort === 'shortest') arr.sort((a, b) => a.length - b.length);
+                else if (hubSort === 'longest') arr.sort((a, b) => b.length - a.length);
+                return arr;
+              })();
+              const visible = sorted.slice(0, hubVisibleCount);
+              const remaining = sorted.length - visible.length;
+              const filteredSet = new Set(filtered);
+              const selectedInFiltered = filtered.filter(u => selectedUrls.has(u)).length;
+
+              return (
+                <div className="mt-4 p-5 bg-gradient-to-br from-purple-950/30 via-zinc-900/50 to-pink-950/20 border border-purple-500/20 rounded-2xl shadow-xl">
+                  {/* Stats Header */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    <div className="px-4 py-3 bg-black/30 rounded-xl border border-white/5">
+                      <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Total Found</div>
+                      <div className="text-2xl font-bold text-white tabular-nums">{crawledUrls.length.toLocaleString()}</div>
+                    </div>
+                    <div className="px-4 py-3 bg-black/30 rounded-xl border border-white/5">
+                      <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Filtered</div>
+                      <div className="text-2xl font-bold text-purple-300 tabular-nums">{filtered.length.toLocaleString()}</div>
+                    </div>
+                    <div className="px-4 py-3 bg-black/30 rounded-xl border border-white/5">
+                      <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Selected</div>
+                      <div className="text-2xl font-bold text-primary tabular-nums">{selectedUrls.size.toLocaleString()}</div>
+                    </div>
+                    <div className="px-4 py-3 bg-black/30 rounded-xl border border-white/5">
+                      <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Showing</div>
+                      <div className="text-2xl font-bold text-pink-300 tabular-nums">{visible.length.toLocaleString()}</div>
+                    </div>
                   </div>
-                </div>
-                {crawlStatus && !isCrawling && <p className="text-xs text-muted-foreground mb-3">{crawlStatus}</p>}
 
-                {selectedUrls.size > 0 && (
-                  <button
-                    onClick={handleAddSelectedToRewrite}
-                    className="mb-3 px-4 py-2 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-all"
-                  >
-                    <ArrowRight className="w-4 h-4 inline mr-2" />
-                    Rewrite {selectedUrls.size} Selected Posts
-                  </button>
-                )}
+                  {crawlStatus && !isCrawling && <p className="text-xs text-muted-foreground mb-3">{crawlStatus}</p>}
 
-                <div className="max-h-64 overflow-y-auto space-y-1 pr-2 custom-scrollbar">
-                  {crawledUrls.slice(0, 200).map(url => {
-                    const checked = selectedUrls.has(url);
-                    return (
-                      <label key={url} className={cn(
-                        "flex items-center gap-3 px-3 py-2 rounded-lg text-xs cursor-pointer transition-colors",
-                        checked ? "bg-primary/10 text-primary" : "text-zinc-400 hover:bg-white/5"
-                      )}>
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleUrlSelection(url)}
-                          className="accent-primary"
-                        />
-                        <span className="truncate font-mono">{url}</span>
-                      </label>
-                    );
-                  })}
-                  {crawledUrls.length > 200 && (
-                    <p className="text-xs text-zinc-500 py-2">...and {(crawledUrls.length - 200).toLocaleString()} more</p>
+                  {/* Toolbar */}
+                  <div className="flex flex-col md:flex-row gap-2 mb-3">
+                    <div className="relative flex-1">
+                      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+                      <input
+                        type="text"
+                        value={hubSearch}
+                        onChange={(e) => { setHubSearch(e.target.value); setHubVisibleCount(hubPageSize); }}
+                        placeholder="Search 1,313+ URLs by keyword, slug, path…"
+                        className="w-full pl-10 pr-3 py-2.5 bg-black/30 border border-white/10 rounded-xl text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                      />
+                    </div>
+                    <select
+                      value={hubSort}
+                      onChange={(e) => setHubSort(e.target.value as typeof hubSort)}
+                      className="px-3 py-2.5 bg-black/30 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                    >
+                      <option value="default">Sort: Default</option>
+                      <option value="a-z">A → Z</option>
+                      <option value="z-a">Z → A</option>
+                      <option value="shortest">Shortest URL</option>
+                      <option value="longest">Longest URL</option>
+                    </select>
+                    <select
+                      value={hubPageSize}
+                      onChange={(e) => { const n = Number(e.target.value); setHubPageSize(n); setHubVisibleCount(n); }}
+                      className="px-3 py-2.5 bg-black/30 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                    >
+                      <option value={50}>50 / page</option>
+                      <option value={100}>100 / page</option>
+                      <option value={250}>250 / page</option>
+                      <option value={500}>500 / page</option>
+                      <option value={9999}>Show all</option>
+                    </select>
+                  </div>
+
+                  {/* Selection actions */}
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
+                    <button onClick={() => setSelectedUrls(new Set([...selectedUrls, ...filtered]))} className="px-3 py-1.5 text-xs font-semibold bg-primary/20 text-primary rounded-lg hover:bg-primary/30">
+                      Select All Filtered ({filtered.length.toLocaleString()})
+                    </button>
+                    <button onClick={() => setSelectedUrls(new Set(crawledUrls))} className="px-3 py-1.5 text-xs font-semibold bg-purple-500/20 text-purple-300 rounded-lg hover:bg-purple-500/30">
+                      Select All ({crawledUrls.length.toLocaleString()})
+                    </button>
+                    <button onClick={() => {
+                      const next = new Set(selectedUrls);
+                      filtered.forEach(u => next.delete(u));
+                      setSelectedUrls(next);
+                    }} className="px-3 py-1.5 text-xs font-semibold bg-amber-500/20 text-amber-300 rounded-lg hover:bg-amber-500/30">
+                      Deselect Filtered ({selectedInFiltered})
+                    </button>
+                    <button onClick={() => setSelectedUrls(new Set())} className="px-3 py-1.5 text-xs font-semibold bg-zinc-700/40 text-zinc-300 rounded-lg hover:bg-zinc-700/60">
+                      Clear All
+                    </button>
+                    <button onClick={() => {
+                      const next = new Set<string>();
+                      filtered.forEach(u => { if (!selectedUrls.has(u)) next.add(u); });
+                      // keep selections outside filter
+                      selectedUrls.forEach(u => { if (!filteredSet.has(u)) next.add(u); });
+                      setSelectedUrls(next);
+                    }} className="px-3 py-1.5 text-xs font-semibold bg-fuchsia-500/20 text-fuchsia-300 rounded-lg hover:bg-fuchsia-500/30">
+                      Invert Filtered
+                    </button>
+                  </div>
+
+                  {selectedUrls.size > 0 && (
+                    <button
+                      onClick={handleAddSelectedToRewrite}
+                      className="mb-3 w-full px-4 py-3 bg-gradient-to-r from-primary to-emerald-600 text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
+                    >
+                      <ArrowRight className="w-4 h-4" />
+                      Rewrite {selectedUrls.size.toLocaleString()} Selected Posts
+                    </button>
+                  )}
+
+                  {/* URL List — large window, virtualized-ish via pagination */}
+                  <div className="max-h-[600px] overflow-y-auto space-y-1 pr-2 custom-scrollbar bg-black/20 rounded-xl p-2 border border-white/5">
+                    {visible.length === 0 && (
+                      <div className="text-center py-12 text-zinc-500 text-sm">
+                        No URLs match "{hubSearch}". Try a different search.
+                      </div>
+                    )}
+                    {visible.map((url, idx) => {
+                      const checked = selectedUrls.has(url);
+                      let path = url;
+                      try { path = new URL(url).pathname; } catch {}
+                      const slug = path.replace(/\/+$/, '').split('/').pop() || path;
+                      return (
+                        <label key={url} className={cn(
+                          "flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs cursor-pointer transition-all border",
+                          checked
+                            ? "bg-primary/10 text-primary border-primary/30 shadow-sm"
+                            : "text-zinc-300 hover:bg-white/5 border-transparent hover:border-white/10"
+                        )}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleUrlSelection(url)}
+                            className="accent-primary w-4 h-4 flex-shrink-0"
+                          />
+                          <span className="text-[10px] font-mono text-zinc-500 w-10 flex-shrink-0 tabular-nums">#{(idx + 1).toLocaleString()}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="truncate font-medium text-sm">{slug}</div>
+                            <div className="truncate font-mono text-[10px] text-zinc-500">{url}</div>
+                          </div>
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex-shrink-0 px-2 py-1 text-[10px] bg-white/5 hover:bg-white/10 rounded text-zinc-400 hover:text-white"
+                          >Open ↗</a>
+                        </label>
+                      );
+                    })}
+                  </div>
+
+                  {/* Load more */}
+                  {remaining > 0 && (
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <p className="text-xs text-zinc-500">
+                        Showing {visible.length.toLocaleString()} of {sorted.length.toLocaleString()} • {remaining.toLocaleString()} more available
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setHubVisibleCount(c => c + hubPageSize)}
+                          className="px-4 py-2 text-xs font-semibold bg-purple-500/20 text-purple-200 rounded-lg hover:bg-purple-500/30"
+                        >
+                          Load {Math.min(hubPageSize, remaining).toLocaleString()} More
+                        </button>
+                        <button
+                          onClick={() => setHubVisibleCount(sorted.length)}
+                          className="px-4 py-2 text-xs font-semibold bg-pink-500/20 text-pink-200 rounded-lg hover:bg-pink-500/30"
+                        >
+                          Show All ({sorted.length.toLocaleString()})
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         )}
       </div>
