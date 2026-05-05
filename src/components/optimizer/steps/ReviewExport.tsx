@@ -865,12 +865,37 @@ export function ReviewExport() {
           <tbody>
             {sortedItems.length === 0 ? (
               <tr>
-                <td colSpan={5} className="p-8 text-center text-muted-foreground">
+                <td colSpan={7} className="p-8 text-center text-muted-foreground">
                   No items found. Go to Setup to add content or use Strategy to discover topics.
                 </td>
               </tr>
             ) : (
-              sortedItems.map(item => (
+              sortedItems.map(item => {
+                const stored = generatedContentsStore[item.id];
+                const generatedDate = stored?.generatedAt ? new Date(stored.generatedAt) : null;
+                const qualityScore = stored?.qualityScore?.overall;
+                const wordCount = stored?.wordCount ?? item.wordCount;
+
+                const formatDate = (d: Date) => {
+                  const now = new Date();
+                  const diffMs = now.getTime() - d.getTime();
+                  const diffMin = Math.floor(diffMs / 60000);
+                  const diffHr = Math.floor(diffMin / 60);
+                  const diffDay = Math.floor(diffHr / 24);
+                  let relative = '';
+                  if (diffMin < 1) relative = 'just now';
+                  else if (diffMin < 60) relative = `${diffMin}m ago`;
+                  else if (diffHr < 24) relative = `${diffHr}h ago`;
+                  else if (diffDay < 7) relative = `${diffDay}d ago`;
+                  else relative = d.toLocaleDateString();
+                  const absolute = d.toLocaleString(undefined, {
+                    year: 'numeric', month: 'short', day: 'numeric',
+                    hour: '2-digit', minute: '2-digit',
+                  });
+                  return { relative, absolute };
+                };
+
+                return (
                 <tr key={item.id} className="border-b border-white/5 hover:bg-white/5 transition-colors duration-200 group">
                   <td className="p-4">
                     <input
@@ -913,6 +938,38 @@ export function ReviewExport() {
                     </span>
                   </td>
                   <td className="p-4">
+                    {qualityScore !== undefined ? (
+                      <div className="flex flex-col gap-1">
+                        <span className={cn(
+                          "inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold w-fit",
+                          qualityScore >= 90 && "bg-emerald-500/20 text-emerald-400",
+                          qualityScore >= 75 && qualityScore < 90 && "bg-yellow-500/20 text-yellow-400",
+                          qualityScore < 75 && "bg-red-500/20 text-red-400",
+                        )}>
+                          ⚡ {Math.round(qualityScore)}/100
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {wordCount?.toLocaleString() || 0} words
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </td>
+                  <td className="p-4">
+                    {generatedDate ? (
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-sm text-foreground font-medium" title={formatDate(generatedDate).absolute}>
+                          {formatDate(generatedDate).relative}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {formatDate(generatedDate).absolute}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground italic">Not yet generated</span>
+                    )}
+                  </td>
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => setViewingItem(item)}
