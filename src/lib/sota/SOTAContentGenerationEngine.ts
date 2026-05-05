@@ -257,12 +257,25 @@ export class SOTAContentGenerationEngine {
     }
 
     // Fallback logic
-    const fallbackModels = (this.apiKeys.fallbackModels || []) as string[];
+    const configuredFallbacks = (this.apiKeys.fallbackModels || []) as string[];
+    const emergencyFallbacks = [
+      ...(this.apiKeys.geminiApiKey ? ['gemini'] : []),
+      ...(this.apiKeys.openaiApiKey ? ['openai'] : []),
+      ...(this.apiKeys.anthropicApiKey ? ['anthropic'] : []),
+      ...(this.apiKeys.groqApiKey ? ['groq:llama-3.3-70b-versatile'] : []),
+      ...(this.apiKeys.openrouterApiKey ? [
+        'openrouter:openrouter/auto',
+        'openrouter:anthropic/claude-3.5-sonnet',
+        'openrouter:google/gemini-2.5-flash',
+      ] : []),
+    ];
+    const fallbackModels = Array.from(new Set([...configuredFallbacks, ...emergencyFallbacks]));
     if (fallbackModels.length > 0) {
       for (const fallbackEntry of fallbackModels) {
         const colonIdx = fallbackEntry.indexOf(':');
         const fallbackProvider = (colonIdx > 0 ? fallbackEntry.substring(0, colonIdx) : fallbackEntry) as AIModel;
         const fallbackModelId = colonIdx > 0 ? fallbackEntry.substring(colonIdx + 1) : undefined;
+        if (!DEFAULT_MODEL_CONFIGS[fallbackProvider]) continue;
 
         const activeModelId = (this.modelConfigs[model] || DEFAULT_MODEL_CONFIGS[model])?.modelId;
         if (fallbackProvider === model && (!fallbackModelId || fallbackModelId === activeModelId)) continue;
