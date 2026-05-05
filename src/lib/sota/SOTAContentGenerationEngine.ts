@@ -64,6 +64,14 @@ export interface ExtendedAPIKeys extends APIKeys {
 
 const MAX_RETRIES = 3; // Increased for SOTA resilience
 const RETRYABLE_STATUS_CODES = [429, 500, 502, 503, 504];
+const PROVIDER_TIMEOUT_MS = 120_000;
+const TRUNCATED_FINISH_REASONS = new Set(['length', 'max_tokens', 'max_output_tokens', 'MAX_TOKENS']);
+
+interface ProviderCallResult {
+  content: string;
+  tokens: number;
+  finishReason?: string;
+}
 
 function simpleHash(str: string): string {
   let h1 = 0xdeadbeef;
@@ -145,9 +153,45 @@ export class SOTAContentGenerationEngine {
       return RETRYABLE_STATUS_CODES.some(code => msg.includes(String(code))) ||
         msg.includes('ECONNRESET') || msg.includes('ETIMEDOUT') ||
         msg.includes('ERR_HTTP2_PROTOCOL_ERROR') || msg.includes('fetch failed') ||
-        msg.includes('timed out') || msg.includes('AbortError');
+        msg.includes('timed out') || msg.includes('AbortError') ||
+        msg.includes('empty response') || msg.includes('truncated') ||
+        msg.includes('invalid article HTML') || msg.includes('insufficient generated content');
     }
     return false;
+  }
+
+  private countWords(text: string): number {
+    return text.replace(/<[^>]*>/g, ' ').split(/\s+/).filter(Boolean).length;
+  }
+
+  private validateGeneration(content: string, params: GenerationParams, finishReason?: string, modelId?: string): void {
+    const trimmed = (content || '').trim();
+    const validation = params.validation;
+    const label = `${params.model}${modelId ? `/${modelId}` : ''}`;
+
+    if (!trimmed) throw new Error(`${label} returned an empty response.`);
+    if (finishReason && TRUNCATED_FINISH_REASONS.has(finishReason)) {
+      throw new Error(`${label} output was truncated by token limits (${finishReason}). Falling back...`);
+    }
+    if (!validation) return;
+
+    const minChars = validation.minChars ?? 0;
+    const minWords = validation.minWords ?? 0;
+    if (minChars > 0 && trimmed.length < minChars) {
+      throw new Error(`${label} returned insufficient generated content (${trimmed.length}/${minChars} chars).`);
+    }
+    if (minWords > 0 && this.countWords(trimmed) < minWords) {
+      throw new Error(`${label} returned insufficient generated content (${this.countWords(trimmed)}/${minWords} words).`);
+    }
+    if (validation.type === 'article-html' || validation.requireCompleteArticle) {
+      const hasOpeningArticle = /<article\b/i.test(trimmed);
+      const hasClosingArticle = /<\/article>\s*$/i.test(trimmed) || /<\/article>/i.test(trimmed);
+      const hasHeadings = /<h[12]\b/i.test(trimmed);
+      const hasParagraphs = (trimmed.match(/<p\b/gi) || []).length >= 4;
+      if (!hasOpeningArticle || !hasClosingArticle || !hasHeadings || !hasParagraphs) {
+        throw new Error(`${label} returned invalid article HTML. Falling back...`);
+      }
+    }
   }
 
   async generateWithModel(params: GenerationParams): Promise<GenerationResult> {
