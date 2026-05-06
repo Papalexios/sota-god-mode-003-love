@@ -222,6 +222,25 @@ export function ReviewExport() {
     );
   }, [contentItems, generatedContentsStore]);
 
+  // Items blocked from publishing because the pre-publish checklist failed.
+  const checklistBlocked = useMemo(() => {
+    const blocked: Array<{ id: string; title: string; failures: Array<{ id: string; label: string; fix?: string }> }> = [];
+    for (const item of allPublishable) {
+      const cl = generatedContentsStore[item.id]?.checklist;
+      if (cl && !cl.passed) {
+        blocked.push({
+          id: item.id,
+          title: item.title,
+          failures: cl.items.filter(i => i.severity === 'mandatory' && !i.passed)
+            .map(i => ({ id: i.id, label: i.label, fix: i.fix })),
+        });
+      }
+    }
+    return blocked;
+  }, [allPublishable, generatedContentsStore]);
+
+  const [showChecklistReport, setShowChecklistReport] = useState<string | null>(null);
+
   const handleBulkPublish = useCallback(async () => {
     const itemsToPublish = publishableSelected.length > 0 ? publishableSelected : allPublishable;
     if (itemsToPublish.length === 0 || !wpConfigured) return;
