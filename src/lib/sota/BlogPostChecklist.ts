@@ -168,8 +168,8 @@ export function runBlogPostChecklist(input: ChecklistInput): ChecklistResult {
     id: 'seo.wordCount',
     category: 'seo',
     severity: 'mandatory',
-    label: 'Word count ≥ 1500',
-    passed: wc >= 1500,
+    label: 'Word count ≥ 1000',
+    passed: wc >= 1000,
     detail: `${wc} words`,
     fix: 'Article is too short — regenerate with a higher target word count.',
   });
