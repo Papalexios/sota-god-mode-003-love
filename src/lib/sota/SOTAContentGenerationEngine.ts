@@ -321,7 +321,7 @@ export class SOTAContentGenerationEngine {
     throw lastError;
   }
 
-  private async callGemini(apiKey: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 8192): Promise<ProviderCallResult> {
+  private async callGemini(apiKey: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 8192, timeoutMs: number = DEFAULT_PROVIDER_TIMEOUT_MS): Promise<ProviderCallResult> {
     const url = `${this.modelConfigs.gemini.endpoint}/${this.modelConfigs.gemini.modelId}:generateContent?key=${apiKey}`;
     const contents = [{ role: 'user', parts: [{ text: prompt }] }];
     const requestBody: any = {
