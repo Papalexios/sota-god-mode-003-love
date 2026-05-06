@@ -242,7 +242,16 @@ export function ReviewExport() {
   const [showChecklistReport, setShowChecklistReport] = useState<string | null>(null);
 
   const handleBulkPublish = useCallback(async () => {
-    const itemsToPublish = publishableSelected.length > 0 ? publishableSelected : allPublishable;
+    const candidates = publishableSelected.length > 0 ? publishableSelected : allPublishable;
+    // PRE-PUBLISH GATE: block items whose checklist failed.
+    const itemsToPublish = candidates.filter(item => {
+      const cl = generatedContentsStore[item.id]?.checklist;
+      return !cl || cl.passed;
+    });
+    const blocked = candidates.length - itemsToPublish.length;
+    if (blocked > 0) {
+      toast.error(`${blocked} post(s) blocked: pre-publish checklist failed. Open the row's checklist to see what's missing.`);
+    }
     if (itemsToPublish.length === 0 || !wpConfigured) return;
 
     setIsBulkPublishing(true);
