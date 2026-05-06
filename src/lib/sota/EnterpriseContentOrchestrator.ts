@@ -66,6 +66,7 @@ import {
 } from './prompts/masterContentPrompt';
 import { refineWithSelfCritique } from './HumanQualityRefiner';
 import { WordPressMediaService, type WordPressMediaItem } from './WordPressMediaService';
+import { runBlogPostChecklist, buildMissingSectionsRewritePrompt, type ChecklistResult } from './BlogPostChecklist';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS & CONFIGURATION
@@ -1418,7 +1419,70 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
       this.warn(`Phase 10: Schema generation failed (${e}). Using empty schema.`);
     }
 
-    this.log('✅ All 10 phases complete. Assembling final result...');
+    // ── Phase 11: Pre-publish Checklist + Targeted Auto-Retry ──────────────
+    // Validate every mandatory SEO/AEO/GEO/E-E-A-T block is present. If
+    // anything is missing, run a focused rewrite (regenerate ONLY the missing
+    // sections) using the user's chosen model. If that still fails, try once
+    // more with the first user-defined fallback model + a smaller target.
+    this.log('Phase 11: Running pre-publish checklist validator...');
+    const provisionalMeta = `A comprehensive guide and analysis on ${options.keyword}.`;
+    let checklist: ChecklistResult = runBlogPostChecklist({
+      html,
+      title: options.title || options.keyword,
+      metaDescription: provisionalMeta,
+      primaryKeyword: options.keyword,
+    });
+    this.log(`Phase 11 ✅ Checklist score ${checklist.score}/100 — ${checklist.mandatoryFailures.length} mandatory failures, ${checklist.recommendedFailures.length} recommended.`);
+
+    if (!checklist.passed) {
+      this.warn(`Phase 11: Checklist failed (${checklist.mandatoryFailures.map(f => f.id).join(', ')}). Running targeted auto-retry...`);
+      const retryAttempts: Array<{ model: AIModel; tokens: number }> = [
+        { model: (options.model || this.config.primaryModel || 'gemini'), tokens: 12288 },
+      ];
+      const fallback = (this.config.apiKeys?.fallbackModels || [])[0];
+      if (typeof fallback === 'string' && fallback.length > 0) {
+        const provider = (fallback.split(':')[0] || 'gemini') as AIModel;
+        retryAttempts.push({ model: provider, tokens: 8192 });
+      }
+
+      for (const attempt of retryAttempts) {
+        if (checklist.passed) break;
+        try {
+          const rewritePrompt = buildMissingSectionsRewritePrompt(html, options.keyword, checklist.mandatoryFailures);
+          const rewrite = await this.engine.generateWithModel({
+            prompt: rewritePrompt,
+            systemPrompt: buildMasterSystemPrompt(),
+            model: attempt.model,
+            apiKeys: this.config.apiKeys,
+            maxTokens: attempt.tokens,
+            temperature: 0.6,
+            validation: {
+              type: 'article-html',
+              requireCompleteArticle: true,
+              minChars: MIN_VALID_CONTENT_LENGTH,
+            },
+          });
+          if (rewrite.content && rewrite.content.includes('<article')) {
+            const candidate = rewrite.content;
+            const newChecklist = runBlogPostChecklist({
+              html: candidate,
+              title: options.title || options.keyword,
+              metaDescription: provisionalMeta,
+              primaryKeyword: options.keyword,
+            });
+            if (newChecklist.mandatoryFailures.length < checklist.mandatoryFailures.length) {
+              html = candidate;
+              checklist = newChecklist;
+              this.log(`Phase 11 ✅ Auto-retry (${attempt.model}) closed gaps — now ${checklist.mandatoryFailures.length} mandatory failures.`);
+            }
+          }
+        } catch (e) {
+          this.warn(`Phase 11: Auto-retry on ${attempt.model} failed (${e instanceof Error ? e.message : e}).`);
+        }
+      }
+    }
+
+    this.log('✅ All phases complete. Assembling final result...');
 
     const wordCount = html.replace(/<[^>]*>/g, ' ').split(/\s+/).filter(Boolean).length;
 
@@ -1490,7 +1554,8 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
       neuronWriterQueryId: neuron?.queryId || null,
       youtubeVideos: videos,
       references,
-      telemetry: this.telemetry
+      telemetry: this.telemetry,
+      checklist,
     } as any;
   }
 }
