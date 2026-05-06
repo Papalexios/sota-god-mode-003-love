@@ -1289,6 +1289,99 @@ export function ReviewExport() {
           </div>
         </div>
       )}
+
+      {/* ── Checklist Report Modal ── */}
+      {showChecklistReport && (() => {
+        const stored = generatedContentsStore[showChecklistReport];
+        const cl = stored?.checklist;
+        if (!cl) return null;
+        const item = contentItems.find(i => i.id === showChecklistReport);
+        const grouped = ['seo', 'aeo', 'geo', 'eeat', 'ux'].map(cat => ({
+          cat,
+          items: cl.items.filter(i => i.category === cat),
+        }));
+        const catLabel: Record<string, string> = {
+          seo: 'SEO Foundation',
+          aeo: 'Answer Engine (AI Overviews)',
+          geo: 'Generative Engine (Sources & Stats)',
+          eeat: 'E-E-A-T Signals',
+          ux: 'UX & Visual Structure',
+        };
+        return (
+          <div className="fixed inset-0 bg-black/90 backdrop-blur-xl z-[70] flex items-center justify-center p-4 animate-in fade-in duration-300"
+               onClick={() => setShowChecklistReport(null)}>
+            <div className="glass-card border border-white/10 rounded-3xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-8 shadow-2xl"
+                 onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-start justify-between mb-6">
+                <div>
+                  <h3 className="text-2xl font-bold text-white flex items-center gap-3">
+                    {cl.passed
+                      ? <CheckCircle className="w-7 h-7 text-emerald-400" />
+                      : <AlertCircle className="w-7 h-7 text-red-400" />}
+                    Pre-publish Checklist
+                  </h3>
+                  <p className="text-zinc-400 text-sm mt-1 truncate max-w-xl" title={item?.title}>{item?.title}</p>
+                  <div className={cn(
+                    "inline-flex items-center gap-2 mt-3 px-3 py-1 rounded-lg text-xs font-bold",
+                    cl.passed ? "bg-emerald-500/15 text-emerald-300" : "bg-red-500/15 text-red-300"
+                  )}>
+                    Score {cl.score}/100 · {cl.items.filter(i => !i.passed && i.severity === 'mandatory').length} mandatory missing · {cl.items.filter(i => !i.passed && i.severity === 'recommended').length} recommended missing
+                  </div>
+                </div>
+                <button onClick={() => setShowChecklistReport(null)}
+                        className="p-2 text-zinc-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              {!cl.passed && (
+                <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-sm text-red-200">
+                  <strong>Publish blocked.</strong> Fix the mandatory items below (or regenerate this post) before publishing to WordPress.
+                </div>
+              )}
+
+              <div className="space-y-6">
+                {grouped.map(g => (
+                  <div key={g.cat}>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">{catLabel[g.cat]}</h4>
+                    <div className="space-y-2">
+                      {g.items.map(it => (
+                        <div key={it.id} className={cn(
+                          "p-3 rounded-xl border flex items-start gap-3",
+                          it.passed
+                            ? "bg-emerald-500/5 border-emerald-500/20"
+                            : it.severity === 'mandatory'
+                              ? "bg-red-500/5 border-red-500/30"
+                              : "bg-yellow-500/5 border-yellow-500/20"
+                        )}>
+                          {it.passed
+                            ? <CheckCircle className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                            : <XCircle className={cn("w-5 h-5 flex-shrink-0 mt-0.5", it.severity === 'mandatory' ? "text-red-400" : "text-yellow-400")} />}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-medium text-foreground">{it.label}</span>
+                              <span className={cn(
+                                "text-[10px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider",
+                                it.severity === 'mandatory' ? "bg-red-500/20 text-red-300" : "bg-zinc-700/40 text-zinc-400"
+                              )}>{it.severity}</span>
+                              {it.detail && (
+                                <span className="text-xs text-zinc-500 font-mono">{it.detail}</span>
+                              )}
+                            </div>
+                            {!it.passed && it.fix && (
+                              <p className="text-xs text-zinc-400 mt-1">↳ {it.fix}</p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
