@@ -174,8 +174,8 @@ export function EnhancedGenerationModal({
 
   if (!isOpen) return null;
   return createPortal(
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-xl z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
-      <div className="glass-card border border-white/10 rounded-3xl w-full max-w-2xl shadow-2xl relative overflow-hidden">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-xl z-50 flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-300">
+      <div className="glass-card border border-white/10 rounded-3xl w-full max-w-2xl shadow-2xl relative overflow-hidden flex flex-col max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)]" style={{ width: 'min(100%, 42rem)' }}>
         {/* Ambient Glow */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 rounded-full blur-3xl -z-10 translate-x-1/2 -translate-y-1/2" />
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/20 rounded-full blur-3xl -z-10 -translate-x-1/2 translate-y-1/2" />

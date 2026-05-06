@@ -848,6 +848,9 @@ export function ReviewExport() {
                 </span>
               </th>
               <th className="p-4 text-left text-sm font-medium text-foreground">
+                Website
+              </th>
+              <th className="p-4 text-left text-sm font-medium text-foreground">
                 Quality / Words
               </th>
               <th
@@ -865,7 +868,7 @@ export function ReviewExport() {
           <tbody>
             {sortedItems.length === 0 ? (
               <tr>
-                <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                <td colSpan={8} className="p-8 text-center text-muted-foreground">
                   No items found. Go to Setup to add content or use Strategy to discover topics.
                 </td>
               </tr>
@@ -936,6 +939,29 @@ export function ReviewExport() {
                         <span title={item.error}>{item.error.slice(0, 60)}{item.error.length > 60 ? '…' : ''}</span>
                       ) : item.status}
                     </span>
+                  </td>
+                  <td className="p-4">
+                    {(() => {
+                      try {
+                        const u = new URL(item.url);
+                        const host = u.hostname.replace(/^www\./, '');
+                        const path = u.pathname.length > 28 ? u.pathname.slice(0, 26) + '…' : u.pathname;
+                        return (
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={item.url}
+                            className="flex flex-col gap-0.5 hover:text-primary transition-colors max-w-[220px]"
+                          >
+                            <span className="text-sm font-medium text-foreground truncate">{host}</span>
+                            <span className="text-xs text-muted-foreground truncate">{path}</span>
+                          </a>
+                        );
+                      } catch {
+                        return <span className="text-xs text-muted-foreground italic">—</span>;
+                      }
+                    })()}
                   </td>
                   <td className="p-4">
                     {qualityScore !== undefined ? (
