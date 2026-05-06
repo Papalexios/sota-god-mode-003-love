@@ -366,7 +366,7 @@ export class SOTAContentGenerationEngine {
         temperature,
         max_tokens: maxTokens
       })
-    });
+    }, timeoutMs);
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
@@ -397,7 +397,7 @@ export class SOTAContentGenerationEngine {
         messages: [{ role: 'user', content: prompt }],
         temperature
       })
-    });
+    }, timeoutMs);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
@@ -428,7 +428,7 @@ export class SOTAContentGenerationEngine {
         temperature,
         max_tokens: maxTokens
       })
-    });
+    }, timeoutMs);
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
