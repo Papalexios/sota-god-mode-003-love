@@ -145,7 +145,7 @@ export class SOTAContentGenerationEngine {
    * the entire pipeline indefinitely while still burning tokens on retries.
    * Default: 2 minutes per attempt, then retry/fallback.
    */
-  private async fetchWithTimeout(url: string, init: RequestInit, timeoutMs = PROVIDER_TIMEOUT_MS): Promise<Response> {
+  private async fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number = DEFAULT_PROVIDER_TIMEOUT_MS): Promise<Response> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -158,6 +158,10 @@ export class SOTAContentGenerationEngine {
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  private timeoutFor(model: AIModel): number {
+    return PROVIDER_TIMEOUT_MS[model] ?? DEFAULT_PROVIDER_TIMEOUT_MS;
   }
 
   private isRetryableError(error: unknown): boolean {
