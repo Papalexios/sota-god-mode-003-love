@@ -804,27 +804,16 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
       const authorInitial = author.charAt(0).toUpperCase();
 
       const hero = `
-<div data-premium-hero="true" style="font-family:'Inter',system-ui,sans-serif;background:linear-gradient(150deg,#0f172a 0%,#1e1b4b 50%,#0f172a 100%);padding:72px 48px 56px;border-radius:24px;margin-bottom:56px;color:white;position:relative;overflow:hidden;">
-  <div style="position:absolute;top:-80px;right:-80px;width:360px;height:360px;background:radial-gradient(circle,rgba(99,102,241,0.15),transparent 70%);border-radius:50%;pointer-events:none;"></div>
-  <div style="position:absolute;bottom:-40px;left:-40px;width:240px;height:240px;background:radial-gradient(circle,rgba(16,185,129,0.08),transparent 70%);border-radius:50%;pointer-events:none;"></div>
-  <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);border-radius:100px;padding:6px 16px;margin-bottom:28px;">
-    <span style="width:6px;height:6px;background:#818cf8;border-radius:50%;display:inline-block;animation:pulse 2s infinite;"></span>
-    <span style="font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#a5b4fc;">SOTA God-Mode Intelligence</span>
-  </div>
-  <h1 style="font-size:clamp(28px,4vw,48px);line-height:1.08;font-weight:900;margin:0 0 28px 0;color:white;letter-spacing:-0.02em;max-width:740px;">${title}</h1>
-  <div style="width:60px;height:3px;background:linear-gradient(90deg,#818cf8,#34d399);border-radius:2px;margin-bottom:32px;"></div>
-  <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
-    <div style="width:48px;height:48px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:20px;color:white;flex-shrink:0;">${authorInitial}</div>
+<header data-premium-hero="true" style="font-family:'Inter','Helvetica Neue',Arial,sans-serif;margin:0 0 48px 0;padding:0 0 28px 0;border-bottom:1px solid #e5e7eb;">
+  <h1 style="font-size:clamp(30px,4.5vw,46px);line-height:1.12;font-weight:800;margin:0 0 20px 0;color:#0f172a;letter-spacing:-0.025em;">${title}</h1>
+  <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+    <div style="width:42px;height:42px;background:linear-gradient(135deg,#475569,#1e293b);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:17px;color:#fff;flex-shrink:0;">${authorInitial}</div>
     <div>
-      <div style="font-weight:700;font-size:16px;color:white;">${author}</div>
-      <div style="font-size:13px;color:#94a3b8;margin-top:2px;">${date}</div>
-    </div>
-    <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;">
-      <span style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:6px 14px;font-size:12px;color:#cbd5e1;font-weight:600;">✦ Expert-Reviewed</span>
-      <span style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2);border-radius:8px;padding:6px 14px;font-size:12px;color:#34d399;font-weight:600;">● NW Optimized</span>
+      <div style="font-weight:600;font-size:15px;color:#0f172a;">By ${author}</div>
+      <div style="font-size:13px;color:#64748b;margin-top:2px;">Published ${date} · ${Math.max(4, Math.round((output.replace(/<[^>]*>/g,' ').split(/\s+/).filter(Boolean).length)/220))} min read</div>
     </div>
   </div>
-</div>`;
+</header>`;
       output = output.replace(/<article[^>]*>/i, match => match + hero);
     }
 
@@ -1074,7 +1063,7 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
 
   private async _executeGenerationPipeline(options: any): Promise<any> {
     this.config.currentTitle = options.title || options.keyword;
-    this.config.authorName = options.authorName || 'SOTA AI Research';
+    this.config.authorName = options.authorName || this.config.authorName || 'Editorial Team';
 
     // ── Phase 0a: SOTA Title Rewrite (refresh items + URL-derived titles) ───
     // For refresh content, the incoming "title" is just a slug-derived guess
