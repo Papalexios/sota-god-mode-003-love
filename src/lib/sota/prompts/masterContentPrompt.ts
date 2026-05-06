@@ -476,7 +476,13 @@ Write ONE bold contrarian sentence that challenges conventional wisdom. Then 3 b
 • The fastest actionable win (something they can do in <10 minutes)
 </div>
 
-[2] COLD OPEN (no heading, 250-350 words):
+[2] TL;DR / SHORT ANSWER BLOCK (40–60 words, immediately quotable by AI engines):
+<div style="background:linear-gradient(135deg,#ecfeff 0%,#cffafe 100%);border-left:5px solid #0891b2;border-radius:0 20px 20px 0;padding:24px 28px;margin:28px 0;box-shadow:0 4px 16px rgba(8,145,178,0.10);">
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;"><span style="font-size:18px;">⚡</span><strong style="font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#155e75;">The Short Answer</strong></div>
+<p style="margin:0;color:#083344;font-size:16.5px;line-height:1.75;">Write a 40–60 word direct, quotable answer to the search query. This is the snippet AI Overviews will lift verbatim. Lead with the answer, then one supporting fact with a number or source.</p>
+</div>
+
+[3] COLD OPEN (no heading, 250-350 words):
 Start with a HYPER-SPECIFIC micro-story. Not generic. Pick one of these structures:
 - A named person in a specific situation with sensory details
 - A shocking statistic that contradicts common belief
