@@ -1031,9 +1031,28 @@ export function ReviewExport() {
                     )}
                   </td>
                   <td className="p-4">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setViewingItem(item)}
+                    {(() => {
+                      const cl = stored?.checklist;
+                      if (!cl) return <span className="text-xs text-muted-foreground italic">—</span>;
+                      const failCount = cl.items.filter(i => i.severity === 'mandatory' && !i.passed).length;
+                      return (
+                        <button
+                          onClick={() => setShowChecklistReport(item.id)}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-bold transition-all hover:brightness-125",
+                            cl.passed
+                              ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                              : "bg-red-500/15 text-red-400 border border-red-500/30"
+                          )}
+                          title={cl.passed ? "All mandatory checks passed" : `${failCount} mandatory failure(s) — click for report`}
+                        >
+                          {cl.passed ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+                          {cl.passed ? `Pass · ${cl.score}` : `${failCount} missing · ${cl.score}`}
+                        </button>
+                      );
+                    })()}
+                  </td>
+                  <td className="p-4">
                         className={cn(
                           "p-1.5 rounded transition-all",
                           item.status === 'completed'
