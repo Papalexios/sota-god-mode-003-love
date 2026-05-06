@@ -895,6 +895,7 @@ export function ReviewExport() {
                   Generated <ArrowUpDown className="w-3 h-3" />
                 </span>
               </th>
+              <th className="p-4 text-left text-sm font-medium text-foreground">Checklist</th>
               <th className="p-4 text-left text-sm font-medium text-foreground">Actions</th>
             </tr>
           </thead>
