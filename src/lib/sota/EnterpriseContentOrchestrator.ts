@@ -66,6 +66,7 @@ import {
 } from './prompts/masterContentPrompt';
 import { refineWithSelfCritique } from './HumanQualityRefiner';
 import { WordPressMediaService, type WordPressMediaItem } from './WordPressMediaService';
+import { runBlogPostChecklist, buildMissingSectionsRewritePrompt, type ChecklistResult } from './BlogPostChecklist';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS & CONFIGURATION
