@@ -104,8 +104,7 @@ describe('runBlogPostChecklist — compliant sample post', () => {
 
   it('passes the mandatory checklist', () => {
     if (!result.passed) {
-      // Surface what failed so future regressions are debuggable.
-      console.log('Failures:', result.mandatoryFailures.map(f => f.id));
+      console.log('Failures:', result.mandatoryFailures.map(f => `${f.id} (${f.detail || ''})`));
     }
     expect(result.passed).toBe(true);
     expect(result.mandatoryFailures).toHaveLength(0);
