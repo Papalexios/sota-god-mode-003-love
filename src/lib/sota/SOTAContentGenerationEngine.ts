@@ -62,9 +62,21 @@ export interface ExtendedAPIKeys extends APIKeys {
   fallbackModels?: string[];
 }
 
-const MAX_RETRIES = 3; // Respect user's chosen model — retry it before considering user-defined fallbacks.
-const RETRYABLE_STATUS_CODES = [429, 500, 502, 503, 504];
-const PROVIDER_TIMEOUT_MS = 90_000;
+const MAX_RETRIES = 4; // Respect user's chosen model — retry it before considering user-defined fallbacks.
+const RETRYABLE_STATUS_CODES = [408, 409, 425, 429, 500, 502, 503, 504, 520, 522, 524];
+// Per-provider timeouts. Free OpenRouter models (e.g. tencent/hy3-preview:free)
+// route through slow community backends and routinely take 3-5+ minutes for a
+// long-form article. Aborting at 90s wastes the user's chosen free model and
+// surfaces as "Generation timed out". Give the chosen provider real time to
+// finish before we ever consider falling back.
+const PROVIDER_TIMEOUT_MS: Record<string, number> = {
+  gemini: 180_000,
+  openai: 180_000,
+  anthropic: 180_000,
+  openrouter: 480_000, // 8 min — covers free-tier routed backends
+  groq: 120_000,
+};
+const DEFAULT_PROVIDER_TIMEOUT_MS = 180_000;
 const TRUNCATED_FINISH_REASONS = new Set(['length', 'max_tokens', 'max_output_tokens', 'MAX_TOKENS']);
 
 interface ProviderCallResult {
