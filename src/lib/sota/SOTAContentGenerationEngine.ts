@@ -62,9 +62,21 @@ export interface ExtendedAPIKeys extends APIKeys {
   fallbackModels?: string[];
 }
 
-const MAX_RETRIES = 3; // Respect user's chosen model — retry it before considering user-defined fallbacks.
-const RETRYABLE_STATUS_CODES = [429, 500, 502, 503, 504];
-const PROVIDER_TIMEOUT_MS = 90_000;
+const MAX_RETRIES = 4; // Respect user's chosen model — retry it before considering user-defined fallbacks.
+const RETRYABLE_STATUS_CODES = [408, 409, 425, 429, 500, 502, 503, 504, 520, 522, 524];
+// Per-provider timeouts. Free OpenRouter models (e.g. tencent/hy3-preview:free)
+// route through slow community backends and routinely take 3-5+ minutes for a
+// long-form article. Aborting at 90s wastes the user's chosen free model and
+// surfaces as "Generation timed out". Give the chosen provider real time to
+// finish before we ever consider falling back.
+const PROVIDER_TIMEOUT_MS: Record<string, number> = {
+  gemini: 180_000,
+  openai: 180_000,
+  anthropic: 180_000,
+  openrouter: 480_000, // 8 min — covers free-tier routed backends
+  groq: 120_000,
+};
+const DEFAULT_PROVIDER_TIMEOUT_MS = 180_000;
 const TRUNCATED_FINISH_REASONS = new Set(['length', 'max_tokens', 'max_output_tokens', 'MAX_TOKENS']);
 
 interface ProviderCallResult {
@@ -133,7 +145,7 @@ export class SOTAContentGenerationEngine {
    * the entire pipeline indefinitely while still burning tokens on retries.
    * Default: 2 minutes per attempt, then retry/fallback.
    */
-  private async fetchWithTimeout(url: string, init: RequestInit, timeoutMs = PROVIDER_TIMEOUT_MS): Promise<Response> {
+  private async fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number = DEFAULT_PROVIDER_TIMEOUT_MS): Promise<Response> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -146,6 +158,10 @@ export class SOTAContentGenerationEngine {
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  private timeoutFor(model: AIModel): number {
+    return PROVIDER_TIMEOUT_MS[model] ?? DEFAULT_PROVIDER_TIMEOUT_MS;
   }
 
   private isRetryableError(error: unknown): boolean {
@@ -227,14 +243,15 @@ export class SOTAContentGenerationEngine {
       try {
         let providerResult: ProviderCallResult = { content: '', tokens: 0 };
 
+        const providerTimeout = this.timeoutFor(model);
         if (model === 'gemini') {
-          providerResult = await this.callGemini(apiKey, prompt, systemPrompt, temperature, finalMaxTokens);
+          providerResult = await this.callGemini(apiKey, prompt, systemPrompt, temperature, finalMaxTokens, providerTimeout);
         } else if (model === 'openai') {
-          providerResult = await this.callOpenAI(apiKey, prompt, systemPrompt, temperature, finalMaxTokens);
+          providerResult = await this.callOpenAI(apiKey, prompt, systemPrompt, temperature, finalMaxTokens, providerTimeout);
         } else if (model === 'anthropic') {
-          providerResult = await this.callAnthropic(apiKey, prompt, systemPrompt, temperature, finalMaxTokens);
+          providerResult = await this.callAnthropic(apiKey, prompt, systemPrompt, temperature, finalMaxTokens, providerTimeout);
         } else if (model === 'openrouter' || model === 'groq') {
-          providerResult = await this.callOpenAICompatible(config.endpoint, apiKey, config.modelId, prompt, systemPrompt, temperature, finalMaxTokens);
+          providerResult = await this.callOpenAICompatible(config.endpoint, apiKey, config.modelId, prompt, systemPrompt, temperature, finalMaxTokens, providerTimeout);
         }
 
         this.validateGeneration(providerResult.content, params, providerResult.finishReason, config.modelId);
@@ -304,7 +321,7 @@ export class SOTAContentGenerationEngine {
     throw lastError;
   }
 
-  private async callGemini(apiKey: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 8192): Promise<ProviderCallResult> {
+  private async callGemini(apiKey: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 8192, timeoutMs: number = DEFAULT_PROVIDER_TIMEOUT_MS): Promise<ProviderCallResult> {
     const url = `${this.modelConfigs.gemini.endpoint}/${this.modelConfigs.gemini.modelId}:generateContent?key=${apiKey}`;
     const contents = [{ role: 'user', parts: [{ text: prompt }] }];
     const requestBody: any = {
@@ -317,7 +334,7 @@ export class SOTAContentGenerationEngine {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requestBody)
-    });
+    }, timeoutMs);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
@@ -332,7 +349,7 @@ export class SOTAContentGenerationEngine {
     };
   }
 
-  private async callOpenAI(apiKey: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 4096): Promise<ProviderCallResult> {
+  private async callOpenAI(apiKey: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 4096, timeoutMs: number = DEFAULT_PROVIDER_TIMEOUT_MS): Promise<ProviderCallResult> {
     const messages: any[] = [];
     if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
     messages.push({ role: 'user', content: prompt });
@@ -349,7 +366,7 @@ export class SOTAContentGenerationEngine {
         temperature,
         max_tokens: maxTokens
       })
-    });
+    }, timeoutMs);
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
@@ -364,7 +381,7 @@ export class SOTAContentGenerationEngine {
     };
   }
 
-  private async callAnthropic(apiKey: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 4096): Promise<ProviderCallResult> {
+  private async callAnthropic(apiKey: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 4096, timeoutMs: number = DEFAULT_PROVIDER_TIMEOUT_MS): Promise<ProviderCallResult> {
     const response = await this.fetchWithTimeout(this.modelConfigs.anthropic.endpoint, {
       method: 'POST',
       headers: {
@@ -380,7 +397,7 @@ export class SOTAContentGenerationEngine {
         messages: [{ role: 'user', content: prompt }],
         temperature
       })
-    });
+    }, timeoutMs);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
@@ -394,7 +411,7 @@ export class SOTAContentGenerationEngine {
     };
   }
 
-  private async callOpenAICompatible(endpoint: string, apiKey: string, modelId: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 4096): Promise<ProviderCallResult> {
+  private async callOpenAICompatible(endpoint: string, apiKey: string, modelId: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 4096, timeoutMs: number = DEFAULT_PROVIDER_TIMEOUT_MS): Promise<ProviderCallResult> {
     const messages: any[] = [];
     if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
     messages.push({ role: 'user', content: prompt });
@@ -411,7 +428,7 @@ export class SOTAContentGenerationEngine {
         temperature,
         max_tokens: maxTokens
       })
-    });
+    }, timeoutMs);
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
