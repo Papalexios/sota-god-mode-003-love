@@ -95,6 +95,20 @@ export interface GeneratedContentStore {
     neuronWriterQueryId?: string;
     generatedAt: string;
     model: string;
+    /** Pre-publish checklist results (populated after generation). */
+    checklist?: {
+      passed: boolean;
+      score: number;
+      items: Array<{
+        id: string;
+        label: string;
+        category: 'seo' | 'aeo' | 'geo' | 'eeat' | 'ux';
+        severity: 'mandatory' | 'recommended';
+        passed: boolean;
+        detail?: string;
+        fix?: string;
+      }>;
+    };
   };
 }
 
