@@ -1554,7 +1554,8 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
       neuronWriterQueryId: neuron?.queryId || null,
       youtubeVideos: videos,
       references,
-      telemetry: this.telemetry
+      telemetry: this.telemetry,
+      checklist,
     } as any;
   }
 }
