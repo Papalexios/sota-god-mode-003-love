@@ -243,14 +243,15 @@ export class SOTAContentGenerationEngine {
       try {
         let providerResult: ProviderCallResult = { content: '', tokens: 0 };
 
+        const providerTimeout = this.timeoutFor(model);
         if (model === 'gemini') {
-          providerResult = await this.callGemini(apiKey, prompt, systemPrompt, temperature, finalMaxTokens);
+          providerResult = await this.callGemini(apiKey, prompt, systemPrompt, temperature, finalMaxTokens, providerTimeout);
         } else if (model === 'openai') {
-          providerResult = await this.callOpenAI(apiKey, prompt, systemPrompt, temperature, finalMaxTokens);
+          providerResult = await this.callOpenAI(apiKey, prompt, systemPrompt, temperature, finalMaxTokens, providerTimeout);
         } else if (model === 'anthropic') {
-          providerResult = await this.callAnthropic(apiKey, prompt, systemPrompt, temperature, finalMaxTokens);
+          providerResult = await this.callAnthropic(apiKey, prompt, systemPrompt, temperature, finalMaxTokens, providerTimeout);
         } else if (model === 'openrouter' || model === 'groq') {
-          providerResult = await this.callOpenAICompatible(config.endpoint, apiKey, config.modelId, prompt, systemPrompt, temperature, finalMaxTokens);
+          providerResult = await this.callOpenAICompatible(config.endpoint, apiKey, config.modelId, prompt, systemPrompt, temperature, finalMaxTokens, providerTimeout);
         }
 
         this.validateGeneration(providerResult.content, params, providerResult.finishReason, config.modelId);
