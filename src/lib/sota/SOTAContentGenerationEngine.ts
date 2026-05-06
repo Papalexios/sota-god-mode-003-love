@@ -349,7 +349,7 @@ export class SOTAContentGenerationEngine {
     };
   }
 
-  private async callOpenAI(apiKey: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 4096): Promise<ProviderCallResult> {
+  private async callOpenAI(apiKey: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 4096, timeoutMs: number = DEFAULT_PROVIDER_TIMEOUT_MS): Promise<ProviderCallResult> {
     const messages: any[] = [];
     if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
     messages.push({ role: 'user', content: prompt });
