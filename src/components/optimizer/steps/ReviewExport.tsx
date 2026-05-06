@@ -902,7 +902,7 @@ export function ReviewExport() {
           <tbody>
             {sortedItems.length === 0 ? (
               <tr>
-                <td colSpan={8} className="p-8 text-center text-muted-foreground">
+                <td colSpan={9} className="p-8 text-center text-muted-foreground">
                   No items found. Go to Setup to add content or use Strategy to discover topics.
                 </td>
               </tr>
