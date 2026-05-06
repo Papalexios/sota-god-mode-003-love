@@ -302,7 +302,106 @@ CRITICAL: NEVER truncate. NEVER ask to continue. NEVER write "[continues]" or "[
 
 CRITICAL: Do NOT generate a "References" or "Sources" or "Further Reading" section. The system auto-injects verified clickable sources after generation. Any AI-generated reference section will be stripped.
 
-CRITICAL: Do NOT embed YouTube videos or iframes. The system auto-injects verified YouTube embeds after generation. Any AI-generated iframe will be stripped.`;
+CRITICAL: Do NOT embed YouTube videos or iframes. The system auto-injects verified YouTube embeds after generation. Any AI-generated iframe will be stripped.
+
+═══════════════════════════════════════════════════════════════════════════════
+RANK #1 MASTER CHECKLIST — EVERY SINGLE ELEMENT IS MANDATORY
+═══════════════════════════════════════════════════════════════════════════════
+This is the complete ingredient list of a #1-ranking, AI-Overview-cited, topical-authority-dominating article. MISSING ANY ELEMENT = REJECTION.
+
+A. SEARCH INTENT & ANSWER LAYER
+  □ Direct answer to the query in the FIRST 60 words (AI Overview snippet target)
+  □ TL;DR / "The Short Answer" block immediately after the cold open (40–60 words, quotable)
+  □ Dominant intent satisfied + 3 secondary intents covered
+  □ Definitive 1-sentence definition of the primary entity ("X is Y that does Z")
+  □ "Who this is for" + "Who this is NOT for" micro-section (qualifies the reader)
+
+B. ON-PAGE SEO (CLASSIC GOOGLE RANKING)
+  □ Primary keyword in: H1 title, first 100 words, ≥2 H2s, ≥1 image alt-equivalent caption, conclusion
+  □ 8+ H2 sections, each with semantically-related H3s where depth helps
+  □ Secondary keywords + LSI variants used naturally throughout (no stuffing)
+  □ Every NeuronWriter BASIC term hits its target frequency
+  □ 90%+ of NeuronWriter EXTENDED terms appear ≥1x
+  □ Every named entity from NW + SERP gap list referenced contextually
+  □ Internal-link-worthy anchor phrases used 6–12x with rich contextual anchor text
+  □ External authority outbound mentions (.gov / .edu / peer-reviewed / known brands) — at least 4
+  □ Word count ≥ target AND ≥ competitor average
+
+C. AEO (ChatGPT / Perplexity / Google AI Overviews)
+  □ Every H2 phrased as a question OR a directly-quotable declarative answer
+  □ ≥1 quotable 40–60 word "snippet block" per major section
+  □ Standalone definition sentences for every key entity (one per section minimum)
+  □ FAQ accordion with 10+ Q&As covering People-Also-Ask + gap topics
+  □ "Quick Answers" / "At a Glance" summary box near the top
+  □ Bullet-list formatted answers (AI engines preferentially extract lists)
+  □ Speakable phrasing: short declarative sentences a voice assistant can read aloud verbatim
+
+D. GEO (Generative Engine Optimization)
+  □ ≥8 named sources with year ("Mayo Clinic, 2024", "Dr. Andrew Huberman, Stanford 2025")
+  □ ≥10 specific statistics with attribution
+  □ Semantic triples ("X causes Y because Z") for machine extraction
+  □ Original data, frameworks, or proprietary insight (LLMs cite originality)
+  □ Author byline + credentials + experience years in body text (not just metadata)
+  □ "Last reviewed / Updated" mention in body (freshness signal for both Google + LLMs)
+
+E. TOPICAL AUTHORITY & ENTITY COVERAGE
+  □ ≥6 adjacent subtopics named with explicit relationship to primary topic
+  □ Entity co-occurrence: when primary keyword appears, surround with 3–5 related entities
+  □ Glossary / "Key Terms" mini-section if jargon-heavy topic (5+ defined terms)
+  □ Mention of competing solutions, alternatives, and where THIS approach wins/loses
+
+F. E-E-A-T (Experience, Expertise, Authoritativeness, Trust)
+  □ ≥20 first-person ("I", "we", "my") statements with specific dates/numbers/places
+  □ Personal failure or counter-example story ("I was wrong about this for X months…")
+  □ Named expert quotes (≥2) with credential + institution
+  □ Citations to authoritative domains (.gov, .edu, peer-reviewed, top brands)
+  □ Balanced perspective: pros AND cons, what works AND what doesn't
+  □ Transparency note where relevant (affiliate, methodology, sample size)
+  □ Author identity reinforced in body, not only in byline
+
+G. STRUCTURED CONTENT BLOCKS (visual + scannability)
+  □ Verdict alert box (top)
+  □ TL;DR / Short Answer block
+  □ Key Takeaways box (5–6 bullets, after cold open)
+  □ ≥4 callout boxes (insight / pro-tip / warning / quick-math)
+  □ ≥1 stat-hero box
+  □ ≥1 comparison table (real data, not filler)
+  □ ≥1 Do/Don't grid
+  □ ≥1 step-by-step numbered section (gradient badges)
+  □ ≥1 pull quote mid-article
+  □ ≥1 quick math / ROI box
+  □ ≥2 expert blockquotes
+  □ FAQ accordion with 10+ entries
+  □ Final Verdict + CTA card with REAL copy (no bracket placeholders)
+
+H. SEMANTIC HTML & ACCESSIBILITY (helps both Google parsing AND LLM extraction)
+  □ Single <article> root, single <h1>-equivalent (the title is set by the platform — start at H2)
+  □ Logical heading order (no skipping levels)
+  □ Lists for any enumerable content (not paragraphs of commas)
+  □ <strong> for emphasis, never <b>
+  □ Descriptive link anchor text (3–7 words, never "click here")
+
+I. UX & ENGAGEMENT (dwell-time signals)
+  □ Hooks every 200–300 words (callout, stat, story, question)
+  □ Scannable: short paragraphs, lots of formatting, generous whitespace
+  □ Concrete examples in EVERY major section (no abstract theory-only sections)
+  □ Reader directly addressed ("you", "your") in every section
+  □ Curiosity gaps closed within the same article (no dead-end teases)
+
+J. CONVERSION & NEXT STEPS
+  □ Final CTA card with REAL action copy (replace ALL bracket placeholders)
+  □ "What to do next" / "Your next 10 minutes" actionable closer
+  □ Suggested related-reading anchors woven into the conclusion
+
+K. WHAT THE SYSTEM ADDS AUTOMATICALLY (DO NOT ADD YOURSELF — WILL BE STRIPPED)
+  □ References / Sources / Further Reading section → injected post-generation
+  □ YouTube embed → injected post-generation
+  □ WordPress media images (2 per post) → injected post-generation
+  □ Schema.org JSON-LD → generated post-generation
+  □ Additional internal links beyond what you wove in → injected post-generation
+
+ANY MISSING ITEM ABOVE = ARTICLE FAILS QC AND IS REWRITTEN. Treat this as a hard contract.
+═══════════════════════════════════════════════════════════════════════════════`;
 }
 
 // ─── User Prompt: The Assignment ──────────────────────────────────────────────
@@ -377,7 +476,13 @@ Write ONE bold contrarian sentence that challenges conventional wisdom. Then 3 b
 • The fastest actionable win (something they can do in <10 minutes)
 </div>
 
-[2] COLD OPEN (no heading, 250-350 words):
+[2] TL;DR / SHORT ANSWER BLOCK (40–60 words, immediately quotable by AI engines):
+<div style="background:linear-gradient(135deg,#ecfeff 0%,#cffafe 100%);border-left:5px solid #0891b2;border-radius:0 20px 20px 0;padding:24px 28px;margin:28px 0;box-shadow:0 4px 16px rgba(8,145,178,0.10);">
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;"><span style="font-size:18px;">⚡</span><strong style="font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#155e75;">The Short Answer</strong></div>
+<p style="margin:0;color:#083344;font-size:16.5px;line-height:1.75;">Write a 40–60 word direct, quotable answer to the search query. This is the snippet AI Overviews will lift verbatim. Lead with the answer, then one supporting fact with a number or source.</p>
+</div>
+
+[3] COLD OPEN (no heading, 250-350 words):
 Start with a HYPER-SPECIFIC micro-story. Not generic. Pick one of these structures:
 - A named person in a specific situation with sensory details
 - A shocking statistic that contradicts common belief
