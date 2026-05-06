@@ -381,7 +381,7 @@ export class SOTAContentGenerationEngine {
     };
   }
 
-  private async callAnthropic(apiKey: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 4096): Promise<ProviderCallResult> {
+  private async callAnthropic(apiKey: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 4096, timeoutMs: number = DEFAULT_PROVIDER_TIMEOUT_MS): Promise<ProviderCallResult> {
     const response = await this.fetchWithTimeout(this.modelConfigs.anthropic.endpoint, {
       method: 'POST',
       headers: {
