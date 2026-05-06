@@ -520,6 +520,11 @@ export function ReviewExport() {
           neuronWriterQueryId: result.neuronWriterQueryId,
           generatedAt: result.generatedAt.toISOString(),
           model: result.model,
+          checklist: result.checklist ? {
+            passed: result.checklist.passed,
+            score: result.checklist.score,
+            items: result.checklist.items,
+          } : undefined,
         };
 
         // Store the generated content in persisted store (survives navigation)
