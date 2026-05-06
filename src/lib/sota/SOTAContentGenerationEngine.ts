@@ -334,7 +334,7 @@ export class SOTAContentGenerationEngine {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requestBody)
-    });
+    }, timeoutMs);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
