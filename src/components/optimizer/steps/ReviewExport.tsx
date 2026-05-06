@@ -1053,6 +1053,9 @@ export function ReviewExport() {
                     })()}
                   </td>
                   <td className="p-4">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setViewingItem(item)}
                         className={cn(
                           "p-1.5 rounded transition-all",
                           item.status === 'completed'
