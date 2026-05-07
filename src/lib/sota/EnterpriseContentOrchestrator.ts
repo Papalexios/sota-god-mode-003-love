@@ -69,6 +69,7 @@ import { WordPressMediaService, type WordPressMediaItem } from './WordPressMedia
 import { runBlogPostChecklist, buildMissingSectionsRewritePrompt, type ChecklistResult } from './BlogPostChecklist';
 import { extractEntityCandidates } from './EntityGraph';
 import { injectCitedQuotes } from './CitedQuoteInjector';
+import { buildVoiceFingerprintDirective, type AuthorProfile, type VoiceFingerprint } from './AuthorProfiles';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS & CONFIGURATION
@@ -1172,7 +1173,14 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
     // ── Phase 5: Master Content Synthesis ─────────────────────────────────
     this.log('Phase 5: Master Content Generation (Human-First Anti-AI Engine)...');
 
-    const systemPrompt = buildMasterSystemPrompt();
+    const baseSystemPrompt = buildMasterSystemPrompt();
+    const voiceFp: VoiceFingerprint | undefined = this.config.voiceFingerprint;
+    const author: AuthorProfile | undefined = this.config.author;
+    const authorDirective = author
+      ? `\n\nAUTHOR BYLINE — write in this person's voice and credentials:\nName: ${author.name}${author.jobTitle ? `\nTitle: ${author.jobTitle}` : ''}${author.credentials?.length ? `\nCredentials: ${author.credentials.join(', ')}` : ''}${author.expertiseAreas?.length ? `\nExpertise: ${author.expertiseAreas.join(', ')}` : ''}${author.bio ? `\nBio: ${author.bio}` : ''}\nWeave their experience naturally — never invent specifics that contradict the bio.\n`
+      : '';
+    const voiceDirective = voiceFp ? buildVoiceFingerprintDirective(voiceFp) : '';
+    const systemPrompt = baseSystemPrompt + authorDirective + voiceDirective;
 
     const neuronWriterSection = neuron
       ? neuron.service.buildFullPromptSection(neuron.analysis)
