@@ -17,6 +17,7 @@ import type {
   GodModeHistoryItem,
   GodModeConfig,
 } from './sota/GodModeTypes';
+import type { AuthorProfile, VoiceFingerprint } from './sota/AuthorProfiles';
 import {
   DEFAULT_GOD_MODE_STATE,
   DEFAULT_GOD_MODE_CONFIG,
@@ -250,6 +251,17 @@ interface OptimizerStore {
   setEditedContent: (itemId: string, content: string) => void;
   removeEditedContent: (itemId: string) => void;
   clearEditedContents: () => void;
+
+  // Author Profiles + Brand Voice (M2 — E-E-A-T)
+  authors: AuthorProfile[];
+  activeAuthorId: string | null;
+  upsertAuthor: (author: AuthorProfile) => void;
+  removeAuthor: (id: string) => void;
+  setActiveAuthor: (id: string | null) => void;
+  voiceFingerprint: VoiceFingerprint | null;
+  voiceSamples: string[];
+  setVoiceSamples: (samples: string[]) => void;
+  setVoiceFingerprint: (fp: VoiceFingerprint | null) => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
