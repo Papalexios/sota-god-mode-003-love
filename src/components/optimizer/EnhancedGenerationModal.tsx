@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import {
   Loader2, Check, AlertCircle, Sparkles, X,
   Brain, Search, Youtube, BookOpen, FileText,
-  Link2, Shield, Zap, Target, Clock, TrendingUp
+  Link2, Shield, Zap, Target, Clock, TrendingUp, StopCircle, Terminal
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -48,6 +48,9 @@ interface EnhancedGenerationModalProps {
     modelId?: string;
     note?: string;
   };
+  logFeed?: Array<{ t: number; msg: string; phase?: number; level: 'info' | 'sse' | 'warn' | 'error' }>;
+  onStop?: () => void;
+  canStop?: boolean;
 }
 
 const DEFAULT_STEPS: GenerationStep[] = [
@@ -125,10 +128,21 @@ export function EnhancedGenerationModal({
   steps = DEFAULT_STEPS,
   error,
   streamTelemetry,
+  logFeed,
+  onStop,
+  canStop,
 }: EnhancedGenerationModalProps) {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [itemStartTimes, setItemStartTimes] = useState<Record<string, number>>({});
   const startTimeRef = useRef<number | null>(null);
+  const logScrollRef = useRef<HTMLDivElement | null>(null);
+  const [stopConfirm, setStopConfirm] = useState(false);
+
+  useEffect(() => {
+    if (logScrollRef.current) {
+      logScrollRef.current.scrollTop = logScrollRef.current.scrollHeight;
+    }
+  }, [logFeed]);
 
   useEffect(() => {
     if (!isOpen) {
