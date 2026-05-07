@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { getSupabaseConfig, saveSupabaseConfig, clearSupabaseConfig, validateSupabaseConfig } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 import { ensureTableExists, getLastDbCheckError } from "@/lib/api/contentPersistence";
+import { AuthorProfilesPanel } from "@/components/optimizer/AuthorProfilesPanel";
 
 const OPENROUTER_MODELS = [
   { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet' },
@@ -540,6 +541,11 @@ export function SetupConfig() {
           Connect your AI services and configure WordPress integration.
         </p>
       </div>
+
+      {/* Author Profiles + Brand Voice (M2 — E-E-A-T) */}
+      <section className="glass-card rounded-2xl p-6 sm:p-8 border border-emerald-500/20">
+        <AuthorProfilesPanel />
+      </section>
 
       {/* Save / Load Configuration */}
       <section className="glass-card rounded-2xl p-6 sm:p-8 border border-primary/20 space-y-4">

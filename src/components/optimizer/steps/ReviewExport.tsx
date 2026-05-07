@@ -418,6 +418,8 @@ export function ReviewExport() {
       organizationUrl: config.wpUrl || 'https://example.com',
       logoUrl: config.logoUrl,
       authorName: config.authorName || 'Content Team',
+      author: useOptimizerStore.getState().authors.find(a => a.id === useOptimizerStore.getState().activeAuthorId) || undefined,
+      voiceFingerprint: useOptimizerStore.getState().voiceFingerprint || undefined,
       wpUrl: config.wpUrl,
       wpUsername: config.wpUsername,
       wpAppPassword: config.wpAppPassword,
@@ -1368,8 +1370,25 @@ export function ReviewExport() {
               </div>
 
               {!cl.passed && (
-                <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-sm text-red-200">
-                  <strong>Publish blocked.</strong> Fix the mandatory items below (or regenerate this post) before publishing to WordPress.
+                <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-sm text-red-200 flex items-center justify-between gap-3 flex-wrap">
+                  <span><strong>Publish blocked.</strong> Fix the mandatory items below or rerun targeted retry.</span>
+                  <button
+                    onClick={() => {
+                      const id = showChecklistReport!;
+                      const it = contentItems.find(i => i.id === id);
+                      if (!it) return;
+                      setShowChecklistReport(null);
+                      setSelectedItems([id]);
+                      // Reset to 'pending' so handleGenerate picks it up; orchestrator's
+                      // Phase 11 auto-retry will close gaps with the user's chosen model + fallback.
+                      useOptimizerStore.getState().updateContentItem(id, { status: 'pending' });
+                      setTimeout(() => handleGenerate(), 100);
+                      toast.info('Rerunning targeted retry…');
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-100 text-xs font-bold"
+                  >
+                    Rerun targeted retry
+                  </button>
                 </div>
               )}
 
