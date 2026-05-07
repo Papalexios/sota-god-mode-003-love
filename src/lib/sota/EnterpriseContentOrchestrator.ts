@@ -1395,7 +1395,8 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
     // ── Phase 10: Schema.org Structured Data ───────────────────────────────
     this.log('Phase 10: Generating Schema.org Structured Data...');
 
-    const authorName = this.config.authorName || 'Editorial Team';
+    const authorProfile: AuthorProfile | undefined = this.config.author;
+    const authorName = authorProfile?.name || this.config.authorName || 'Editorial Team';
     const siteUrl = (this.config.organizationUrl || this.config.wpUrl || 'https://example.com').replace(/\/$/, '');
     const slug = (options.title || options.keyword).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     const articleUrl = `${siteUrl}/${slug}/`;
@@ -1408,10 +1409,12 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
       eeat: {
         author: {
           name: authorName,
-          credentials: [],
+          credentials: authorProfile?.credentials || [],
           publications: [],
-          expertiseAreas: [options.keyword],
-          socialProfiles: [],
+          expertiseAreas: authorProfile?.expertiseAreas?.length
+            ? authorProfile.expertiseAreas
+            : [options.keyword],
+          socialProfiles: (authorProfile?.social || []).map(s => ({ platform: s.platform, url: s.url })),
         },
         citations: [],
         expertReviews: [],
