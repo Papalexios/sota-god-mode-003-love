@@ -35,6 +35,9 @@ export interface ChecklistInput {
   primaryKeyword: string;
   title?: string;
   metaDescription?: string;
+  slug?: string;
+  /** Top entities (NW + SERP) to enforce coverage of. */
+  entities?: { entity: string; weight: number }[];
 }
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -89,6 +92,47 @@ function hasComparisonTable(html: string): boolean {
 function hasKeyTakeaways(html: string): boolean {
   return /key\s+(?:insight|takeaway|takeaways|points)/i.test(html) ||
     /what\s+to\s+remember/i.test(html);
+}
+
+function fleschReadingEase(text: string): number {
+  const sentences = (text.match(/[.!?]+/g) || []).length || 1;
+  const words = text.split(/\s+/).filter(Boolean);
+  const wordCount = words.length || 1;
+  const syllables = words.reduce((s, w) => s + Math.max(1, (w.toLowerCase().match(/[aeiouy]+/g) || []).length), 0);
+  return 206.835 - 1.015 * (wordCount / sentences) - 84.6 * (syllables / wordCount);
+}
+
+function passiveVoiceRatio(text: string): number {
+  const sentences = text.split(/(?<=[.!?])\s+/).filter(s => s.split(/\s+/).length >= 5);
+  if (!sentences.length) return 0;
+  const passive = sentences.filter(s =>
+    /\b(?:was|were|is|are|been|being|be)\b\s+\w+ed\b/i.test(s) ||
+    /\b(?:was|were|is|are|been|being|be)\b\s+(?:made|done|given|taken|seen|known|shown|found|built|written|sent|paid)\b/i.test(s),
+  ).length;
+  return passive / sentences.length;
+}
+
+function imageAltCoverage(html: string, keyword: string): { total: number; withAlt: number; withKeyword: number } {
+  const imgs = html.match(/<img\b[^>]*>/gi) || [];
+  let withAlt = 0, withKeyword = 0;
+  const kw = (keyword || '').toLowerCase();
+  for (const img of imgs) {
+    const m = img.match(/alt\s*=\s*["']([^"']*)["']/i);
+    if (m && m[1].trim().length > 3) {
+      withAlt++;
+      if (kw && m[1].toLowerCase().includes(kw.split(/\s+/)[0] || '')) withKeyword++;
+    }
+  }
+  return { total: imgs.length, withAlt, withKeyword };
+}
+
+function hasFreshnessSignal(text: string): boolean {
+  const yr = new Date().getFullYear();
+  return new RegExp(`\\b(?:updated|last\\s+updated|reviewed|published).{0,40}\\b(?:${yr}|${yr - 1})\\b`, 'i').test(text);
+}
+
+function hasTableOfContents(html: string): boolean {
+  return /table\s+of\s+contents/i.test(html) || /<nav[^>]*toc/i.test(html) || /id=["']toc["']/i.test(html);
 }
 
 function declarativeH2Ratio(html: string): number {
