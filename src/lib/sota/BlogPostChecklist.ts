@@ -2,11 +2,12 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 // PRE-PUBLISH BLOG POST CHECKLIST VALIDATOR
 // Verifies every generated post contains the mandatory SEO / AEO / GEO / E-E-A-T
-// blocks required to compete for #1 SERP rankings. Used by:
-//   - Vitest test-suite (sample-post fixtures)
-//   - Orchestrator auto-retry loop (regenerates missing sections only)
-//   - Review & Export pre-publish gate (blocks export on missing mandatory items)
+// blocks required to compete for #1 SERP rankings.
 // ═══════════════════════════════════════════════════════════════════════════════
+
+import { measureEntityCoverage } from './EntityGraph';
+import { measureAIVisibility } from './AIVisibility';
+
 
 export type ChecklistSeverity = 'mandatory' | 'recommended';
 export type ChecklistCategory = 'seo' | 'aeo' | 'geo' | 'eeat' | 'ux';
