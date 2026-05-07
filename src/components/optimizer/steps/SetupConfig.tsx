@@ -1065,7 +1065,18 @@ export function SetupConfig() {
           <input
             type="checkbox"
             checked={config.enableNeuronWriter}
-            onChange={(e) => setConfig({ enableNeuronWriter: e.target.checked })}
+            onChange={(e) => {
+              const enabled = e.target.checked;
+              setConfig({ enableNeuronWriter: enabled });
+              if (enabled && config.neuronWriterApiKey && config.neuronWriterApiKey.trim().length >= 10) {
+                // Optimistic: flip to "Connecting…" instantly while debounced fetch warms up.
+                setNeuronWriterError(null);
+                setNeuronWriterLoading(true);
+              } else if (!enabled) {
+                setNeuronWriterLoading(false);
+                setNeuronWriterError(null);
+              }
+            }}
             className="w-5 h-5 rounded border-border text-primary focus:ring-primary/50"
           />
           <div className="min-w-0 flex-1">
