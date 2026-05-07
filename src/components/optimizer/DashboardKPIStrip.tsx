@@ -73,7 +73,7 @@ export function DashboardKPIStrip() {
   ];
 
   return (
-    <div className="mb-4 md:mb-6 grid grid-cols-2 md:grid-cols-4 gap-2.5 md:gap-3 animate-fade-in">
+    <div className="mb-4 md:mb-6 grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-2.5 md:gap-3 animate-fade-in auto-rows-fr">
       {cards.map((c) => (
         <KPICard key={c.label} {...c} />
       ))}
@@ -102,26 +102,26 @@ function KPICard({
   }[tone];
 
   return (
-    <div className="group glass-card rounded-2xl p-3 md:p-4 relative overflow-hidden">
-      <div className="flex items-center gap-2 md:gap-2.5">
+    <div className="group glass-card rounded-xl sm:rounded-2xl p-2.5 sm:p-3 md:p-4 relative overflow-hidden flex flex-col justify-between min-w-0 h-full">
+      <div className="flex items-center gap-2 min-w-0">
         <div
           className={cn(
-            "w-8 h-8 md:w-9 md:h-9 rounded-lg md:rounded-xl flex items-center justify-center ring-1 bg-gradient-to-br to-transparent flex-shrink-0",
+            "w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-lg md:rounded-xl flex items-center justify-center ring-1 bg-gradient-to-br to-transparent flex-shrink-0",
             toneRing
           )}
         >
-          <Icon className="w-4 h-4" />
+          <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-[9px] md:text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 font-bold truncate">
+          <div className="text-[9px] md:text-[10px] uppercase tracking-[0.14em] sm:tracking-[0.18em] text-muted-foreground/70 font-bold truncate">
             {label}
           </div>
-          <div className="text-lg md:text-xl font-bold text-foreground tabular-nums leading-tight tracking-tight">
+          <div className="text-base sm:text-lg md:text-xl font-bold text-foreground tabular-nums leading-tight tracking-tight truncate">
             {value}
           </div>
         </div>
       </div>
-      <div className="mt-1.5 md:mt-2 text-[10px] md:text-[11px] text-muted-foreground/70 truncate pl-10 md:pl-[46px]">
+      <div className="mt-1.5 md:mt-2 text-[10px] md:text-[11px] text-muted-foreground/70 truncate">
         {hint}
       </div>
     </div>
