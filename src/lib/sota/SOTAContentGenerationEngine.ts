@@ -139,6 +139,30 @@ export class SOTAContentGenerationEngine {
   private onProgress?: (message: string) => void;
   private modelConfigs: Record<string, ModelConfig>;
   private fallbackInFlight = new Set<string>();
+  // Master abort — when triggered (e.g. user clicks STOP), every in-flight
+  // fetch / SSE reader bails out immediately.
+  private masterAbort: AbortController = new AbortController();
+
+  /** Abort all in-flight provider calls. Caller can issue a fresh request after. */
+  abort(reason?: string): void {
+    this.log(`USER_ABORT: ${reason || 'stop requested'}`);
+    try { this.masterAbort.abort(); } catch { /* noop */ }
+    this.masterAbort = new AbortController();
+  }
+
+  /** Returns true when the master signal is currently aborted. */
+  isAborted(): boolean {
+    return this.masterAbort.signal.aborted;
+  }
+
+  private linkAbort(child: AbortController): () => void {
+    if (this.masterAbort.signal.aborted) {
+      try { child.abort(); } catch { /* noop */ }
+    }
+    const onAbort = () => { try { child.abort(); } catch { /* noop */ } };
+    this.masterAbort.signal.addEventListener('abort', onAbort, { once: true });
+    return () => this.masterAbort.signal.removeEventListener('abort', onAbort);
+  }
 
   constructor(apiKeys: ExtendedAPIKeys, onProgress?: (message: string) => void) {
     this.apiKeys = apiKeys;
@@ -182,15 +206,20 @@ export class SOTAContentGenerationEngine {
   private async fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number = DEFAULT_PROVIDER_TIMEOUT_MS): Promise<Response> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const unlink = this.linkAbort(controller);
     try {
       return await fetch(url, { ...init, signal: controller.signal });
     } catch (err: any) {
+      if (this.masterAbort.signal.aborted) {
+        throw new Error('USER_ABORT: generation stopped by user');
+      }
       if (err?.name === 'AbortError') {
         throw new Error(`AI request timed out after ${Math.round(timeoutMs / 1000)}s — provider stalled. Falling back...`);
       }
       throw err;
     } finally {
       clearTimeout(timer);
+      unlink();
     }
   }
 
@@ -408,6 +437,7 @@ export class SOTAContentGenerationEngine {
       } catch (error) {
         lastError = error;
         const msg = error instanceof Error ? error.message : '';
+        if (msg.includes('USER_ABORT') || this.masterAbort.signal.aborted) throw error;
         // Slow-throughput abort → skip retrying the same slow model, jump to fallbacks.
         if (msg.includes('SLOW_MODEL')) break;
         if (attempt < MAX_RETRIES && this.isRetryableError(error)) continue;
@@ -567,7 +597,7 @@ export class SOTAContentGenerationEngine {
     temperature: number, maxTokens: number,
     timeoutMs: number, inactivityMs: number,
     priorContent?: string,
-  ): Promise<{ result: ProviderCallResult; aborted: boolean; reason?: 'inactivity' | 'overall' | 'slow' }> {
+  ): Promise<{ result: ProviderCallResult; aborted: boolean; reason?: 'inactivity' | 'overall' | 'slow' | 'user' }> {
     const messages: any[] = [];
     if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
     messages.push({ role: 'user', content: prompt });
@@ -577,7 +607,7 @@ export class SOTAContentGenerationEngine {
     }
 
     const controller = new AbortController();
-    let abortReason: 'inactivity' | 'overall' | 'slow' | undefined;
+    let abortReason: 'inactivity' | 'overall' | 'slow' | 'user' | 'user' | undefined;
     const overall = setTimeout(() => { abortReason = 'overall'; controller.abort(); }, timeoutMs);
     let inactivity: ReturnType<typeof setTimeout> | null = null;
     const resetInactivity = () => {
@@ -585,6 +615,10 @@ export class SOTAContentGenerationEngine {
       inactivity = setTimeout(() => { abortReason = 'inactivity'; controller.abort(); }, inactivityMs);
     };
     resetInactivity();
+    // Link master abort: user-stop cancels the SSE immediately.
+    const unlink = this.linkAbort(controller);
+    const masterListener = () => { abortReason = 'user'; };
+    this.masterAbort.signal.addEventListener('abort', masterListener, { once: true });
 
     let response: Response;
     try {
@@ -604,6 +638,7 @@ export class SOTAContentGenerationEngine {
     } catch (err: any) {
       clearTimeout(overall);
       if (inactivity) clearTimeout(inactivity);
+      unlink(); this.masterAbort.signal.removeEventListener("abort", masterListener);
       if (err?.name === 'AbortError') {
         return { result: { content: '', tokens: 0 }, aborted: true, reason: abortReason };
       }
@@ -613,12 +648,14 @@ export class SOTAContentGenerationEngine {
     if (!response.ok) {
       clearTimeout(overall);
       if (inactivity) clearTimeout(inactivity);
+      unlink(); this.masterAbort.signal.removeEventListener("abort", masterListener);
       const errorText = await response.text().catch(() => '');
       throw new Error(`${modelId} API error ${response.status}: ${errorText.slice(0, 500)}`);
     }
     if (!response.body) {
       clearTimeout(overall);
       if (inactivity) clearTimeout(inactivity);
+      unlink(); this.masterAbort.signal.removeEventListener("abort", masterListener);
       throw new Error(`${modelId} returned no response body.`);
     }
 
@@ -683,13 +720,13 @@ export class SOTAContentGenerationEngine {
       }
     } catch (err: any) {
       if (err?.name === 'AbortError') {
-        clearTimeout(overall); if (inactivity) clearTimeout(inactivity);
+        clearTimeout(overall); if (inactivity) clearTimeout(inactivity); unlink(); this.masterAbort.signal.removeEventListener("abort", masterListener);
         return { result: { content, tokens, finishReason }, aborted: true, reason: abortReason };
       }
-      clearTimeout(overall); if (inactivity) clearTimeout(inactivity);
+      clearTimeout(overall); if (inactivity) clearTimeout(inactivity); unlink(); this.masterAbort.signal.removeEventListener("abort", masterListener);
       throw err;
     }
-    clearTimeout(overall); if (inactivity) clearTimeout(inactivity);
+    clearTimeout(overall); if (inactivity) clearTimeout(inactivity); unlink(); this.masterAbort.signal.removeEventListener("abort", masterListener);
     return { result: { content, tokens, finishReason }, aborted: false };
   }
 
@@ -724,6 +761,12 @@ export class SOTAContentGenerationEngine {
 
       if (!aborted) {
         return acc;
+      }
+
+      // User pressed STOP — bubble out, do not auto-resume.
+      if (reason === 'user' || this.masterAbort.signal.aborted) {
+        this.log(`SSE: user aborted on ${modelId}.`);
+        throw new Error('USER_ABORT: generation stopped by user');
       }
 
       // Slow throughput → bail out fast so the outer retry/fallback loop

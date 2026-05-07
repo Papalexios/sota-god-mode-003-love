@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { useOptimizerStore, type ContentItem, type GeneratedContentStore, type NeuronWriterDataStore } from "@/lib/store";
 import {
   FileText, Check, X, AlertCircle, Trash2,
@@ -208,6 +208,17 @@ export function ReviewExport() {
     modelId?: string;
     note?: string;
   }>({ status: 'idle', chars: 0, tokens: 0 });
+  const [generationLog, setGenerationLog] = useState<Array<{ t: number; msg: string; phase?: number; level: 'info' | 'sse' | 'warn' | 'error' }>>([]);
+  const orchestratorRef = useRef<{ abort: (reason?: string) => void } | null>(null);
+  const userAbortRef = useRef(false);
+
+  const handleStopGeneration = useCallback(() => {
+    userAbortRef.current = true;
+    try { orchestratorRef.current?.abort('user clicked STOP'); } catch { /* noop */ }
+    setStreamTelemetry(prev => ({ ...prev, status: 'aborted', note: 'Stopped by user' }));
+    setGenerationLog(prev => [...prev, { t: Date.now(), msg: '🛑 STOP requested by user — aborting all in-flight requests…', level: 'warn' }]);
+    toast.warning('Generation stop requested. Finishing current network call then aborting…');
+  }, []);
 
   // ── Bulk Publish State ──
   const { publish, isConfigured: wpConfigured } = useWordPressPublish();
@@ -386,6 +397,8 @@ export function ReviewExport() {
     setCurrentItemIndex(0);
     setGenerationError(undefined);
     setStreamTelemetry({ status: 'idle', chars: 0, tokens: 0 });
+    setGenerationLog([{ t: Date.now(), msg: `🚀 Engaging SOTA pipeline for ${toGenerate.length} item(s)…`, level: 'info' }]);
+    userAbortRef.current = false;
     setGenerationSteps(createDefaultSteps());
     setGeneratingItems(toGenerate.map(item => ({
       id: item.id,
@@ -442,6 +455,7 @@ export function ReviewExport() {
       neuronWriterApiKey: (config.enableNeuronWriter || (config.neuronWriterApiKey && config.neuronWriterApiKey.length > 10)) ? config.neuronWriterApiKey : undefined,
       neuronWriterProjectId: (config.enableNeuronWriter || (config.neuronWriterApiKey && config.neuronWriterApiKey.length > 10)) ? config.neuronWriterProjectId : undefined,
     });
+    orchestratorRef.current = orchestrator as unknown as { abort: (reason?: string) => void };
 
     if (config.enableNeuronWriter || (config.neuronWriterApiKey && config.neuronWriterApiKey.length > 10)) {
       console.log(`[ReviewExport] NeuronWriter ACTIVATED with project: ${config.neuronWriterProjectName || config.neuronWriterProjectId} (Flag: ${config.enableNeuronWriter}, Key Present: ${!!config.neuronWriterApiKey})`);
@@ -481,6 +495,16 @@ export function ReviewExport() {
             let detectedStep = -1;
             let detectedPhase: number | undefined;
             let isSSE = false;
+            // ── Append to live log feed (capped to last 200 entries) ──
+            const logLevel: 'info' | 'sse' | 'warn' | 'error' =
+              msg.startsWith('SSE:') ? 'sse' :
+              /error|fail|abort|stalled|incompat/i.test(msg) ? 'error' :
+              /warn|skip|fallback|retry|continuation|slow/i.test(msg) ? 'warn' : 'info';
+            const phaseGuess = msg.match(/Phase\s+(\d+)/i)?.[1];
+            setGenerationLog(prev => {
+              const next = [...prev, { t: Date.now(), msg, level: logLevel, phase: phaseGuess ? parseInt(phaseGuess, 10) : undefined }];
+              return next.length > 200 ? next.slice(-200) : next;
+            });
 
             // ── SSE telemetry parser (live stream progress) ──
             if (msg.startsWith('SSE:')) {
@@ -711,6 +735,19 @@ export function ReviewExport() {
         const errorMsg = error instanceof Error
           ? `${error.name}: ${error.message}`
           : String(error) || 'Unknown generation error';
+
+        // ── USER STOP — abort the whole queue, do not show as error ──
+        if (userAbortRef.current || errorMsg.includes('USER_ABORT')) {
+          console.warn('[ReviewExport] Generation aborted by user.');
+          toast.info(`Generation stopped by user at "${item.title}".`);
+          updateContentItem(item.id, { status: 'pending' });
+          setGeneratingItems(prev => prev.map(gi =>
+            gi.id === item.id ? { ...gi, status: 'pending', error: 'Stopped by user' } : gi
+          ));
+          setGenerationError(undefined);
+          setGenerationLog(prev => [...prev, { t: Date.now(), msg: '🛑 Generation halted. Pipeline released.', level: 'warn' }]);
+          break;
+        }
 
         // Classify error for user-friendly message
         const friendlyMsg = errorMsg.includes('MODEL_INCOMPATIBLE')
@@ -1225,6 +1262,9 @@ export function ReviewExport() {
         steps={generationSteps}
         error={generationError}
         streamTelemetry={streamTelemetry}
+        logFeed={generationLog}
+        onStop={handleStopGeneration}
+        canStop={isGenerating}
       />
 
       {/* Content Viewer Panel */}

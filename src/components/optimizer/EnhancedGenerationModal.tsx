@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import {
   Loader2, Check, AlertCircle, Sparkles, X,
   Brain, Search, Youtube, BookOpen, FileText,
-  Link2, Shield, Zap, Target, Clock, TrendingUp
+  Link2, Shield, Zap, Target, Clock, TrendingUp, StopCircle, Terminal
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -48,6 +48,9 @@ interface EnhancedGenerationModalProps {
     modelId?: string;
     note?: string;
   };
+  logFeed?: Array<{ t: number; msg: string; phase?: number; level: 'info' | 'sse' | 'warn' | 'error' }>;
+  onStop?: () => void;
+  canStop?: boolean;
 }
 
 const DEFAULT_STEPS: GenerationStep[] = [
@@ -125,10 +128,21 @@ export function EnhancedGenerationModal({
   steps = DEFAULT_STEPS,
   error,
   streamTelemetry,
+  logFeed,
+  onStop,
+  canStop,
 }: EnhancedGenerationModalProps) {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [itemStartTimes, setItemStartTimes] = useState<Record<string, number>>({});
   const startTimeRef = useRef<number | null>(null);
+  const logScrollRef = useRef<HTMLDivElement | null>(null);
+  const [stopConfirm, setStopConfirm] = useState(false);
+
+  useEffect(() => {
+    if (logScrollRef.current) {
+      logScrollRef.current.scrollTop = logScrollRef.current.scrollHeight;
+    }
+  }, [logFeed]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -187,7 +201,7 @@ export function EnhancedGenerationModal({
   if (!isOpen) return null;
   return createPortal(
     <div className="fixed inset-0 bg-black/80 backdrop-blur-xl z-50 flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-300">
-      <div className="glass-card border border-white/10 rounded-3xl w-full max-w-2xl shadow-2xl relative overflow-hidden flex flex-col max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)]" style={{ width: 'min(100%, 42rem)' }}>
+      <div className="glass-card border border-white/10 rounded-3xl w-full max-w-4xl shadow-2xl relative overflow-hidden flex flex-col max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)]" style={{ width: 'min(100%, 56rem)' }}>
         {/* Ambient Glow */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 rounded-full blur-3xl -z-10 translate-x-1/2 -translate-y-1/2" />
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/20 rounded-full blur-3xl -z-10 -translate-x-1/2 translate-y-1/2" />
@@ -219,14 +233,34 @@ export function EnhancedGenerationModal({
                 </p>
               </div>
             </div>
-            {(isComplete || hasError) && (
-              <button
-                onClick={onClose}
-                className="p-3 text-zinc-400 hover:text-white rounded-xl hover:bg-white/10 transition-all hover:rotate-90 duration-300"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {!isComplete && !hasError && canStop && onStop && (
+                <button
+                  onClick={() => {
+                    if (stopConfirm) { onStop(); setStopConfirm(false); }
+                    else { setStopConfirm(true); setTimeout(() => setStopConfirm(false), 4000); }
+                  }}
+                  className={cn(
+                    "px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all border-2 shadow-lg",
+                    stopConfirm
+                      ? "bg-red-600 border-red-400 text-white animate-pulse hover:bg-red-700"
+                      : "bg-red-500/15 border-red-500/40 text-red-300 hover:bg-red-500/25 hover:border-red-500/60"
+                  )}
+                  title="Abort all in-flight requests"
+                >
+                  <StopCircle className="w-4 h-4" />
+                  {stopConfirm ? 'CLICK AGAIN TO CONFIRM' : 'STOP'}
+                </button>
+              )}
+              {(isComplete || hasError) && (
+                <button
+                  onClick={onClose}
+                  className="p-3 text-zinc-400 hover:text-white rounded-xl hover:bg-white/10 transition-all hover:rotate-90 duration-300"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Overall Progress */}
@@ -415,6 +449,45 @@ export function EnhancedGenerationModal({
             ))}
           </div>
         </div>
+
+        {/* ── REAL-TIME PIPELINE LOG (verbatim engine progress events) ── */}
+        {logFeed && logFeed.length > 0 && (
+          <div className="border-t border-white/10 bg-black/60">
+            <div className="px-6 py-2.5 flex items-center justify-between border-b border-white/5">
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-zinc-300">
+                <Terminal className="w-3.5 h-3.5 text-emerald-400" />
+                Live Pipeline Log
+                <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] tabular-nums">
+                  {logFeed.length}
+                </span>
+              </div>
+              <div className="text-[10px] uppercase tracking-wider text-zinc-500">verbatim · auto-scroll</div>
+            </div>
+            <div ref={logScrollRef} className="px-4 py-2 max-h-[180px] overflow-y-auto custom-scrollbar font-mono text-[11px] leading-relaxed">
+              {logFeed.slice(-120).map((entry, i) => {
+                const time = new Date(entry.t);
+                const ts = `${time.getHours().toString().padStart(2,'0')}:${time.getMinutes().toString().padStart(2,'0')}:${time.getSeconds().toString().padStart(2,'0')}`;
+                return (
+                  <div key={`${entry.t}-${i}`} className="flex gap-2 py-0.5 hover:bg-white/[0.03] -mx-1 px-1 rounded">
+                    <span className="text-zinc-600 tabular-nums shrink-0">{ts}</span>
+                    {entry.phase !== undefined && (
+                      <span className="text-primary/80 shrink-0">[P{entry.phase}]</span>
+                    )}
+                    <span className={cn(
+                      "break-all",
+                      entry.level === 'error' && 'text-red-300',
+                      entry.level === 'warn' && 'text-amber-300',
+                      entry.level === 'sse' && 'text-emerald-300/90',
+                      entry.level === 'info' && 'text-zinc-300',
+                    )}>
+                      {entry.msg}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Item Queue */}
         {items.length > 1 && (
