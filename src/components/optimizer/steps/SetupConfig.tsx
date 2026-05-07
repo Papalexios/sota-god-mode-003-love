@@ -1129,10 +1129,11 @@ export function SetupConfig() {
                   </button>
                 </div>
 
-                {/* Loading skeleton */}
-                {neuronWriterLoading && (
-                  <div className="space-y-2 animate-fade-in">
+                {/* Loading skeleton — only when no cached projects to show */}
+                {neuronWriterLoading && neuronWriterProjects.length === 0 && (
+                  <div className="space-y-2 animate-fade-in" aria-busy="true">
                     <div className="h-11 rounded-xl bg-white/5 border border-white/10 animate-shimmer" />
+                    <div className="h-9 rounded-xl bg-white/5 border border-white/10 animate-shimmer" />
                     <div className="flex items-center gap-2 text-[11px] text-primary/80">
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       Connecting to NeuronWriter…
