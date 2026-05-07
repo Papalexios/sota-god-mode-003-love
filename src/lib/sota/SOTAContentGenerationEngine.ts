@@ -637,6 +637,7 @@ export class SOTAContentGenerationEngine {
     } catch (err: any) {
       clearTimeout(overall);
       if (inactivity) clearTimeout(inactivity);
+      unlink(); this.masterAbort.signal.removeEventListener("abort", masterListener);
       if (err?.name === 'AbortError') {
         return { result: { content: '', tokens: 0 }, aborted: true, reason: abortReason };
       }
@@ -646,12 +647,14 @@ export class SOTAContentGenerationEngine {
     if (!response.ok) {
       clearTimeout(overall);
       if (inactivity) clearTimeout(inactivity);
+      unlink(); this.masterAbort.signal.removeEventListener("abort", masterListener);
       const errorText = await response.text().catch(() => '');
       throw new Error(`${modelId} API error ${response.status}: ${errorText.slice(0, 500)}`);
     }
     if (!response.body) {
       clearTimeout(overall);
       if (inactivity) clearTimeout(inactivity);
+      unlink(); this.masterAbort.signal.removeEventListener("abort", masterListener);
       throw new Error(`${modelId} returned no response body.`);
     }
 
