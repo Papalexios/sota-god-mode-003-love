@@ -564,7 +564,7 @@ export class SOTAContentGenerationEngine {
     temperature: number, maxTokens: number,
     timeoutMs: number, inactivityMs: number,
     priorContent?: string,
-  ): Promise<{ result: ProviderCallResult; aborted: boolean; reason?: 'inactivity' | 'overall' }> {
+  ): Promise<{ result: ProviderCallResult; aborted: boolean; reason?: 'inactivity' | 'overall' | 'slow' }> {
     const messages: any[] = [];
     if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
     messages.push({ role: 'user', content: prompt });
@@ -574,7 +574,7 @@ export class SOTAContentGenerationEngine {
     }
 
     const controller = new AbortController();
-    let abortReason: 'inactivity' | 'overall' | undefined;
+    let abortReason: 'inactivity' | 'overall' | 'slow' | undefined;
     const overall = setTimeout(() => { abortReason = 'overall'; controller.abort(); }, timeoutMs);
     let inactivity: ReturnType<typeof setTimeout> | null = null;
     const resetInactivity = () => {
