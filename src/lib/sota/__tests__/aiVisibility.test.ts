@@ -14,8 +14,8 @@ describe('AIVisibility.measureAIVisibility', () => {
 
   it('marks dollar amounts and named-source citations', () => {
     const html =
-      para(`Revenue jumped to $12,500 monthly per cohort, the team reported. ${padding}`) +
-      para(`According to Gartner the trend is accelerating across SaaS firms. ${padding}`);
+      para(`Revenue jumped to $12,500 monthly per cohort, the team reported in 2024. ${padding}`) +
+      para(`According to Gartner, the trend is accelerating across SaaS firms in 2023. ${padding}`);
     const r = measureAIVisibility(html);
     expect(r.citationWorthy).toBe(2);
   });
