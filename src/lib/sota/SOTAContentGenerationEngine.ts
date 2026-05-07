@@ -266,7 +266,11 @@ export class SOTAContentGenerationEngine {
     // garbage. Throw a NON-retryable, actionable error so the UI can surface
     // "switch model" instead of looping for 8 minutes.
     if (!trimmed) {
-      throw new Error(`MODEL_INCOMPATIBLE: ${label} returned an empty response (finish_reason=${finishReason || 'unknown'}). This model cannot generate long-form articles — switch to a different model in Setup.`);
+      const isLength = finishReason && TRUNCATED_FINISH_REASONS.has(finishReason);
+      const hint = isLength
+        ? `streamed only SSE keepalives and ended with finish_reason=${finishReason} and ZERO content tokens. This free/stealth OpenRouter route is currently broken, rate-limited, or refusing the prompt.`
+        : `returned an empty response (finish_reason=${finishReason || 'unknown'}).`;
+      throw new Error(`MODEL_INCOMPATIBLE: ${label} ${hint} Switch to a paid model (anthropic/claude-3.5-sonnet, openai/gpt-4o, or google/gemini-2.0-flash-exp) in Setup.`);
     }
     const wordCount = this.countWords(trimmed);
     if (finishReason === 'stop' && wordCount < 200) {
