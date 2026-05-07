@@ -749,13 +749,13 @@ export class SOTAContentGenerationEngine {
       }
     } catch (err: any) {
       if (err?.name === 'AbortError') {
-        clearTimeout(overall); if (inactivity) clearTimeout(inactivity); unlink(); this.masterAbort.signal.removeEventListener("abort", masterListener);
+        clearTimeout(overall); if (inactivity) clearTimeout(inactivity); clearTimeout(firstTokenTimer); unlink(); this.masterAbort.signal.removeEventListener("abort", masterListener);
         return { result: { content, tokens, finishReason }, aborted: true, reason: abortReason };
       }
-      clearTimeout(overall); if (inactivity) clearTimeout(inactivity); unlink(); this.masterAbort.signal.removeEventListener("abort", masterListener);
+      clearTimeout(overall); if (inactivity) clearTimeout(inactivity); clearTimeout(firstTokenTimer); unlink(); this.masterAbort.signal.removeEventListener("abort", masterListener);
       throw err;
     }
-    clearTimeout(overall); if (inactivity) clearTimeout(inactivity); unlink(); this.masterAbort.signal.removeEventListener("abort", masterListener);
+    clearTimeout(overall); if (inactivity) clearTimeout(inactivity); clearTimeout(firstTokenTimer); unlink(); this.masterAbort.signal.removeEventListener("abort", masterListener);
     return { result: { content, tokens, finishReason }, aborted: false };
   }
 
