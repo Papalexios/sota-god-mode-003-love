@@ -300,7 +300,56 @@ export function EnhancedGenerationModal({
           </div>
         )}
 
-        {/* Steps */}
+        {/* SSE Live Telemetry */}
+        {streamTelemetry && streamTelemetry.status !== 'idle' && (
+          <div className="px-6 py-4 border-b border-white/10 bg-black/30">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-3">
+                <span className={cn(
+                  "inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider border",
+                  streamTelemetry.status === 'connecting' && "bg-blue-500/15 border-blue-500/40 text-blue-300",
+                  streamTelemetry.status === 'streaming' && "bg-emerald-500/15 border-emerald-500/40 text-emerald-300",
+                  streamTelemetry.status === 'resuming' && "bg-amber-500/15 border-amber-500/40 text-amber-300",
+                  streamTelemetry.status === 'aborted' && "bg-red-500/15 border-red-500/40 text-red-300",
+                  streamTelemetry.status === 'completed' && "bg-zinc-500/15 border-zinc-500/40 text-zinc-300",
+                )}>
+                  <span className={cn(
+                    "w-2 h-2 rounded-full",
+                    streamTelemetry.status === 'streaming' && "bg-emerald-400 animate-pulse",
+                    streamTelemetry.status === 'connecting' && "bg-blue-400 animate-pulse",
+                    streamTelemetry.status === 'resuming' && "bg-amber-400 animate-pulse",
+                    streamTelemetry.status === 'aborted' && "bg-red-400",
+                    streamTelemetry.status === 'completed' && "bg-zinc-400",
+                  )} />
+                  SSE {streamTelemetry.status}
+                </span>
+                {streamTelemetry.modelId && (
+                  <span className="text-xs font-mono text-zinc-400 truncate max-w-[260px]" title={streamTelemetry.modelId}>
+                    {streamTelemetry.modelId}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-4 text-xs">
+                <div>
+                  <span className="text-zinc-500">chars </span>
+                  <span className="font-mono font-bold text-white tabular-nums">{streamTelemetry.chars.toLocaleString()}</span>
+                </div>
+                {streamTelemetry.tokens > 0 && (
+                  <div>
+                    <span className="text-zinc-500">tokens </span>
+                    <span className="font-mono font-bold text-white tabular-nums">{streamTelemetry.tokens.toLocaleString()}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            {streamTelemetry.note && (
+              <div className="mt-2 text-[11px] text-zinc-500 truncate" title={streamTelemetry.note}>
+                {streamTelemetry.note}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="p-6 max-h-[300px] overflow-y-auto custom-scrollbar">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {steps.map((step) => (
