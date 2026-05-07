@@ -90,6 +90,15 @@ const DEFAULT_STREAM_INACTIVITY_MS = 90_000;
 const STREAM_RESUME_ATTEMPTS = 3;
 const TRUNCATED_FINISH_REASONS = new Set(['length', 'max_tokens', 'max_output_tokens', 'MAX_TOKENS']);
 
+// Throughput watchdog: if a stream sustains a char-per-second rate below this
+// threshold for the grace window AND we haven't already produced enough output,
+// treat it as "too slow" and trigger an immediate fallback to the next model.
+// This is what saves users from 8-minute "Forging Content 56%" hangs on
+// stalled free OpenRouter backends.
+const SLOW_THROUGHPUT_CPS = 3;
+const SLOW_THROUGHPUT_GRACE_MS = 75_000;
+const SLOW_THROUGHPUT_MIN_ELAPSED_MS = 30_000;
+
 // Per-model OVERRIDES for known-slow OpenRouter / community-routed backends.
 interface ModelTimingPreset { pattern: RegExp; label: string; timeoutMs: number; inactivityMs: number; }
 const SLOW_MODEL_PRESETS: ModelTimingPreset[] = [
