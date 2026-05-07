@@ -450,6 +450,45 @@ export function EnhancedGenerationModal({
           </div>
         </div>
 
+        {/* ── REAL-TIME PIPELINE LOG (verbatim engine progress events) ── */}
+        {logFeed && logFeed.length > 0 && (
+          <div className="border-t border-white/10 bg-black/60">
+            <div className="px-6 py-2.5 flex items-center justify-between border-b border-white/5">
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-zinc-300">
+                <Terminal className="w-3.5 h-3.5 text-emerald-400" />
+                Live Pipeline Log
+                <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] tabular-nums">
+                  {logFeed.length}
+                </span>
+              </div>
+              <div className="text-[10px] uppercase tracking-wider text-zinc-500">verbatim · auto-scroll</div>
+            </div>
+            <div ref={logScrollRef} className="px-4 py-2 max-h-[180px] overflow-y-auto custom-scrollbar font-mono text-[11px] leading-relaxed">
+              {logFeed.slice(-120).map((entry, i) => {
+                const time = new Date(entry.t);
+                const ts = `${time.getHours().toString().padStart(2,'0')}:${time.getMinutes().toString().padStart(2,'0')}:${time.getSeconds().toString().padStart(2,'0')}`;
+                return (
+                  <div key={`${entry.t}-${i}`} className="flex gap-2 py-0.5 hover:bg-white/[0.03] -mx-1 px-1 rounded">
+                    <span className="text-zinc-600 tabular-nums shrink-0">{ts}</span>
+                    {entry.phase !== undefined && (
+                      <span className="text-primary/80 shrink-0">[P{entry.phase}]</span>
+                    )}
+                    <span className={cn(
+                      "break-all",
+                      entry.level === 'error' && 'text-red-300',
+                      entry.level === 'warn' && 'text-amber-300',
+                      entry.level === 'sse' && 'text-emerald-300/90',
+                      entry.level === 'info' && 'text-zinc-300',
+                    )}>
+                      {entry.msg}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Item Queue */}
         {items.length > 1 && (
           <div className="p-4 border-t border-border">
