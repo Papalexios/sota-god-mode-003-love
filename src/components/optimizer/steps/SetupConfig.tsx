@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { getSupabaseConfig, saveSupabaseConfig, clearSupabaseConfig, validateSupabaseConfig } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 import { ensureTableExists, getLastDbCheckError } from "@/lib/api/contentPersistence";
+import { AuthorProfilesPanel } from "@/components/optimizer/AuthorProfilesPanel";
 
 const OPENROUTER_MODELS = [
   { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet' },
