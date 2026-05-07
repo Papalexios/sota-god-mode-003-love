@@ -6,10 +6,24 @@
 import { useState } from 'react';
 import { useOptimizerStore } from '@/lib/store';
 import { extractVoiceFingerprint, type AuthorProfile } from '@/lib/sota/AuthorProfiles';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Card } from '@/components/ui/card';
+// Inline minimal primitives (project ships sonner/skeleton only)
+const Button = ({ className, children, variant, size, ...p }: any) => (
+  <button {...p} className={cn(
+    'inline-flex items-center justify-center rounded-lg px-3 py-2 text-sm font-medium transition-colors disabled:opacity-50',
+    variant === 'outline' ? 'border border-white/15 bg-transparent hover:bg-white/5' : 'bg-primary text-primary-foreground hover:brightness-110',
+    size === 'sm' ? 'h-8 px-2 text-xs' : '',
+    className,
+  )}>{children}</button>
+);
+const Input = ({ className, ...p }: any) => (
+  <input {...p} className={cn('w-full h-9 px-3 rounded-lg bg-background/60 border border-white/10 text-sm focus:outline-none focus:border-emerald-500/40', className)} />
+);
+const Textarea = ({ className, ...p }: any) => (
+  <textarea {...p} className={cn('w-full px-3 py-2 rounded-lg bg-background/60 border border-white/10 text-sm focus:outline-none focus:border-emerald-500/40 font-mono', className)} />
+);
+const Card = ({ className, children }: any) => (
+  <div className={cn('rounded-2xl border', className)}>{children}</div>
+);
 import { Plus, Trash2, User, Sparkles, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
