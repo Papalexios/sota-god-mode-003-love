@@ -495,6 +495,16 @@ export function ReviewExport() {
             let detectedStep = -1;
             let detectedPhase: number | undefined;
             let isSSE = false;
+            // ── Append to live log feed (capped to last 200 entries) ──
+            const logLevel: 'info' | 'sse' | 'warn' | 'error' =
+              msg.startsWith('SSE:') ? 'sse' :
+              /error|fail|abort|stalled|incompat/i.test(msg) ? 'error' :
+              /warn|skip|fallback|retry|continuation|slow/i.test(msg) ? 'warn' : 'info';
+            const phaseGuess = msg.match(/Phase\s+(\d+)/i)?.[1];
+            setGenerationLog(prev => {
+              const next = [...prev, { t: Date.now(), msg, level: logLevel, phase: phaseGuess ? parseInt(phaseGuess, 10) : undefined }];
+              return next.length > 200 ? next.slice(-200) : next;
+            });
 
             // ── SSE telemetry parser (live stream progress) ──
             if (msg.startsWith('SSE:')) {
