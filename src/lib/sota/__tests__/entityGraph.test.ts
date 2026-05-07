@@ -100,7 +100,7 @@ describe('EntityGraph.measureEntityCoverage', () => {
     </article>`;
     const ents = [
       { entity: 'google cloud next 2024', weight: 5 },
-      { entity: 'mckinsey & company', weight: 4 },
+      { entity: 'mckinsey company', weight: 4 },
       { entity: 'openai gpt-4', weight: 4 },
       { entity: 'european union', weight: 3 },
       { entity: 'gdpr', weight: 3 },
