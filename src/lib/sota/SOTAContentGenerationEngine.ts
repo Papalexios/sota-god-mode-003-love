@@ -185,8 +185,17 @@ export class SOTAContentGenerationEngine {
     }
   }
 
+  private timingFor(model: AIModel, modelId?: string): { timeoutMs: number; inactivityMs: number; presetLabel?: string } {
+    const baseTimeout = PROVIDER_TIMEOUT_MS[model] ?? DEFAULT_PROVIDER_TIMEOUT_MS;
+    const preset = modelId ? presetForModel(modelId) : undefined;
+    return {
+      timeoutMs: Math.max(baseTimeout, preset?.timeoutMs ?? 0),
+      inactivityMs: preset?.inactivityMs ?? DEFAULT_STREAM_INACTIVITY_MS,
+      presetLabel: preset?.label,
+    };
+  }
   private timeoutFor(model: AIModel): number {
-    return PROVIDER_TIMEOUT_MS[model] ?? DEFAULT_PROVIDER_TIMEOUT_MS;
+    return this.timingFor(model).timeoutMs;
   }
 
   private isRetryableError(error: unknown): boolean {
