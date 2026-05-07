@@ -116,7 +116,10 @@ export class EnterpriseContentOrchestrator {
     // Extract serperApiKey from nested apiKeys or from top-level config
     const serperKey = config.apiKeys?.serperApiKey || config.serperApiKey || '';
 
-    this.engine = createSOTAEngine(config.apiKeys);
+    // CRITICAL: pipe engine progress (retries, continuations, fallbacks) to UI
+    this.engine = createSOTAEngine(config.apiKeys, (msg: string) => {
+      this.log(`[Engine] ${msg}`);
+    });
     this.serpAnalyzer = createSERPAnalyzer(serperKey);
     this.youtubeService = createYouTubeService(serperKey);
     this.referenceService = createReferenceService(serperKey);

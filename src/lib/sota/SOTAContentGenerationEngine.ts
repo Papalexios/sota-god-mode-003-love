@@ -46,7 +46,7 @@ const DEFAULT_MODEL_CONFIGS: Record<AIModel, ModelConfig> = {
     endpoint: 'https://openrouter.ai/api/v1/chat/completions',
     modelId: 'anthropic/claude-3.5-sonnet:beta',
     weight: 0.9,
-    maxTokens: 8192,
+    maxTokens: 16384, // Raised: free routed models need headroom for long-form
   },
   groq: {
     endpoint: 'https://api.groq.com/openai/v1/chat/completions',
@@ -55,6 +55,12 @@ const DEFAULT_MODEL_CONFIGS: Record<AIModel, ModelConfig> = {
     maxTokens: 8192,
   },
 };
+
+// Free / community OpenRouter backends often cap a single response well below
+// what a 3000-word article needs. When that happens the API returns
+// finish_reason="length" with a partial body. Instead of failing the whole
+// pipeline, we automatically continue the assistant turn and stitch.
+const MAX_CONTINUATIONS = 6;
 
 export interface ExtendedAPIKeys extends APIKeys {
   openrouterModelId?: string;
@@ -179,13 +185,13 @@ export class SOTAContentGenerationEngine {
     return text.replace(/<[^>]*>/g, ' ').split(/\s+/).filter(Boolean).length;
   }
 
-  private validateGeneration(content: string, params: GenerationParams, finishReason?: string, modelId?: string): void {
+  private validateGeneration(content: string, params: GenerationParams, finishReason?: string, modelId?: string, opts: { allowTruncation?: boolean } = {}): void {
     const trimmed = (content || '').trim();
     const validation = params.validation;
     const label = `${params.model}${modelId ? `/${modelId}` : ''}`;
 
     if (!trimmed) throw new Error(`${label} returned an empty response.`);
-    if (finishReason && TRUNCATED_FINISH_REASONS.has(finishReason)) {
+    if (!opts.allowTruncation && finishReason && TRUNCATED_FINISH_REASONS.has(finishReason)) {
       throw new Error(`${label} output was truncated by token limits (${finishReason}). Falling back...`);
     }
     if (!validation) return;
@@ -207,6 +213,76 @@ export class SOTAContentGenerationEngine {
         throw new Error(`${label} returned invalid article HTML. Falling back...`);
       }
     }
+  }
+
+  /**
+   * For OpenRouter / OpenAI-compatible providers: when finish_reason='length',
+   * continue the assistant turn so we get a complete article instead of a
+   * truncated 4-8k token stub. This is what makes free models like
+   * `tencent/hy3-preview:free` and `openrouter/owl-alpha` actually finish.
+   */
+  private async continueIfTruncated(
+    initial: ProviderCallResult,
+    params: GenerationParams,
+    config: ModelConfig,
+    apiKey: string,
+    finalMaxTokens: number,
+    timeoutMs: number,
+  ): Promise<ProviderCallResult> {
+    if (params.model !== 'openrouter' && params.model !== 'groq' && params.model !== 'openai') {
+      return initial;
+    }
+    let acc = initial;
+    let rounds = 0;
+    while (
+      rounds < MAX_CONTINUATIONS &&
+      acc.finishReason &&
+      TRUNCATED_FINISH_REASONS.has(acc.finishReason) &&
+      acc.content &&
+      acc.content.length > 200
+    ) {
+      rounds++;
+      this.log(`Continuation ${rounds}/${MAX_CONTINUATIONS} — model returned finish_reason=length, stitching next chunk...`);
+      const messages: any[] = [];
+      if (params.systemPrompt) messages.push({ role: 'system', content: params.systemPrompt });
+      messages.push({ role: 'user', content: params.prompt });
+      messages.push({ role: 'assistant', content: acc.content });
+      messages.push({ role: 'user', content: 'Continue the article EXACTLY where you stopped. Do not repeat any previous content. Do not restart sentences. Resume mid-token if needed and continue until you reach </article>. Output raw HTML only.' });
+
+      const next = await this.fetchWithTimeout(config.endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: config.modelId,
+          messages,
+          temperature: params.temperature ?? 0.7,
+          max_tokens: finalMaxTokens,
+        }),
+      }, timeoutMs);
+
+      if (!next.ok) {
+        this.log(`Continuation HTTP ${next.status} — stopping stitch loop.`);
+        break;
+      }
+      const data = await next.json().catch(() => null);
+      const choice = data?.choices?.[0] || {};
+      const chunk = choice.message?.content || '';
+      if (!chunk || chunk.trim().length < 20) {
+        this.log('Continuation returned empty chunk — stopping.');
+        break;
+      }
+      acc = {
+        content: acc.content + chunk,
+        tokens: (acc.tokens || 0) + (data?.usage?.total_tokens || 0),
+        finishReason: choice.finish_reason,
+      };
+      this.log(`Continuation ${rounds}: +${chunk.length} chars (total ${acc.content.length}, finish=${acc.finishReason}).`);
+      if (/<\/article>/i.test(acc.content)) {
+        this.log('Continuation: detected </article> — article complete.');
+        break;
+      }
+    }
+    return acc;
   }
 
   async generateWithModel(params: GenerationParams): Promise<GenerationResult> {
@@ -253,6 +329,9 @@ export class SOTAContentGenerationEngine {
         } else if (model === 'openrouter' || model === 'groq') {
           providerResult = await this.callOpenAICompatible(config.endpoint, apiKey, config.modelId, prompt, systemPrompt, temperature, finalMaxTokens, providerTimeout);
         }
+
+        // If the provider truncated, transparently continue the turn before validating.
+        providerResult = await this.continueIfTruncated(providerResult, params, config, apiKey, finalMaxTokens, providerTimeout);
 
         this.validateGeneration(providerResult.content, params, providerResult.finishReason, config.modelId);
 
