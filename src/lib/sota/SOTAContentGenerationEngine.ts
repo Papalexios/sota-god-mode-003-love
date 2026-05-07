@@ -206,15 +206,20 @@ export class SOTAContentGenerationEngine {
   private async fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number = DEFAULT_PROVIDER_TIMEOUT_MS): Promise<Response> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const unlink = this.linkAbort(controller);
     try {
       return await fetch(url, { ...init, signal: controller.signal });
     } catch (err: any) {
+      if (this.masterAbort.signal.aborted) {
+        throw new Error('USER_ABORT: generation stopped by user');
+      }
       if (err?.name === 'AbortError') {
         throw new Error(`AI request timed out after ${Math.round(timeoutMs / 1000)}s — provider stalled. Falling back...`);
       }
       throw err;
     } finally {
       clearTimeout(timer);
+      unlink();
     }
   }
 
