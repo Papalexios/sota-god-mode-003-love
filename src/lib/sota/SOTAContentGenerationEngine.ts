@@ -86,11 +86,23 @@ const PROVIDER_TIMEOUT_MS: Record<string, number> = {
   groq: 300_000,
 };
 const DEFAULT_PROVIDER_TIMEOUT_MS = 300_000;
-// If no SSE chunk arrives for this long, treat the connection as dead.
-// 90s covers slow free OpenRouter backends (DeepInfra/Novita) doing initial
-// model load, but bails on a truly stalled connection so we don't hang forever.
-const STREAM_INACTIVITY_MS = 90_000;
+const DEFAULT_STREAM_INACTIVITY_MS = 90_000;
+const STREAM_RESUME_ATTEMPTS = 3;
 const TRUNCATED_FINISH_REASONS = new Set(['length', 'max_tokens', 'max_output_tokens', 'MAX_TOKENS']);
+
+// Per-model OVERRIDES for known-slow OpenRouter / community-routed backends.
+interface ModelTimingPreset { pattern: RegExp; label: string; timeoutMs: number; inactivityMs: number; }
+const SLOW_MODEL_PRESETS: ModelTimingPreset[] = [
+  { pattern: /tencent\/hy3/i,             label: 'Tencent Hunyuan',     timeoutMs: 1_800_000, inactivityMs: 180_000 },
+  { pattern: /owl-alpha/i,                label: 'Owl Alpha (stealth)', timeoutMs: 1_500_000, inactivityMs: 150_000 },
+  { pattern: /:free$/i,                   label: 'free routed',         timeoutMs: 1_800_000, inactivityMs: 180_000 },
+  { pattern: /deepseek/i,                 label: 'DeepSeek',            timeoutMs: 1_200_000, inactivityMs: 120_000 },
+  { pattern: /qwen/i,                     label: 'Qwen',                timeoutMs: 1_200_000, inactivityMs: 120_000 },
+  { pattern: /llama-?(3\.1|3\.3|4)-?(70|405)b/i, label: 'Llama big',    timeoutMs: 1_200_000, inactivityMs: 120_000 },
+];
+function presetForModel(modelId: string): ModelTimingPreset | undefined {
+  return SLOW_MODEL_PRESETS.find(p => p.pattern.test(modelId));
+}
 
 interface ProviderCallResult {
   content: string;
