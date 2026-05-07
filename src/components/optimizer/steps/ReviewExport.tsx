@@ -455,6 +455,7 @@ export function ReviewExport() {
       neuronWriterApiKey: (config.enableNeuronWriter || (config.neuronWriterApiKey && config.neuronWriterApiKey.length > 10)) ? config.neuronWriterApiKey : undefined,
       neuronWriterProjectId: (config.enableNeuronWriter || (config.neuronWriterApiKey && config.neuronWriterApiKey.length > 10)) ? config.neuronWriterProjectId : undefined,
     });
+    orchestratorRef.current = orchestrator as unknown as { abort: (reason?: string) => void };
 
     if (config.enableNeuronWriter || (config.neuronWriterApiKey && config.neuronWriterApiKey.length > 10)) {
       console.log(`[ReviewExport] NeuronWriter ACTIVATED with project: ${config.neuronWriterProjectName || config.neuronWriterProjectId} (Flag: ${config.enableNeuronWriter}, Key Present: ${!!config.neuronWriterApiKey})`);
