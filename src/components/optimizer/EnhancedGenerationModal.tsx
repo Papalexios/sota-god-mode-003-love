@@ -37,6 +37,13 @@ interface EnhancedGenerationModalProps {
   overallProgress: number;
   steps: GenerationStep[];
   error?: string;
+  streamTelemetry?: {
+    status: 'idle' | 'connecting' | 'streaming' | 'resuming' | 'completed' | 'aborted';
+    chars: number;
+    tokens: number;
+    modelId?: string;
+    note?: string;
+  };
 }
 
 const DEFAULT_STEPS: GenerationStep[] = [
