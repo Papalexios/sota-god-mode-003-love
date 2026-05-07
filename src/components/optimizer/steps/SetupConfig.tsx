@@ -541,6 +541,11 @@ export function SetupConfig() {
         </p>
       </div>
 
+      {/* Author Profiles + Brand Voice (M2 — E-E-A-T) */}
+      <section className="glass-card rounded-2xl p-6 sm:p-8 border border-emerald-500/20">
+        <AuthorProfilesPanel />
+      </section>
+
       {/* Save / Load Configuration */}
       <section className="glass-card rounded-2xl p-6 sm:p-8 border border-primary/20 space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
