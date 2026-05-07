@@ -362,7 +362,11 @@ export class SOTAContentGenerationEngine {
       try {
         let providerResult: ProviderCallResult = { content: '', tokens: 0 };
 
-        const providerTimeout = this.timeoutFor(model);
+        const timing = this.timingFor(model, config.modelId);
+        const providerTimeout = timing.timeoutMs;
+        if (timing.presetLabel) {
+          this.log(`Detected slow model preset: ${timing.presetLabel} → timeout ${Math.round(providerTimeout / 1000)}s, inactivity ${Math.round(timing.inactivityMs / 1000)}s`);
+        }
         if (model === 'gemini') {
           providerResult = await this.callGemini(apiKey, prompt, systemPrompt, temperature, finalMaxTokens, providerTimeout);
         } else if (model === 'openai') {
@@ -370,7 +374,10 @@ export class SOTAContentGenerationEngine {
         } else if (model === 'anthropic') {
           providerResult = await this.callAnthropic(apiKey, prompt, systemPrompt, temperature, finalMaxTokens, providerTimeout);
         } else if (model === 'openrouter' || model === 'groq') {
-          providerResult = await this.callOpenAICompatible(config.endpoint, apiKey, config.modelId, prompt, systemPrompt, temperature, finalMaxTokens, providerTimeout);
+          providerResult = await this.streamOpenAICompatibleWithResume(
+            config.endpoint, apiKey, config.modelId, params,
+            finalMaxTokens, providerTimeout, timing.inactivityMs,
+          );
         }
 
         // If the provider truncated, transparently continue the turn before validating.
