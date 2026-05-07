@@ -437,6 +437,7 @@ export class SOTAContentGenerationEngine {
       } catch (error) {
         lastError = error;
         const msg = error instanceof Error ? error.message : '';
+        if (msg.includes('USER_ABORT') || this.masterAbort.signal.aborted) throw error;
         // Slow-throughput abort → skip retrying the same slow model, jump to fallbacks.
         if (msg.includes('SLOW_MODEL')) break;
         if (attempt < MAX_RETRIES && this.isRetryableError(error)) continue;
