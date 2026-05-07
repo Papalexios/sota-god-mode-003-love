@@ -119,7 +119,8 @@ export function EnhancedGenerationModal({
   currentItemIndex,
   overallProgress,
   steps = DEFAULT_STEPS,
-  error
+  error,
+  streamTelemetry,
 }: EnhancedGenerationModalProps) {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [itemStartTimes, setItemStartTimes] = useState<Record<string, number>>({});
