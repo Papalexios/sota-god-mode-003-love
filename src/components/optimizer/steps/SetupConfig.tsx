@@ -1170,9 +1170,9 @@ export function SetupConfig() {
                   </div>
                 )}
 
-                {/* Project list */}
-                {!neuronWriterLoading && !neuronWriterError && neuronWriterProjects.length > 0 && (
-                  <>
+                {/* Project list — kept visible during refresh (optimistic stale-while-revalidate) */}
+                {!neuronWriterError && neuronWriterProjects.length > 0 && (
+                  <div className={cn("space-y-2 transition-opacity", neuronWriterLoading && "opacity-60")}>
                     <select
                       value={config.neuronWriterProjectId}
                       onChange={(e) => handleProjectSelect(e.target.value)}
@@ -1186,7 +1186,12 @@ export function SetupConfig() {
                         </option>
                       ))}
                     </select>
-                    {config.neuronWriterProjectId && (
+                    {neuronWriterLoading && (
+                      <div className="flex items-center gap-1.5 text-[11px] text-primary/80">
+                        <Loader2 className="w-3 h-3 animate-spin" /> Refreshing…
+                      </div>
+                    )}
+                    {!neuronWriterLoading && config.neuronWriterProjectId && (
                       <div className="flex items-center gap-2 text-emerald-300 text-sm p-2.5 bg-emerald-500/10 border border-emerald-500/25 rounded-xl">
                         <Check className="w-4 h-4 flex-shrink-0" />
                         <span className="min-w-0 truncate">
@@ -1194,7 +1199,7 @@ export function SetupConfig() {
                         </span>
                       </div>
                     )}
-                  </>
+                  </div>
                 )}
 
                 {/* No projects */}
