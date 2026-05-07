@@ -1019,96 +1019,227 @@ export function SetupConfig() {
         </div>
       </section>
 
-      {/* NeuronWriter Integration */}
-      <section className="bg-card border border-border rounded-2xl p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-primary" />
-          NeuronWriter Integration
-        </h2>
-        <label className="flex items-center gap-3 cursor-pointer mb-4">
-          <input type="checkbox" checked={config.enableNeuronWriter} onChange={(e) => setConfig({ enableNeuronWriter: e.target.checked })} className="w-5 h-5 rounded border-border text-primary focus:ring-primary/50" />
-          <span className="text-sm text-foreground">Enable NeuronWriter Integration</span>
+      {/* NeuronWriter Integration — SOTA */}
+      <section className="glass-card rounded-2xl p-6 md:p-8 hover:shadow-lg transition-all duration-300 group relative overflow-hidden">
+        <div
+          className="pointer-events-none absolute -top-20 -right-20 w-60 h-60 rounded-full opacity-30 blur-3xl"
+          style={{ background: "radial-gradient(closest-side, hsla(160,84%,39%,0.18), transparent)" }}
+        />
+
+        {/* Header with live connection status */}
+        <div className="relative flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-5">
+          <div className="flex items-start gap-3">
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary/25 to-emerald-700/15 border border-primary/30 flex items-center justify-center shadow-md shadow-primary/15 ring-1 ring-white/5 group-hover:scale-105 transition-transform duration-300">
+              <Sparkles className="w-5 h-5 text-primary" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-lg md:text-xl font-bold text-foreground tracking-tight">NeuronWriter Integration</h2>
+              <p className="text-xs md:text-sm text-muted-foreground mt-0.5 leading-relaxed">
+                Pull live SERP terms, entities, and competitor headings to score &gt;90/100 on every post.
+              </p>
+            </div>
+          </div>
+
+          {/* Status pill */}
+          <div className="flex flex-wrap items-center gap-2">
+            <ConnectionStatusPill
+              enabled={!!config.enableNeuronWriter}
+              loading={neuronWriterLoading}
+              error={!!neuronWriterError}
+              hasKey={!!(config.neuronWriterApiKey && config.neuronWriterApiKey.trim().length >= 10)}
+              projects={neuronWriterProjects.length}
+              selected={!!config.neuronWriterProjectId}
+            />
+            <a
+              href="https://app.neuronwriter.com/ncapi/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[11px] text-muted-foreground hover:text-primary inline-flex items-center gap-1 underline-offset-2 hover:underline"
+            >
+              Get API key <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+        </div>
+
+        <label className="flex items-center gap-3 cursor-pointer mb-4 p-3 rounded-xl bg-background/40 border border-border/40 hover:border-primary/30 transition-colors">
+          <input
+            type="checkbox"
+            checked={config.enableNeuronWriter}
+            onChange={(e) => setConfig({ enableNeuronWriter: e.target.checked })}
+            className="w-5 h-5 rounded border-border text-primary focus:ring-primary/50"
+          />
+          <div className="min-w-0 flex-1">
+            <span className="text-sm font-semibold text-foreground block">Enable NeuronWriter</span>
+            <span className="text-[11px] text-muted-foreground">
+              When on, every generation pulls live SEO terms + entities for the target keyword.
+            </span>
+          </div>
         </label>
+
         {config.enableNeuronWriter && (
-          <div className="space-y-4">
-            <InputField label="NeuronWriter API Key" value={config.neuronWriterApiKey} onChange={(v) => setConfig({ neuronWriterApiKey: v })} type="password" placeholder="Enter NeuronWriter key..." />
+          <div className="space-y-4 animate-fade-in">
+            <InputField
+              label="NeuronWriter API Key"
+              value={config.neuronWriterApiKey}
+              onChange={(v) => setConfig({ neuronWriterApiKey: v })}
+              type="password"
+              placeholder="Enter NeuronWriter key..."
+              icon={<Key className="w-4 h-4" />}
+            />
+
+            {/* Key too short warning */}
+            {config.neuronWriterApiKey && config.neuronWriterApiKey.trim().length > 0 && config.neuronWriterApiKey.trim().length < 10 && (
+              <div className="flex items-center gap-2 text-xs text-amber-300/90 bg-amber-500/10 border border-amber-500/25 rounded-xl px-3 py-2">
+                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>API key looks too short — paste the full key from NeuronWriter → Account → API.</span>
+              </div>
+            )}
+
+            {/* Project picker block */}
             {config.neuronWriterApiKey && config.neuronWriterApiKey.trim().length >= 10 && (
-              <div className="p-4 bg-background/50 border border-border rounded-xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-foreground flex items-center gap-2">
+              <div className="p-4 md:p-5 bg-background/40 border border-border/60 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <label className="text-sm font-semibold text-foreground flex items-center gap-2">
                     <FolderOpen className="w-4 h-4 text-primary" />
-                    Select Project
+                    Project
+                    {neuronWriterProjects.length > 0 && (
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-primary/15 text-primary border border-primary/25">
+                        {neuronWriterProjects.length}
+                      </span>
+                    )}
                   </label>
-                  <button onClick={() => fetchNeuronWriterProjects(config.neuronWriterApiKey)} disabled={neuronWriterLoading} className="text-sm text-primary hover:text-primary/80 flex items-center gap-1.5 px-2.5 py-1 rounded-lg hover:bg-primary/10 transition-colors disabled:opacity-50">
+                  <button
+                    onClick={() => fetchNeuronWriterProjects(config.neuronWriterApiKey)}
+                    disabled={neuronWriterLoading}
+                    className="text-xs text-primary hover:text-primary/80 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:bg-primary/10 transition-colors disabled:opacity-50 font-semibold"
+                  >
                     <RefreshCw className={cn("w-3.5 h-3.5", neuronWriterLoading && "animate-spin")} />
-                    {neuronWriterLoading ? 'Loading...' : 'Refresh Projects'}
+                    {neuronWriterLoading ? "Loading…" : "Refresh"}
                   </button>
                 </div>
+
+                {/* Loading skeleton */}
                 {neuronWriterLoading && (
-                  <div className="flex items-center gap-2.5 p-3 bg-blue-500/5 border border-blue-500/20 rounded-lg">
-                    <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
-                    <span className="text-sm text-blue-400">Connecting to NeuronWriter API...</span>
+                  <div className="space-y-2 animate-fade-in">
+                    <div className="h-11 rounded-xl bg-white/5 border border-white/10 animate-shimmer" />
+                    <div className="flex items-center gap-2 text-[11px] text-primary/80">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Connecting to NeuronWriter…
+                    </div>
                   </div>
                 )}
+
+                {/* Error */}
                 {!neuronWriterLoading && neuronWriterError && (
-                  <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                  <div className="p-3 bg-red-500/10 border border-red-500/25 rounded-xl">
                     <div className="flex items-start gap-2.5">
                       <XCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-red-400">Failed to load projects</p>
-                        <p className="text-xs text-red-400/70 mt-0.5 break-words">{neuronWriterError}</p>
-                        <button onClick={() => fetchNeuronWriterProjects(config.neuronWriterApiKey)} className="mt-2 text-xs text-red-300 hover:text-red-200 underline">Try again</button>
+                        <p className="text-sm font-semibold text-red-300">Couldn't reach NeuronWriter</p>
+                        <p className="text-xs text-red-300/70 mt-0.5 break-words">{neuronWriterError}</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <button
+                            onClick={() => fetchNeuronWriterProjects(config.neuronWriterApiKey)}
+                            className="text-xs text-red-200 hover:text-white bg-red-500/20 hover:bg-red-500/30 px-2.5 py-1 rounded-md font-semibold"
+                          >
+                            Retry
+                          </button>
+                          <a
+                            href="https://app.neuronwriter.com/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-red-300/80 hover:text-red-200 px-2.5 py-1 rounded-md inline-flex items-center gap-1"
+                          >
+                            Check NW status <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
                       </div>
                     </div>
                   </div>
                 )}
+
+                {/* Project list */}
                 {!neuronWriterLoading && !neuronWriterError && neuronWriterProjects.length > 0 && (
                   <>
                     <select
                       value={config.neuronWriterProjectId}
                       onChange={(e) => handleProjectSelect(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-background border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      className="w-full px-4 py-2.5 bg-background border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
                     >
-                      <option value="">Select a project...</option>
-                      {neuronWriterProjects.map(project => (
+                      <option value="">Select a project…</option>
+                      {neuronWriterProjects.map((project) => (
                         <option key={project.id} value={project.id}>
-                          {project.name} {project.queries_count !== undefined && `(${project.queries_count} queries)`}
+                          {project.name}
+                          {project.queries_count !== undefined && ` · ${project.queries_count} queries`}
                         </option>
                       ))}
                     </select>
                     {config.neuronWriterProjectId && (
-                      <div className="flex items-center gap-2 text-green-400 text-sm p-2 bg-green-500/5 border border-green-500/15 rounded-lg">
+                      <div className="flex items-center gap-2 text-emerald-300 text-sm p-2.5 bg-emerald-500/10 border border-emerald-500/25 rounded-xl">
                         <Check className="w-4 h-4 flex-shrink-0" />
-                        <span>Selected: <strong>{config.neuronWriterProjectName}</strong></span>
+                        <span className="min-w-0 truncate">
+                          Connected to <strong className="font-bold">{config.neuronWriterProjectName}</strong>
+                        </span>
                       </div>
                     )}
                   </>
                 )}
+
+                {/* No projects */}
                 {!neuronWriterLoading && !neuronWriterError && neuronWriterProjects.length === 0 && nwFetchAttempted && (
-                  <div className="p-3 bg-yellow-500/5 border border-yellow-500/20 rounded-lg">
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/25 rounded-xl">
                     <div className="flex items-start gap-2.5">
-                      <AlertCircle className="w-4 h-4 text-yellow-400 mt-0.5 flex-shrink-0" />
+                      <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
                       <div>
-                        <p className="text-sm text-yellow-400">No projects found</p>
-                        <p className="text-xs text-yellow-400/60 mt-0.5">Create a project in NeuronWriter first, or verify your API key is correct.</p>
+                        <p className="text-sm font-semibold text-amber-300">No projects yet</p>
+                        <p className="text-xs text-amber-300/70 mt-0.5">
+                          Create a project in NeuronWriter, then click Refresh.
+                        </p>
+                        <a
+                          href="https://app.neuronwriter.com/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-amber-200 hover:text-amber-100"
+                        >
+                          Open NeuronWriter <ExternalLink className="w-3 h-3" />
+                        </a>
                       </div>
                     </div>
                   </div>
                 )}
+
+                {/* Idle */}
                 {!neuronWriterLoading && !neuronWriterError && neuronWriterProjects.length === 0 && !nwFetchAttempted && (
-                  <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                  <button
+                    onClick={() => fetchNeuronWriterProjects(config.neuronWriterApiKey)}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-border/60 text-sm text-muted-foreground hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-colors"
+                  >
                     <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Click "Refresh Projects" to load your NeuronWriter projects.</span>
-                  </div>
+                    Load projects
+                  </button>
                 )}
               </div>
             )}
-            {config.neuronWriterApiKey && config.neuronWriterApiKey.trim().length > 0 && config.neuronWriterApiKey.trim().length < 10 && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <AlertCircle className="w-3.5 h-3.5" />
-                <span>API key appears too short. Enter a valid NeuronWriter API key.</span>
-              </div>
-            )}
+
+            {/* Feature highlights */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {[
+                { label: "Live SERP terms", desc: "Required + recommended keywords" },
+                { label: "Named entities", desc: "Topical authority signals" },
+                { label: "Competitor H2s", desc: "Structure that ranks" },
+              ].map((f) => (
+                <div
+                  key={f.label}
+                  className="px-3 py-2 rounded-xl bg-background/30 border border-border/40 text-[11px]"
+                >
+                  <div className="font-bold text-foreground/90 flex items-center gap-1.5">
+                    <Check className="w-3 h-3 text-primary" />
+                    {f.label}
+                  </div>
+                  <div className="text-muted-foreground/70 mt-0.5">{f.desc}</div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </section>
