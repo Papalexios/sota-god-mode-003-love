@@ -1166,6 +1166,7 @@ export function ReviewExport() {
         overallProgress={generationProgress}
         steps={generationSteps}
         error={generationError}
+        streamTelemetry={streamTelemetry}
       />
 
       {/* Content Viewer Panel */}
