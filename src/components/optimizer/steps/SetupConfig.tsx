@@ -542,9 +542,26 @@ export function SetupConfig() {
         </p>
       </div>
 
-      {/* Author Profiles + Brand Voice (M2 — E-E-A-T) */}
-      <section className="glass-card rounded-2xl p-6 sm:p-8 border border-emerald-500/20">
-        <AuthorProfilesPanel />
+      {/* Author Profiles + Brand Voice (M2 — E-E-A-T) — optional */}
+      <section className="glass-card rounded-2xl p-6 sm:p-8 border border-emerald-500/20 space-y-4">
+        <div className="flex items-start sm:items-center justify-between gap-4 flex-col sm:flex-row">
+          <div className="min-w-0">
+            <h2 className="text-lg font-bold text-foreground">Author Library & Brand Voice</h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              Optional. Adds Person + Article JSON-LD and injects voice rules into the prompt. Hide this if you don't use bylines or fingerprinting.
+            </p>
+          </div>
+          <label className="flex items-center gap-2 text-sm shrink-0 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={useOptimizerStore.getState().eeatPanelEnabled}
+              onChange={(e) => useOptimizerStore.getState().setEeatPanelEnabled(e.target.checked)}
+              className="w-4 h-4 accent-emerald-500"
+            />
+            <span className="text-muted-foreground">{useOptimizerStore(s => s.eeatPanelEnabled) ? 'Enabled' : 'Hidden'}</span>
+          </label>
+        </div>
+        {useOptimizerStore(s => s.eeatPanelEnabled) && <AuthorProfilesPanel />}
       </section>
 
       {/* Save / Load Configuration */}
