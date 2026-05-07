@@ -554,7 +554,7 @@ export function SetupConfig() {
           <label className="flex items-center gap-2 text-sm shrink-0 cursor-pointer">
             <input
               type="checkbox"
-              checked={useOptimizerStore.getState().eeatPanelEnabled}
+              checked={useOptimizerStore(s => s.eeatPanelEnabled)}
               onChange={(e) => useOptimizerStore.getState().setEeatPanelEnabled(e.target.checked)}
               className="w-4 h-4 accent-emerald-500"
             />
