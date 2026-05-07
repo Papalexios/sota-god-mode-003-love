@@ -556,6 +556,8 @@ export const useOptimizerStore = create<OptimizerStore>()(
       voiceSamples: [],
       setVoiceSamples: (samples) => set({ voiceSamples: samples }),
       setVoiceFingerprint: (fp) => set({ voiceFingerprint: fp }),
+      eeatPanelEnabled: true,
+      setEeatPanelEnabled: (enabled) => set({ eeatPanelEnabled: enabled }),
     }),
     {
       name: 'wp-optimizer-storage',
