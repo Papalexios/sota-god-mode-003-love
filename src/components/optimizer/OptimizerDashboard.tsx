@@ -25,31 +25,31 @@ export function OptimizerDashboard() {
       <div className="hero-glow" style={{ opacity: 0.2 }} />
 
       {/* Mobile top header */}
-      <header className="lg:hidden fixed top-0 inset-x-0 z-40 bg-background/70 backdrop-blur-2xl border-b border-border/40">
-        <div className="flex items-center gap-3 px-4 h-14">
+      <header className="lg:hidden fixed top-0 inset-x-0 z-40 bg-background/75 backdrop-blur-2xl border-b border-border/40 shadow-[0_4px_24px_-12px_rgba(0,0,0,0.5)]">
+        <div className="flex items-center gap-3 px-4 h-16">
           <button
             onClick={() => setSidebarOpen(true)}
             aria-label="Open menu"
-            className="w-10 h-10 -ml-2 rounded-xl flex items-center justify-center text-foreground/80 hover:bg-muted/30 active:scale-95 transition"
+            className="w-10 h-10 -ml-2 rounded-xl flex items-center justify-center text-foreground/80 hover:bg-muted/40 active:scale-95 transition ring-1 ring-border/40"
           >
             <Menu className="w-5 h-5" />
           </button>
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary/20 to-emerald-600/10 border border-primary/30 flex items-center justify-center">
-            <Icon className="w-4 h-4 text-primary" />
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/25 to-emerald-700/15 border border-primary/30 flex items-center justify-center shadow-md shadow-primary/15 ring-1 ring-white/5">
+            <Icon className="w-[18px] h-[18px] text-primary" />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-bold text-foreground truncate leading-tight">{meta.title}</div>
-            <div className="text-[10px] text-muted-foreground/70 truncate uppercase tracking-wider">{meta.sub}</div>
+            <div className="text-sm font-bold text-foreground truncate leading-tight tracking-tight">{meta.title}</div>
+            <div className="text-[10px] text-muted-foreground/70 truncate uppercase tracking-[0.18em] mt-0.5">{meta.sub}</div>
           </div>
-          <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-primary/10 border border-primary/20">
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gradient-to-br from-primary/15 to-emerald-600/10 border border-primary/25 shadow-sm">
             <Zap className="w-3 h-3 text-primary" />
-            <span className="text-[10px] font-bold text-primary">{currentStep}/3</span>
+            <span className="text-[10px] font-black text-primary tabular-nums">{currentStep}/3</span>
           </div>
         </div>
         {/* progress bar */}
-        <div className="h-0.5 bg-border/30">
+        <div className="h-1 bg-border/20 relative overflow-hidden">
           <div
-            className="h-full bg-gradient-to-r from-primary to-emerald-400 transition-all duration-500"
+            className="absolute inset-y-0 left-0 bg-gradient-to-r from-primary via-emerald-400 to-teal-300 transition-all duration-700 ease-out shadow-[0_0_12px_hsla(160,84%,39%,0.6)]"
             style={{ width: `${(currentStep / 3) * 100}%` }}
           />
         </div>
@@ -79,7 +79,7 @@ export function OptimizerDashboard() {
       </div>
 
       <main className="flex-1 overflow-auto relative z-10 custom-scrollbar w-full">
-        <div className="p-4 md:p-6 max-w-7xl mx-auto animate-fade-in pt-[72px] pb-28 lg:pt-6 lg:pb-6">
+        <div className="p-4 md:p-6 max-w-7xl mx-auto animate-fade-in pt-[84px] pb-32 lg:pt-6 lg:pb-6">
           {currentStep === 1 && <SetupConfig />}
           {currentStep === 2 && <ContentStrategy />}
           {currentStep === 3 && <ReviewExport />}
