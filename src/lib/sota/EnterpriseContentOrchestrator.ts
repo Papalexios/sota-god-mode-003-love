@@ -1054,6 +1054,12 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
   // MAIN PIPELINE
   // ─────────────────────────────────────────────────────────────────────────
 
+  /** STOP all in-flight provider calls (user-initiated). */
+  abort(reason?: string): void {
+    this.log(`🛑 USER STOP requested${reason ? `: ${reason}` : ''}`);
+    try { (this.engine as any)?.abort?.(reason); } catch { /* noop */ }
+  }
+
   async generateContent(options: any): Promise<any> {
     this.onProgress = options.onProgress;
     this.log(`🚀 SOTA GOD-MODE PIPELINE v10.0 ENGAGED: "${options.keyword}"`);
