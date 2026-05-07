@@ -14,6 +14,7 @@ import { useSupabaseSyncContext } from "@/providers/SupabaseSyncProvider";
 import { useWordPressPublish } from "@/hooks/useWordPressPublish";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Helper to reconstruct GeneratedContent from persisted store (minimal shape for viewer)
 function reconstructGeneratedContent(stored: GeneratedContentStore[string] | undefined): GeneratedContent | null {
@@ -902,6 +903,21 @@ export function ReviewExport() {
           </thead>
           <tbody>
             {sortedItems.length === 0 ? (
+              dbLoading ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <tr key={`sk-${i}`} className="border-b border-white/5">
+                    <td className="p-4"><Skeleton className="w-4 h-4 rounded" /></td>
+                    <td className="p-4"><Skeleton className="h-3 w-48 mb-2" /><Skeleton className="h-2.5 w-32" /></td>
+                    <td className="p-4"><Skeleton className="h-5 w-14 rounded-md" /></td>
+                    <td className="p-4"><Skeleton className="h-4 w-20" /></td>
+                    <td className="p-4"><Skeleton className="h-3 w-32" /></td>
+                    <td className="p-4"><Skeleton className="h-3 w-24" /></td>
+                    <td className="p-4"><Skeleton className="h-3 w-20" /></td>
+                    <td className="p-4"><Skeleton className="h-5 w-14 rounded-md" /></td>
+                    <td className="p-4"><Skeleton className="h-7 w-24 rounded-md" /></td>
+                  </tr>
+                ))
+              ) : (
               <tr>
                 <td colSpan={9} className="p-0">
                   <div className="p-6 md:p-10">
@@ -922,6 +938,7 @@ export function ReviewExport() {
                   </div>
                 </td>
               </tr>
+              )
             ) : (
               sortedItems.map(item => {
                 const stored = generatedContentsStore[item.id];
