@@ -723,6 +723,15 @@ export class SOTAContentGenerationEngine {
         return acc;
       }
 
+      // Slow throughput → bail out fast so the outer retry/fallback loop
+      // can switch to a faster model. Keep partial content for telemetry.
+      if (reason === 'slow') {
+        this.log(`SSE: slow-throughput abort on ${modelId} — surfacing for fallback (have ${acc.content.length} chars).`);
+        const err: any = new Error(`SLOW_MODEL: ${modelId} throughput below ${SLOW_THROUGHPUT_CPS} cps — falling back to a faster model.`);
+        err.partialContent = acc.content;
+        throw err;
+      }
+
       // Aborted — decide whether to resume.
       const haveProgress = (result.content?.length ?? 0) > 200 || acc.content.length > 800;
       if (resumes >= STREAM_RESUME_ATTEMPTS) {
