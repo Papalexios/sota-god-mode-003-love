@@ -475,9 +475,11 @@ export function ReviewExport() {
           onProgress: (msg) => {
             const lowerMsg = msg.toLowerCase();
             let detectedStep = -1;
+            let isSSE = false;
 
-            // ── SSE telemetry parser ──
+            // ── SSE telemetry parser (live stream progress) ──
             if (msg.startsWith('SSE:')) {
+              isSSE = true;
               const charsMatch = msg.match(/([\d,]+)\s*chars/i);
               const chars = charsMatch ? Number(charsMatch[1].replace(/,/g, '')) : undefined;
               const modelMatch = msg.match(/(?:to|streaming)\s+([^\s—]+)/i);
@@ -485,9 +487,10 @@ export function ReviewExport() {
               setStreamTelemetry(prev => {
                 let status: typeof prev.status = prev.status;
                 if (msg.includes('connecting')) status = 'connecting';
-                else if (msg.includes('auto-resuming')) status = 'resuming';
-                else if (msg.includes('max resumes')) status = 'aborted';
+                else if (msg.includes('auto-resuming') || msg.includes('resuming')) status = 'resuming';
+                else if (msg.includes('max resumes') || msg.includes('aborted')) status = 'aborted';
                 else if (msg.includes('streaming')) status = 'streaming';
+                else if (msg.includes('completed') || msg.includes('done')) status = 'completed';
                 return {
                   status,
                   chars: chars ?? prev.chars,
@@ -496,51 +499,69 @@ export function ReviewExport() {
                   note: msg.replace(/^SSE:\s*/, ''),
                 };
               });
+              // Streaming = AI Generation phase. Force-advance to step 4 ("content").
+              detectedStep = 4;
             }
 
-            if (lowerMsg.includes('serp') || lowerMsg.includes('research') || lowerMsg.includes('analyzing')) {
-              updateStep('research', 'running', msg);
-              detectedStep = 0;
-            } else if (lowerMsg.includes('youtube') || lowerMsg.includes('video')) {
-              updateStep('research', 'completed');
-              updateStep('videos', 'running', msg);
-              detectedStep = 1;
-            } else if (lowerMsg.includes('reference') || lowerMsg.includes('source') || lowerMsg.includes('citation')) {
-              updateStep('videos', 'completed');
-              updateStep('references', 'running', msg);
-              detectedStep = 2;
-            } else if (lowerMsg.includes('outline') || lowerMsg.includes('structure')) {
-              updateStep('references', 'completed');
-              updateStep('outline', 'running', msg);
-              detectedStep = 3;
-            } else if (lowerMsg.includes('generat') || lowerMsg.includes('writing') || lowerMsg.includes('creating')) {
-              updateStep('outline', 'completed');
-              updateStep('content', 'running', msg);
-              detectedStep = 4;
-            } else if (lowerMsg.includes('enhance') || lowerMsg.includes('optimi')) {
-              updateStep('content', 'completed');
-              updateStep('enhance', 'running', msg);
-              detectedStep = 5;
-            } else if (lowerMsg.includes('link') || lowerMsg.includes('internal')) {
-              updateStep('enhance', 'completed');
-              updateStep('links', 'running', msg);
-              detectedStep = 6;
-            } else if (lowerMsg.includes('valid') || lowerMsg.includes('quality') || lowerMsg.includes('check')) {
-              updateStep('links', 'completed');
-              updateStep('validate', 'running', msg);
-              detectedStep = 7;
-            } else if (lowerMsg.includes('schema') || lowerMsg.includes('structured')) {
-              updateStep('validate', 'completed');
-              updateStep('schema', 'running', msg);
-              detectedStep = 8;
+            if (!isSSE) {
+              // Match by SPECIFIC phase markers first to avoid keyword collisions
+              // (e.g. "Phase 5: Master Content Generation" must beat the
+              // generic "reference" keyword from a leftover Phase 3 line).
+              const phaseMatch = msg.match(/Phase\s+(\d+)([a-z])?/i);
+              if (phaseMatch) {
+                const n = parseInt(phaseMatch[1], 10);
+                if (n <= 1) detectedStep = 0;
+                else if (n === 2) detectedStep = 1;
+                else if (n === 3) detectedStep = 2;
+                else if (n === 4) detectedStep = 2;        // WP media still under research bucket
+                else if (n === 5 || n === 6) detectedStep = 4;  // content gen + NW enforcement
+                else if (n === 7 || n === 8) detectedStep = 5;  // critique / aesthetics = enhance
+                else if (n === 9) detectedStep = 6;        // links / media injection
+                else if (n === 10) detectedStep = 8;       // schema / refs
+                else if (n === 11) detectedStep = 7;       // checklist validation
+              } else if (lowerMsg.includes('serp') || lowerMsg.includes('research') || lowerMsg.includes('analyzing')) {
+                detectedStep = 0;
+              } else if (lowerMsg.includes('youtube') || lowerMsg.includes('video')) {
+                detectedStep = 1;
+              } else if (lowerMsg.includes('reference') || lowerMsg.includes('source') || lowerMsg.includes('citation')) {
+                detectedStep = 2;
+              } else if (lowerMsg.includes('outline') || lowerMsg.includes('structure')) {
+                detectedStep = 3;
+              } else if (lowerMsg.includes('generat') || lowerMsg.includes('writing') || lowerMsg.includes('creating') || lowerMsg.includes('synthes')) {
+                detectedStep = 4;
+              } else if (lowerMsg.includes('enhance') || lowerMsg.includes('optimi') || lowerMsg.includes('critique') || lowerMsg.includes('polish')) {
+                detectedStep = 5;
+              } else if (lowerMsg.includes('link')) {
+                detectedStep = 6;
+              } else if (lowerMsg.includes('valid') || lowerMsg.includes('quality') || lowerMsg.includes('checklist')) {
+                detectedStep = 7;
+              } else if (lowerMsg.includes('schema') || lowerMsg.includes('structured')) {
+                detectedStep = 8;
+              }
             }
 
             if (detectedStep >= 0) {
               currentStepIdx = Math.max(currentStepIdx, detectedStep);
+              // CRITICAL: mark ALL prior steps completed and ONLY the current as running,
+              // so the headline "currentStep" label reflects the latest real phase.
+              setGenerationSteps(prev => prev.map((s, idx) => {
+                if (idx < currentStepIdx) {
+                  return s.status === 'error' ? s : { ...s, status: 'completed' as const };
+                }
+                if (idx === currentStepIdx) {
+                  return { ...s, status: 'running' as const, message: msg };
+                }
+                return s.status === 'pending' ? s : { ...s, status: 'pending' as const };
+              }));
             }
-            const itemProgress = Math.round(((currentStepIdx + 1) / stepIds.length) * 100);
+
+            // Build a richer per-item label: include live char count while streaming
+            const liveLabel = isSSE
+              ? msg.replace(/^SSE:\s*/, '')
+              : msg;
+            const itemProgress = Math.min(99, Math.round(((currentStepIdx + 1) / stepIds.length) * 100));
             setGeneratingItems(prev => prev.map(gi =>
-              gi.id === item.id ? { ...gi, progress: itemProgress, currentStep: msg } : gi
+              gi.id === item.id ? { ...gi, progress: itemProgress, currentStep: liveLabel } : gi
             ));
           },
         });
