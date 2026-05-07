@@ -1485,6 +1485,8 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
               title: options.title || options.keyword,
               metaDescription: provisionalMeta,
               primaryKeyword: options.keyword,
+              slug,
+              entities: entityCandidates,
             });
             if (newChecklist.mandatoryFailures.length < checklist.mandatoryFailures.length) {
               html = candidate;
