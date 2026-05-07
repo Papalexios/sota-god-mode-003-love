@@ -736,6 +736,19 @@ export function ReviewExport() {
           ? `${error.name}: ${error.message}`
           : String(error) || 'Unknown generation error';
 
+        // ── USER STOP — abort the whole queue, do not show as error ──
+        if (userAbortRef.current || errorMsg.includes('USER_ABORT')) {
+          console.warn('[ReviewExport] Generation aborted by user.');
+          toast.info(`Generation stopped by user at "${item.title}".`);
+          updateContentItem(item.id, { status: 'pending' });
+          setGeneratingItems(prev => prev.map(gi =>
+            gi.id === item.id ? { ...gi, status: 'pending', error: 'Stopped by user' } : gi
+          ));
+          setGenerationError(undefined);
+          setGenerationLog(prev => [...prev, { t: Date.now(), msg: '🛑 Generation halted. Pipeline released.', level: 'warn' }]);
+          break;
+        }
+
         // Classify error for user-friendly message
         const friendlyMsg = errorMsg.includes('MODEL_INCOMPATIBLE')
           ? errorMsg.replace(/^.*MODEL_INCOMPATIBLE:\s*/, '⚠️ Incompatible model: ')
