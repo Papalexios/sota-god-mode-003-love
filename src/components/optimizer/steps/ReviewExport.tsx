@@ -418,6 +418,8 @@ export function ReviewExport() {
       organizationUrl: config.wpUrl || 'https://example.com',
       logoUrl: config.logoUrl,
       authorName: config.authorName || 'Content Team',
+      author: useOptimizerStore.getState().authors.find(a => a.id === useOptimizerStore.getState().activeAuthorId) || undefined,
+      voiceFingerprint: useOptimizerStore.getState().voiceFingerprint || undefined,
       wpUrl: config.wpUrl,
       wpUsername: config.wpUsername,
       wpAppPassword: config.wpAppPassword,
