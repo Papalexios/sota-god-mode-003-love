@@ -517,31 +517,119 @@ export class SOTAContentGenerationEngine {
     if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
     messages.push({ role: 'user', content: prompt });
 
-    const response = await this.fetchWithTimeout(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: modelId,
-        messages,
-        temperature,
-        max_tokens: maxTokens
-      })
-    }, timeoutMs);
+    // STREAMING with inactivity timeout. As long as tokens keep arriving the
+    // request stays alive — critical for slow free OpenRouter backends. We
+    // only abort when no chunk has arrived for STREAM_INACTIVITY_MS.
+    const controller = new AbortController();
+    const overall = setTimeout(() => controller.abort(), timeoutMs);
+    let inactivity: ReturnType<typeof setTimeout> | null = null;
+    const resetInactivity = () => {
+      if (inactivity) clearTimeout(inactivity);
+      inactivity = setTimeout(() => controller.abort(), STREAM_INACTIVITY_MS);
+    };
+    resetInactivity();
+
+    let response: Response;
+    try {
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+          'Accept': 'text/event-stream',
+          'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : 'https://contentoptimizer.app',
+          'X-Title': 'WP Content Optimizer',
+        },
+        body: JSON.stringify({
+          model: modelId,
+          messages,
+          temperature,
+          max_tokens: maxTokens,
+          stream: true,
+        }),
+        signal: controller.signal,
+      });
+    } catch (err: any) {
+      clearTimeout(overall);
+      if (inactivity) clearTimeout(inactivity);
+      if (err?.name === 'AbortError') {
+        throw new Error(`${modelId} stalled (no response start within ${Math.round(STREAM_INACTIVITY_MS / 1000)}s). Switch to a faster model in Setup.`);
+      }
+      throw err;
+    }
 
     if (!response.ok) {
+      clearTimeout(overall);
+      if (inactivity) clearTimeout(inactivity);
       const errorText = await response.text().catch(() => '');
       throw new Error(`${modelId} API error ${response.status}: ${errorText.slice(0, 500)}`);
     }
-    const data = await response.json();
-    const choice = data.choices?.[0] || {};
-    return {
-      content: choice.message?.content || '',
-      tokens: data.usage?.total_tokens || 0,
-      finishReason: choice.finish_reason,
-    };
+    if (!response.body) {
+      clearTimeout(overall);
+      if (inactivity) clearTimeout(inactivity);
+      throw new Error(`${modelId} returned no response body.`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let content = '';
+    let tokens = 0;
+    let finishReason: string | undefined;
+    let lastLogChars = 0;
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        resetInactivity();
+        buffer += decoder.decode(value, { stream: true });
+
+        let nl: number;
+        while ((nl = buffer.indexOf('\n')) !== -1) {
+          let line = buffer.slice(0, nl);
+          buffer = buffer.slice(nl + 1);
+          if (line.endsWith('\r')) line = line.slice(0, -1);
+          if (!line || line.startsWith(':')) continue;
+          if (!line.startsWith('data:')) continue;
+          const payload = line.slice(5).trim();
+          if (payload === '[DONE]') { finishReason = finishReason || 'stop'; continue; }
+          try {
+            const obj = JSON.parse(payload);
+            const choice = obj?.choices?.[0];
+            const delta = choice?.delta?.content ?? choice?.message?.content;
+            if (typeof delta === 'string' && delta.length) {
+              content += delta;
+              if (content.length - lastLogChars > 1500) {
+                lastLogChars = content.length;
+                this.log(`${modelId}: streaming… ${content.length.toLocaleString()} chars received`);
+              }
+            }
+            if (choice?.finish_reason) finishReason = choice.finish_reason;
+            if (obj?.usage?.total_tokens) tokens = obj.usage.total_tokens;
+          } catch {
+            buffer = line + '\n' + buffer;
+            break;
+          }
+        }
+      }
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        if (content.length > 500) {
+          this.log(`${modelId}: stream aborted after ${content.length} chars — treating as truncated, will continue.`);
+          finishReason = finishReason || 'length';
+        } else {
+          throw new Error(`${modelId} stalled (no tokens for ${Math.round(STREAM_INACTIVITY_MS / 1000)}s). Switch to a faster model in Setup.`);
+        }
+      } else {
+        throw err;
+      }
+    } finally {
+      clearTimeout(overall);
+      if (inactivity) clearTimeout(inactivity);
+    }
+
+    return { content, tokens, finishReason };
   }
 
   getAvailableModels(): AIModel[] {
