@@ -75,14 +75,21 @@ const RETRYABLE_STATUS_CODES = [408, 409, 425, 429, 500, 502, 503, 504, 520, 522
 // long-form article. Aborting at 90s wastes the user's chosen free model and
 // surfaces as "Generation timed out". Give the chosen provider real time to
 // finish before we ever consider falling back.
+// Total per-attempt cap. Used as a safety upper bound. For OpenAI-compatible
+// providers we ALSO use streaming + inactivity timeout (see STREAM_INACTIVITY_MS)
+// so we never abort while the model is actively producing tokens.
 const PROVIDER_TIMEOUT_MS: Record<string, number> = {
-  gemini: 180_000,
-  openai: 180_000,
-  anthropic: 180_000,
-  openrouter: 480_000, // 8 min — covers free-tier routed backends
-  groq: 120_000,
+  gemini: 240_000,
+  openai: 900_000,     // 15 min absolute ceiling; streaming guards real liveness
+  anthropic: 240_000,
+  openrouter: 1_500_000, // 25 min absolute ceiling for slow free routed backends
+  groq: 300_000,
 };
-const DEFAULT_PROVIDER_TIMEOUT_MS = 180_000;
+const DEFAULT_PROVIDER_TIMEOUT_MS = 300_000;
+// If no SSE chunk arrives for this long, treat the connection as dead.
+// 90s covers slow free OpenRouter backends (DeepInfra/Novita) doing initial
+// model load, but bails on a truly stalled connection so we don't hang forever.
+const STREAM_INACTIVITY_MS = 90_000;
 const TRUNCATED_FINISH_REASONS = new Set(['length', 'max_tokens', 'max_output_tokens', 'MAX_TOKENS']);
 
 interface ProviderCallResult {
