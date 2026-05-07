@@ -197,6 +197,13 @@ export function ReviewExport() {
     currentStep?: string;
     error?: string;
   }>>([]);
+  const [streamTelemetry, setStreamTelemetry] = useState<{
+    status: 'idle' | 'connecting' | 'streaming' | 'resuming' | 'completed' | 'aborted';
+    chars: number;
+    tokens: number;
+    modelId?: string;
+    note?: string;
+  }>({ status: 'idle', chars: 0, tokens: 0 });
 
   // ── Bulk Publish State ──
   const { publish, isConfigured: wpConfigured } = useWordPressPublish();
