@@ -262,6 +262,9 @@ interface OptimizerStore {
   voiceSamples: string[];
   setVoiceSamples: (samples: string[]) => void;
   setVoiceFingerprint: (fp: VoiceFingerprint | null) => void;
+  /** Toggle visibility of Author Library + Brand Voice Fingerprint panel */
+  eeatPanelEnabled: boolean;
+  setEeatPanelEnabled: (enabled: boolean) => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
