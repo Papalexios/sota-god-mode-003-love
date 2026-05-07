@@ -13,6 +13,7 @@ import { ContentIntelligenceDashboard } from "../ContentIntelligenceDashboard";
 import { useSupabaseSyncContext } from "@/providers/SupabaseSyncProvider";
 import { useWordPressPublish } from "@/hooks/useWordPressPublish";
 import { toast } from "sonner";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // Helper to reconstruct GeneratedContent from persisted store (minimal shape for viewer)
 function reconstructGeneratedContent(stored: GeneratedContentStore[string] | undefined): GeneratedContent | null {
@@ -902,8 +903,23 @@ export function ReviewExport() {
           <tbody>
             {sortedItems.length === 0 ? (
               <tr>
-                <td colSpan={9} className="p-8 text-center text-muted-foreground">
-                  No items found. Go to Setup to add content or use Strategy to discover topics.
+                <td colSpan={9} className="p-0">
+                  <div className="p-6 md:p-10">
+                    <EmptyState
+                      icon={FileText}
+                      title="No content yet"
+                      description="Go to Strategy to discover topics, or add URLs in Setup. Generated articles will appear here ready for review and one-click WordPress publishing."
+                      tone="primary"
+                      action={
+                        <button
+                          onClick={() => useOptimizerStore.getState().setCurrentStep(2)}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 transition-colors"
+                        >
+                          <Sparkles className="w-4 h-4" /> Go to Strategy
+                        </button>
+                      }
+                    />
+                  </div>
                 </td>
               </tr>
             ) : (

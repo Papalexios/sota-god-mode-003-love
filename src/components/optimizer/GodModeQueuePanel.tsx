@@ -9,6 +9,7 @@ import { useGodModeEngine } from '@/hooks/useGodModeEngine';
 import { Target, Trash2, Plus, ArrowUp, ArrowDown, Clock, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export function GodModeQueuePanel() {
   const { state, removeFromQueue, addToQueue } = useGodModeEngine();
@@ -109,12 +110,22 @@ export function GodModeQueuePanel() {
       {/* Queue List */}
       <div className="flex-1 overflow-y-auto custom-scrollbar bg-black/10 backdrop-blur-sm p-2 space-y-1">
         {state.queue.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-zinc-500">
-            <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center mb-3">
-              <Target className="w-6 h-6 text-zinc-600" />
-            </div>
-            <p className="text-sm font-medium text-zinc-400">Queue Empty</p>
-            <p className="text-xs text-zinc-600 mt-1 max-w-[200px] text-center">Add URLs manually or wait for the scanner.</p>
+          <div className="h-full flex items-center justify-center p-3">
+            <EmptyState
+              icon={Target}
+              title="Queue is empty"
+              description="Add a URL manually, or start God Mode to auto-scan your sitemap."
+              tone="primary"
+              compact
+              action={
+                <button
+                  onClick={() => setShowAddForm(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/15 hover:bg-primary/25 text-primary text-xs font-bold border border-primary/30 transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add URL
+                </button>
+              }
+            />
           </div>
         ) : (
           state.queue.map((item, index) => (

@@ -5,6 +5,7 @@ import { MobileBottomNav } from "./MobileBottomNav";
 import { SetupConfig } from "./steps/SetupConfig";
 import { ContentStrategy } from "./steps/ContentStrategy";
 import { ReviewExport } from "./steps/ReviewExport";
+import { DashboardKPIStrip } from "./DashboardKPIStrip";
 import { Menu, X, Zap, Settings, BarChart3, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -80,6 +81,7 @@ export function OptimizerDashboard() {
 
       <main className="flex-1 overflow-auto relative z-10 custom-scrollbar w-full">
         <div className="p-4 md:p-6 max-w-7xl mx-auto animate-fade-in pt-[84px] pb-32 lg:pt-6 lg:pb-6">
+          <DashboardKPIStrip />
           {currentStep === 1 && <SetupConfig />}
           {currentStep === 2 && <ContentStrategy />}
           {currentStep === 3 && <ReviewExport />}
