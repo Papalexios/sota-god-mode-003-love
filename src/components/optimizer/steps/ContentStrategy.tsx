@@ -1266,6 +1266,34 @@ export function ContentStrategy() {
               )}
             </div>
 
+            {/* Loading skeleton while SERP analysis runs */}
+            {gapAnalysisRunning && !gapResults && (
+              <div className="space-y-5 animate-fade-in" aria-busy="true" aria-live="polite">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="p-4 bg-white/5 border border-white/10 rounded-xl space-y-2">
+                      <div className="h-3 w-24 rounded bg-white/10 animate-shimmer" />
+                      <div className="h-6 w-16 rounded bg-white/10 animate-shimmer" />
+                    </div>
+                  ))}
+                </div>
+                <div className="p-5 bg-white/5 border border-white/10 rounded-2xl space-y-3">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="flex items-start gap-3 p-3 bg-black/20 rounded-xl">
+                      <div className="w-7 h-7 rounded-lg bg-white/10 animate-shimmer flex-shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-3 w-2/3 rounded bg-white/10 animate-shimmer" />
+                        <div className="h-2.5 w-1/2 rounded bg-white/5 animate-shimmer" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="text-center text-xs text-amber-300/70 flex items-center justify-center gap-2">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Scanning top SERP competitors…
+                </div>
+              </div>
+            )}
+
             {/* Gap Results */}
             {gapResults && (
               <div className="space-y-5">
