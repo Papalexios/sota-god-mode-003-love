@@ -503,23 +503,30 @@ export class SchemaGenerator {
 
   private extractSpeakableSections(content: string): SpeakableSection[] {
     const sections: SpeakableSection[] = [];
-    
-    // Target key takeaways and summaries for voice
-    if (content.includes('key-takeaways') || content.includes('Key Takeaways')) {
+
+    // LLM cited-quote blocks (highest signal for AI Overviews + voice)
+    if (content.includes('data-llm-quote')) {
+      sections.push({ cssSelector: '[data-llm-quote]' });
+    }
+
+    // Short answer / TL;DR blocks
+    if (/short\s+answer|tl;?dr|quick\s+answer/i.test(content)) {
+      sections.push({ cssSelector: '[class*="short-answer"], [class*="tldr"], [class*="quick-answer"]' });
+    }
+
+    // Key takeaways
+    if (content.includes('key-takeaways') || /key\s+takeaways?/i.test(content)) {
       sections.push({ cssSelector: '.key-takeaways, [class*="takeaway"]' });
     }
-    
-    // Target article introduction (first paragraph after h1)
+
+    // Article introduction (first paragraph after h1)
     sections.push({ cssSelector: 'article > p:first-of-type' });
-    
-    // Target FAQ answers
-    if (content.includes('faq') || content.includes('FAQ')) {
-      sections.push({ cssSelector: '.faq-answer, [class*="faq"] p' });
+
+    // FAQ answers
+    if (/faq|frequently\s+asked/i.test(content)) {
+      sections.push({ cssSelector: 'details > div, .faq-answer, [class*="faq"] p' });
     }
-    
-    // Target any summary sections
-    sections.push({ cssSelector: '.summary, .conclusion, [class*="summary"]' });
-    
+
     return sections;
   }
 
