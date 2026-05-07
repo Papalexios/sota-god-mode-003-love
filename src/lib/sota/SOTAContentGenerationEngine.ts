@@ -628,6 +628,7 @@ export class SOTAContentGenerationEngine {
     let finishReason: string | undefined;
     let lastLogChars = 0;
 
+    const streamStart = Date.now();
     try {
       while (true) {
         const { done, value } = await reader.read();
@@ -653,7 +654,20 @@ export class SOTAContentGenerationEngine {
               if (content.length - lastLogChars > 800) {
                 lastLogChars = content.length;
                 const totalChars = (priorContent?.length ?? 0) + content.length;
-                this.log(`SSE: streaming ${modelId} — ${totalChars.toLocaleString()} chars`);
+                const elapsedMs = Date.now() - streamStart;
+                const cps = elapsedMs > 0 ? content.length / (elapsedMs / 1000) : 0;
+                this.log(`SSE: streaming ${modelId} — ${totalChars.toLocaleString()} chars @ ${cps.toFixed(1)} cps`);
+                // Throughput watchdog — fallback if model is too slow.
+                if (
+                  elapsedMs > SLOW_THROUGHPUT_MIN_ELAPSED_MS &&
+                  elapsedMs > SLOW_THROUGHPUT_GRACE_MS &&
+                  cps < SLOW_THROUGHPUT_CPS &&
+                  totalChars < 4000
+                ) {
+                  this.log(`SSE: throughput too low (${cps.toFixed(1)} cps < ${SLOW_THROUGHPUT_CPS}) after ${Math.round(elapsedMs / 1000)}s — aborting for fallback.`);
+                  abortReason = 'slow';
+                  controller.abort();
+                }
               }
             }
             if (choice?.finish_reason) finishReason = choice.finish_reason;
