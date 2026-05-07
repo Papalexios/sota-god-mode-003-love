@@ -42,4 +42,32 @@ describe('CitedQuoteInjector.injectCitedQuotes', () => {
     const r = injectCitedQuotes(html);
     expect(r.injected).toBe(1);
   });
+
+  it('injects after every H2 even when H3/H4 subheadings are nested between them', () => {
+    const html =
+      `<h2>First</h2><p>${longSentence('Adoption rose 41% in 2023 across the sample.')}</p>` +
+      `<h3>Sub A</h3><p>${longSentence('Detail paragraph with no signal here.')}</p>` +
+      `<h4>Sub A1</h4><p>${longSentence('More nested detail content.')}</p>` +
+      `<h2>Second</h2><p>${longSentence('Revenue hit $24,000 monthly per cohort in 2024.')}</p>` +
+      `<h3>Sub B</h3><p>${longSentence('Wrap up paragraph.')}</p>`;
+    const r = injectCitedQuotes(html);
+    expect(r.injected).toBe(2);
+    // Quote should appear directly after each H2, not after H3/H4
+    expect(r.html).toMatch(/<h2>First<\/h2>\s*<div data-llm-quote/);
+    expect(r.html).toMatch(/<h2>Second<\/h2>\s*<div data-llm-quote/);
+    // No quote injected after H3 / H4
+    expect(r.html).not.toMatch(/<h3[^>]*>[^<]*<\/h3>\s*<div data-llm-quote/);
+  });
+
+  it('preserves order when H2 sections are reordered or interleaved with figures and lists', () => {
+    const html =
+      `<h2>Pricing</h2><figure><img src="x"/></figure><p>${longSentence('Stripe charges 2.9% in 2024 across all card brands.')}</p>` +
+      `<h2>Setup</h2><ul><li>Step 1</li></ul><p>${longSentence('Setup completes in 45 minutes for 80% of teams.')}</p>` +
+      `<h2>Results</h2><blockquote>quote</blockquote><p>${longSentence('Customers saw $12,500 monthly lift in 2023.')}</p>`;
+    const r = injectCitedQuotes(html);
+    expect(r.injected).toBe(3);
+    const positions = [...r.html.matchAll(/data-llm-quote/g)].map(m => m.index!);
+    // Strictly increasing (preserves source order)
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+  });
 });

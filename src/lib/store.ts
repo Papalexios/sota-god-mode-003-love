@@ -262,6 +262,9 @@ interface OptimizerStore {
   voiceSamples: string[];
   setVoiceSamples: (samples: string[]) => void;
   setVoiceFingerprint: (fp: VoiceFingerprint | null) => void;
+  /** Toggle visibility of Author Library + Brand Voice Fingerprint panel */
+  eeatPanelEnabled: boolean;
+  setEeatPanelEnabled: (enabled: boolean) => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -553,6 +556,8 @@ export const useOptimizerStore = create<OptimizerStore>()(
       voiceSamples: [],
       setVoiceSamples: (samples) => set({ voiceSamples: samples }),
       setVoiceFingerprint: (fp) => set({ voiceFingerprint: fp }),
+      eeatPanelEnabled: true,
+      setEeatPanelEnabled: (enabled) => set({ eeatPanelEnabled: enabled }),
     }),
     {
       name: 'wp-optimizer-storage',

@@ -73,4 +73,43 @@ describe('EntityGraph.measureEntityCoverage', () => {
     const r = measureEntityCoverage(html, []);
     expect(r.coverageRatio).toBe(1);
   });
+
+  it('matches entities across varied HTML structures (lists, tables, headings)', () => {
+    const variants = [
+      `<article><h2>Stripe</h2><p>Shopify integrates with PCI compliance rules.</p></article>`,
+      `<ul><li><strong>Stripe</strong></li><li>Shopify</li></ul><p>PCI compliance is required.</p>`,
+      `<table><tr><td>Stripe</td><td>Shopify</td></tr></table><p>PCI compliance applies in 2024.</p>`,
+    ];
+    const ents = [
+      { entity: 'stripe', weight: 1 },
+      { entity: 'shopify', weight: 1 },
+      { entity: 'pci compliance', weight: 1 },
+    ];
+    for (const v of variants) {
+      const r = measureEntityCoverage(v, ents);
+      expect(r.coverageRatio).toBe(1);
+      expect(r.missing).toEqual([]);
+    }
+  });
+
+  it('matches entities containing year/date and multi-word named entities', () => {
+    const html = `<article>
+      <p>The Google Cloud Next 2024 conference highlighted PCI compliance.</p>
+      <p>According to McKinsey & Company, adoption grew 47% between 2021 and 2023.</p>
+      <p>OpenAI GPT-4 powers the workflow; the European Union's GDPR still applies.</p>
+    </article>`;
+    const ents = [
+      { entity: 'google cloud next 2024', weight: 5 },
+      { entity: 'mckinsey company', weight: 4 },
+      { entity: 'openai gpt-4', weight: 4 },
+      { entity: 'european union', weight: 3 },
+      { entity: 'gdpr', weight: 3 },
+      { entity: 'pci compliance', weight: 2 },
+      { entity: 'salesforce', weight: 1 }, // intentionally absent
+    ];
+    const r = measureEntityCoverage(html, ents);
+    expect(r.covered).toBe(6);
+    expect(r.missing).toEqual(['salesforce']);
+    expect(r.coverageRatio).toBeCloseTo(6 / 7);
+  });
 });
