@@ -37,7 +37,7 @@ describe('AIVisibility.measureAIVisibility', () => {
     const html =
       para(`A study from MIT in 2023 showed 45% improvement across users. ${padding}`) +
       para(`Just opinion text without any numbers or sources to back it up. ${padding}`) +
-      para(`Revenue grew $2,400 in Q3 across all segments measured. ${padding}`);
+      para(`Revenue grew $2,400 in Q3 of 2024 across all segments measured. ${padding}`);
     const r = measureAIVisibility(html);
     expect(r.totalParagraphs).toBe(3);
     expect(r.citationWorthy).toBe(2);
