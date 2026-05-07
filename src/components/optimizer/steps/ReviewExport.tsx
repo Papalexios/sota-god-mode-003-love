@@ -397,6 +397,8 @@ export function ReviewExport() {
     setCurrentItemIndex(0);
     setGenerationError(undefined);
     setStreamTelemetry({ status: 'idle', chars: 0, tokens: 0 });
+    setGenerationLog([{ t: Date.now(), msg: `🚀 Engaging SOTA pipeline for ${toGenerate.length} item(s)…`, level: 'info' }]);
+    userAbortRef.current = false;
     setGenerationSteps(createDefaultSteps());
     setGeneratingItems(toGenerate.map(item => ({
       id: item.id,
