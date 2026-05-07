@@ -667,13 +667,30 @@ export class SOTAContentGenerationEngine {
     let tokens = 0;
     let finishReason: string | undefined;
     let lastLogChars = 0;
+    let sawAnyToken = false;
+    let lastKeepaliveLog = 0;
+
+    // FIRST-TOKEN watchdog: free OpenRouter backends (tencent/hy3, owl-alpha, etc.)
+    // routinely send SSE keepalive COMMENTS (": OPENROUTER PROCESSING") every few
+    // seconds while producing ZERO content tokens, then end the stream with
+    // finish_reason=length and an empty body. The previous code reset the
+    // inactivity timer on every chunk (including comments), so the watchdog
+    // never fired. We now only reset on real content deltas, AND enforce an
+    // explicit first-token timeout so dead routes fail fast.
+    const FIRST_TOKEN_TIMEOUT_MS = Math.min(inactivityMs, 90_000);
+    const firstTokenTimer = setTimeout(() => {
+      if (!sawAnyToken) {
+        abortReason = 'inactivity';
+        this.log(`SSE: no content tokens after ${Math.round(FIRST_TOKEN_TIMEOUT_MS / 1000)}s (only keepalives) — aborting ${modelId}.`);
+        controller.abort();
+      }
+    }, FIRST_TOKEN_TIMEOUT_MS);
 
     const streamStart = Date.now();
     try {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        resetInactivity();
         buffer += decoder.decode(value, { stream: true });
 
         let nl: number;
@@ -681,7 +698,17 @@ export class SOTAContentGenerationEngine {
           let line = buffer.slice(0, nl);
           buffer = buffer.slice(nl + 1);
           if (line.endsWith('\r')) line = line.slice(0, -1);
-          if (!line || line.startsWith(':')) continue;
+          if (!line) continue;
+          if (line.startsWith(':')) {
+            // SSE comment / keepalive. Do NOT reset inactivity. Log occasionally.
+            const now = Date.now();
+            if (now - lastKeepaliveLog > 15_000) {
+              lastKeepaliveLog = now;
+              const waited = Math.round((now - streamStart) / 1000);
+              this.log(`SSE: keepalive from ${modelId} (no content yet, ${waited}s elapsed)…`);
+            }
+            continue;
+          }
           if (!line.startsWith('data:')) continue;
           const payload = line.slice(5).trim();
           if (payload === '[DONE]') { finishReason = finishReason || 'stop'; continue; }
@@ -690,6 +717,8 @@ export class SOTAContentGenerationEngine {
             const choice = obj?.choices?.[0];
             const delta = choice?.delta?.content ?? choice?.message?.content;
             if (typeof delta === 'string' && delta.length) {
+              sawAnyToken = true;
+              resetInactivity();
               content += delta;
               if (content.length - lastLogChars > 800) {
                 lastLogChars = content.length;
