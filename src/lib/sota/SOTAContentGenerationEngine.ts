@@ -46,7 +46,7 @@ const DEFAULT_MODEL_CONFIGS: Record<AIModel, ModelConfig> = {
     endpoint: 'https://openrouter.ai/api/v1/chat/completions',
     modelId: 'anthropic/claude-3.5-sonnet:beta',
     weight: 0.9,
-    maxTokens: 8192,
+    maxTokens: 16384, // Raised: free routed models need headroom for long-form
   },
   groq: {
     endpoint: 'https://api.groq.com/openai/v1/chat/completions',
@@ -55,6 +55,12 @@ const DEFAULT_MODEL_CONFIGS: Record<AIModel, ModelConfig> = {
     maxTokens: 8192,
   },
 };
+
+// Free / community OpenRouter backends often cap a single response well below
+// what a 3000-word article needs. When that happens the API returns
+// finish_reason="length" with a partial body. Instead of failing the whole
+// pipeline, we automatically continue the assistant turn and stitch.
+const MAX_CONTINUATIONS = 6;
 
 export interface ExtendedAPIKeys extends APIKeys {
   openrouterModelId?: string;
