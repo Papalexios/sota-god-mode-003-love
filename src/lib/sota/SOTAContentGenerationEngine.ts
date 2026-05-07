@@ -330,6 +330,9 @@ export class SOTAContentGenerationEngine {
           providerResult = await this.callOpenAICompatible(config.endpoint, apiKey, config.modelId, prompt, systemPrompt, temperature, finalMaxTokens, providerTimeout);
         }
 
+        // If the provider truncated, transparently continue the turn before validating.
+        providerResult = await this.continueIfTruncated(providerResult, params, config, apiKey, finalMaxTokens, providerTimeout);
+
         this.validateGeneration(providerResult.content, params, providerResult.finishReason, config.modelId);
 
         const result: GenerationResult = {
