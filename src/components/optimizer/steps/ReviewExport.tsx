@@ -208,6 +208,17 @@ export function ReviewExport() {
     modelId?: string;
     note?: string;
   }>({ status: 'idle', chars: 0, tokens: 0 });
+  const [generationLog, setGenerationLog] = useState<Array<{ t: number; msg: string; phase?: number; level: 'info' | 'sse' | 'warn' | 'error' }>>([]);
+  const orchestratorRef = useRef<{ abort: (reason?: string) => void } | null>(null);
+  const userAbortRef = useRef(false);
+
+  const handleStopGeneration = useCallback(() => {
+    userAbortRef.current = true;
+    try { orchestratorRef.current?.abort('user clicked STOP'); } catch { /* noop */ }
+    setStreamTelemetry(prev => ({ ...prev, status: 'aborted', note: 'Stopped by user' }));
+    setGenerationLog(prev => [...prev, { t: Date.now(), msg: '🛑 STOP requested by user — aborting all in-flight requests…', level: 'warn' }]);
+    toast.warning('Generation stop requested. Finishing current network call then aborting…');
+  }, []);
 
   // ── Bulk Publish State ──
   const { publish, isConfigured: wpConfigured } = useWordPressPublish();
