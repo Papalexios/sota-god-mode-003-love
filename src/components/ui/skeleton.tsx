@@ -2,16 +2,13 @@ import { cn } from "@/lib/utils";
 import type { HTMLAttributes } from "react";
 
 /**
- * Premium shimmer skeleton — matches dark/glass aesthetic.
- * Use any width/height via className (e.g. "h-4 w-32 rounded-md").
+ * Premium shimmer skeleton — uses existing global `animate-shimmer` keyframe.
  */
 export function Skeleton({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-md bg-white/[0.04] border border-white/[0.04]",
-        "before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_1.6s_infinite]",
-        "before:bg-gradient-to-r before:from-transparent before:via-white/[0.06] before:to-transparent",
+        "rounded-md border border-white/[0.04] bg-white/[0.04] animate-shimmer",
         className
       )}
       {...props}
@@ -40,6 +37,19 @@ export function SkeletonCard() {
         </div>
       </div>
       <SkeletonText lines={2} />
+    </div>
+  );
+}
+
+export function SkeletonStatCard() {
+  return (
+    <div className="glass-card border border-white/10 rounded-2xl p-5 space-y-3">
+      <div className="flex items-center gap-2">
+        <Skeleton className="w-7 h-7 rounded-lg" />
+        <Skeleton className="h-2.5 w-20" />
+      </div>
+      <Skeleton className="h-7 w-24" />
+      <Skeleton className="h-2 w-16" />
     </div>
   );
 }
