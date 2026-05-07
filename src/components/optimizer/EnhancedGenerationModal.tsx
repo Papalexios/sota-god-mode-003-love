@@ -201,7 +201,7 @@ export function EnhancedGenerationModal({
   if (!isOpen) return null;
   return createPortal(
     <div className="fixed inset-0 bg-black/80 backdrop-blur-xl z-50 flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-300">
-      <div className="glass-card border border-white/10 rounded-3xl w-full max-w-2xl shadow-2xl relative overflow-hidden flex flex-col max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)]" style={{ width: 'min(100%, 42rem)' }}>
+      <div className="glass-card border border-white/10 rounded-3xl w-full max-w-4xl shadow-2xl relative overflow-hidden flex flex-col max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)]" style={{ width: 'min(100%, 56rem)' }}>
         {/* Ambient Glow */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 rounded-full blur-3xl -z-10 translate-x-1/2 -translate-y-1/2" />
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/20 rounded-full blur-3xl -z-10 -translate-x-1/2 translate-y-1/2" />
@@ -233,14 +233,34 @@ export function EnhancedGenerationModal({
                 </p>
               </div>
             </div>
-            {(isComplete || hasError) && (
-              <button
-                onClick={onClose}
-                className="p-3 text-zinc-400 hover:text-white rounded-xl hover:bg-white/10 transition-all hover:rotate-90 duration-300"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {!isComplete && !hasError && canStop && onStop && (
+                <button
+                  onClick={() => {
+                    if (stopConfirm) { onStop(); setStopConfirm(false); }
+                    else { setStopConfirm(true); setTimeout(() => setStopConfirm(false), 4000); }
+                  }}
+                  className={cn(
+                    "px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all border-2 shadow-lg",
+                    stopConfirm
+                      ? "bg-red-600 border-red-400 text-white animate-pulse hover:bg-red-700"
+                      : "bg-red-500/15 border-red-500/40 text-red-300 hover:bg-red-500/25 hover:border-red-500/60"
+                  )}
+                  title="Abort all in-flight requests"
+                >
+                  <StopCircle className="w-4 h-4" />
+                  {stopConfirm ? 'CLICK AGAIN TO CONFIRM' : 'STOP'}
+                </button>
+              )}
+              {(isComplete || hasError) && (
+                <button
+                  onClick={onClose}
+                  className="p-3 text-zinc-400 hover:text-white rounded-xl hover:bg-white/10 transition-all hover:rotate-90 duration-300"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Overall Progress */}
