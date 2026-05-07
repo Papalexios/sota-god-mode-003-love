@@ -139,6 +139,30 @@ export class SOTAContentGenerationEngine {
   private onProgress?: (message: string) => void;
   private modelConfigs: Record<string, ModelConfig>;
   private fallbackInFlight = new Set<string>();
+  // Master abort — when triggered (e.g. user clicks STOP), every in-flight
+  // fetch / SSE reader bails out immediately.
+  private masterAbort: AbortController = new AbortController();
+
+  /** Abort all in-flight provider calls. Caller can issue a fresh request after. */
+  abort(reason?: string): void {
+    this.log(`USER_ABORT: ${reason || 'stop requested'}`);
+    try { this.masterAbort.abort(); } catch { /* noop */ }
+    this.masterAbort = new AbortController();
+  }
+
+  /** Returns true when the master signal is currently aborted. */
+  isAborted(): boolean {
+    return this.masterAbort.signal.aborted;
+  }
+
+  private linkAbort(child: AbortController): () => void {
+    if (this.masterAbort.signal.aborted) {
+      try { child.abort(); } catch { /* noop */ }
+    }
+    const onAbort = () => { try { child.abort(); } catch { /* noop */ } };
+    this.masterAbort.signal.addEventListener('abort', onAbort, { once: true });
+    return () => this.masterAbort.signal.removeEventListener('abort', onAbort);
+  }
 
   constructor(apiKeys: ExtendedAPIKeys, onProgress?: (message: string) => void) {
     this.apiKeys = apiKeys;
