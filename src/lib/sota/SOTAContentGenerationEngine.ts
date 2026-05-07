@@ -190,7 +190,19 @@ export class SOTAContentGenerationEngine {
     const validation = params.validation;
     const label = `${params.model}${modelId ? `/${modelId}` : ''}`;
 
-    if (!trimmed) throw new Error(`${label} returned an empty response.`);
+    // MODEL_INCOMPATIBLE: the chosen model produced a usable-looking finish but
+    // returned almost nothing. Free / stealth OpenRouter models like
+    // `openrouter/owl-alpha` or restricted preview models do this — they reply
+    // with 10-30 tokens and finish_reason=stop. Retrying produces the same
+    // garbage. Throw a NON-retryable, actionable error so the UI can surface
+    // "switch model" instead of looping for 8 minutes.
+    if (!trimmed) {
+      throw new Error(`MODEL_INCOMPATIBLE: ${label} returned an empty response (finish_reason=${finishReason || 'unknown'}). This model cannot generate long-form articles — switch to a different model in Setup.`);
+    }
+    const wordCount = this.countWords(trimmed);
+    if (finishReason === 'stop' && wordCount < 200) {
+      throw new Error(`MODEL_INCOMPATIBLE: ${label} only produced ${wordCount} words before stopping. This model is not capable of long-form article generation. Switch to a stronger model (e.g. GPT-4o, Claude 3.5 Sonnet, or Gemini 2.0 Flash) in Setup.`);
+    }
     if (!opts.allowTruncation && finishReason && TRUNCATED_FINISH_REASONS.has(finishReason)) {
       throw new Error(`${label} output was truncated by token limits (${finishReason}). Falling back...`);
     }
@@ -199,10 +211,10 @@ export class SOTAContentGenerationEngine {
     const minChars = validation.minChars ?? 0;
     const minWords = validation.minWords ?? 0;
     if (minChars > 0 && trimmed.length < minChars) {
-      throw new Error(`${label} returned insufficient generated content (${trimmed.length}/${minChars} chars).`);
+      throw new Error(`MODEL_INCOMPATIBLE: ${label} returned only ${trimmed.length}/${minChars} chars. This model cannot satisfy the target length — switch model in Setup.`);
     }
-    if (minWords > 0 && this.countWords(trimmed) < minWords) {
-      throw new Error(`${label} returned insufficient generated content (${this.countWords(trimmed)}/${minWords} words).`);
+    if (minWords > 0 && wordCount < minWords) {
+      throw new Error(`MODEL_INCOMPATIBLE: ${label} returned only ${wordCount}/${minWords} words. This model cannot produce a full-length article — switch to a stronger model in Setup.`);
     }
     if (validation.type === 'article-html' || validation.requireCompleteArticle) {
       const hasOpeningArticle = /<article\b/i.test(trimmed);
