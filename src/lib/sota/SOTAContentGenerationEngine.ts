@@ -86,11 +86,23 @@ const PROVIDER_TIMEOUT_MS: Record<string, number> = {
   groq: 300_000,
 };
 const DEFAULT_PROVIDER_TIMEOUT_MS = 300_000;
-// If no SSE chunk arrives for this long, treat the connection as dead.
-// 90s covers slow free OpenRouter backends (DeepInfra/Novita) doing initial
-// model load, but bails on a truly stalled connection so we don't hang forever.
-const STREAM_INACTIVITY_MS = 90_000;
+const DEFAULT_STREAM_INACTIVITY_MS = 90_000;
+const STREAM_RESUME_ATTEMPTS = 3;
 const TRUNCATED_FINISH_REASONS = new Set(['length', 'max_tokens', 'max_output_tokens', 'MAX_TOKENS']);
+
+// Per-model OVERRIDES for known-slow OpenRouter / community-routed backends.
+interface ModelTimingPreset { pattern: RegExp; label: string; timeoutMs: number; inactivityMs: number; }
+const SLOW_MODEL_PRESETS: ModelTimingPreset[] = [
+  { pattern: /tencent\/hy3/i,             label: 'Tencent Hunyuan',     timeoutMs: 1_800_000, inactivityMs: 180_000 },
+  { pattern: /owl-alpha/i,                label: 'Owl Alpha (stealth)', timeoutMs: 1_500_000, inactivityMs: 150_000 },
+  { pattern: /:free$/i,                   label: 'free routed',         timeoutMs: 1_800_000, inactivityMs: 180_000 },
+  { pattern: /deepseek/i,                 label: 'DeepSeek',            timeoutMs: 1_200_000, inactivityMs: 120_000 },
+  { pattern: /qwen/i,                     label: 'Qwen',                timeoutMs: 1_200_000, inactivityMs: 120_000 },
+  { pattern: /llama-?(3\.1|3\.3|4)-?(70|405)b/i, label: 'Llama big',    timeoutMs: 1_200_000, inactivityMs: 120_000 },
+];
+function presetForModel(modelId: string): ModelTimingPreset | undefined {
+  return SLOW_MODEL_PRESETS.find(p => p.pattern.test(modelId));
+}
 
 interface ProviderCallResult {
   content: string;
@@ -173,8 +185,17 @@ export class SOTAContentGenerationEngine {
     }
   }
 
+  private timingFor(model: AIModel, modelId?: string): { timeoutMs: number; inactivityMs: number; presetLabel?: string } {
+    const baseTimeout = PROVIDER_TIMEOUT_MS[model] ?? DEFAULT_PROVIDER_TIMEOUT_MS;
+    const preset = modelId ? presetForModel(modelId) : undefined;
+    return {
+      timeoutMs: Math.max(baseTimeout, preset?.timeoutMs ?? 0),
+      inactivityMs: preset?.inactivityMs ?? DEFAULT_STREAM_INACTIVITY_MS,
+      presetLabel: preset?.label,
+    };
+  }
   private timeoutFor(model: AIModel): number {
-    return PROVIDER_TIMEOUT_MS[model] ?? DEFAULT_PROVIDER_TIMEOUT_MS;
+    return this.timingFor(model).timeoutMs;
   }
 
   private isRetryableError(error: unknown): boolean {
@@ -341,7 +362,11 @@ export class SOTAContentGenerationEngine {
       try {
         let providerResult: ProviderCallResult = { content: '', tokens: 0 };
 
-        const providerTimeout = this.timeoutFor(model);
+        const timing = this.timingFor(model, config.modelId);
+        const providerTimeout = timing.timeoutMs;
+        if (timing.presetLabel) {
+          this.log(`Detected slow model preset: ${timing.presetLabel} → timeout ${Math.round(providerTimeout / 1000)}s, inactivity ${Math.round(timing.inactivityMs / 1000)}s`);
+        }
         if (model === 'gemini') {
           providerResult = await this.callGemini(apiKey, prompt, systemPrompt, temperature, finalMaxTokens, providerTimeout);
         } else if (model === 'openai') {
@@ -349,7 +374,10 @@ export class SOTAContentGenerationEngine {
         } else if (model === 'anthropic') {
           providerResult = await this.callAnthropic(apiKey, prompt, systemPrompt, temperature, finalMaxTokens, providerTimeout);
         } else if (model === 'openrouter' || model === 'groq') {
-          providerResult = await this.callOpenAICompatible(config.endpoint, apiKey, config.modelId, prompt, systemPrompt, temperature, finalMaxTokens, providerTimeout);
+          providerResult = await this.streamOpenAICompatibleWithResume(
+            config.endpoint, apiKey, config.modelId, params,
+            finalMaxTokens, providerTimeout, timing.inactivityMs,
+          );
         }
 
         // If the provider truncated, transparently continue the turn before validating.
@@ -512,25 +540,43 @@ export class SOTAContentGenerationEngine {
     };
   }
 
-  private async callOpenAICompatible(endpoint: string, apiKey: string, modelId: string, prompt: string, systemPrompt?: string, temperature: number = 0.7, maxTokens: number = 4096, timeoutMs: number = DEFAULT_PROVIDER_TIMEOUT_MS): Promise<ProviderCallResult> {
+  /**
+   * Stream a single OpenAI-compatible request. Returns whatever was received
+   * before the stream ended OR before inactivity-abort fired. The caller
+   * (`streamOpenAICompatibleWithResume`) decides whether to retry/continue.
+   *
+   * `priorContent`, when set, is injected as a prior assistant turn so the
+   * model resumes EXACTLY where the previous (aborted) stream left off
+   * instead of restarting from scratch.
+   */
+  private async streamOpenAICompatibleOnce(
+    endpoint: string, apiKey: string, modelId: string,
+    prompt: string, systemPrompt: string | undefined,
+    temperature: number, maxTokens: number,
+    timeoutMs: number, inactivityMs: number,
+    priorContent?: string,
+  ): Promise<{ result: ProviderCallResult; aborted: boolean; reason?: 'inactivity' | 'overall' }> {
     const messages: any[] = [];
     if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
     messages.push({ role: 'user', content: prompt });
+    if (priorContent) {
+      messages.push({ role: 'assistant', content: priorContent });
+      messages.push({ role: 'user', content: 'Continue EXACTLY where you stopped. Do not repeat any prior text. Do not restart sentences. Resume mid-token if needed and continue until you reach </article>. Output raw HTML only.' });
+    }
 
-    // STREAMING with inactivity timeout. As long as tokens keep arriving the
-    // request stays alive — critical for slow free OpenRouter backends. We
-    // only abort when no chunk has arrived for STREAM_INACTIVITY_MS.
     const controller = new AbortController();
-    const overall = setTimeout(() => controller.abort(), timeoutMs);
+    let abortReason: 'inactivity' | 'overall' | undefined;
+    const overall = setTimeout(() => { abortReason = 'overall'; controller.abort(); }, timeoutMs);
     let inactivity: ReturnType<typeof setTimeout> | null = null;
     const resetInactivity = () => {
       if (inactivity) clearTimeout(inactivity);
-      inactivity = setTimeout(() => controller.abort(), STREAM_INACTIVITY_MS);
+      inactivity = setTimeout(() => { abortReason = 'inactivity'; controller.abort(); }, inactivityMs);
     };
     resetInactivity();
 
     let response: Response;
     try {
+      this.log(`SSE: connecting to ${modelId}…`);
       response = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -540,20 +586,14 @@ export class SOTAContentGenerationEngine {
           'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : 'https://contentoptimizer.app',
           'X-Title': 'WP Content Optimizer',
         },
-        body: JSON.stringify({
-          model: modelId,
-          messages,
-          temperature,
-          max_tokens: maxTokens,
-          stream: true,
-        }),
+        body: JSON.stringify({ model: modelId, messages, temperature, max_tokens: maxTokens, stream: true }),
         signal: controller.signal,
       });
     } catch (err: any) {
       clearTimeout(overall);
       if (inactivity) clearTimeout(inactivity);
       if (err?.name === 'AbortError') {
-        throw new Error(`${modelId} stalled (no response start within ${Math.round(STREAM_INACTIVITY_MS / 1000)}s). Switch to a faster model in Setup.`);
+        return { result: { content: '', tokens: 0 }, aborted: true, reason: abortReason };
       }
       throw err;
     }
@@ -570,6 +610,7 @@ export class SOTAContentGenerationEngine {
       throw new Error(`${modelId} returned no response body.`);
     }
 
+    this.log(`SSE: streaming ${modelId}…`);
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
@@ -600,9 +641,10 @@ export class SOTAContentGenerationEngine {
             const delta = choice?.delta?.content ?? choice?.message?.content;
             if (typeof delta === 'string' && delta.length) {
               content += delta;
-              if (content.length - lastLogChars > 1500) {
+              if (content.length - lastLogChars > 800) {
                 lastLogChars = content.length;
-                this.log(`${modelId}: streaming… ${content.length.toLocaleString()} chars received`);
+                const totalChars = (priorContent?.length ?? 0) + content.length;
+                this.log(`SSE: streaming ${modelId} — ${totalChars.toLocaleString()} chars`);
               }
             }
             if (choice?.finish_reason) finishReason = choice.finish_reason;
@@ -615,22 +657,69 @@ export class SOTAContentGenerationEngine {
       }
     } catch (err: any) {
       if (err?.name === 'AbortError') {
-        if (content.length > 500) {
-          this.log(`${modelId}: stream aborted after ${content.length} chars — treating as truncated, will continue.`);
-          finishReason = finishReason || 'length';
-        } else {
-          throw new Error(`${modelId} stalled (no tokens for ${Math.round(STREAM_INACTIVITY_MS / 1000)}s). Switch to a faster model in Setup.`);
-        }
-      } else {
-        throw err;
+        clearTimeout(overall); if (inactivity) clearTimeout(inactivity);
+        return { result: { content, tokens, finishReason }, aborted: true, reason: abortReason };
       }
-    } finally {
-      clearTimeout(overall);
-      if (inactivity) clearTimeout(inactivity);
+      clearTimeout(overall); if (inactivity) clearTimeout(inactivity);
+      throw err;
     }
-
-    return { content, tokens, finishReason };
+    clearTimeout(overall); if (inactivity) clearTimeout(inactivity);
+    return { result: { content, tokens, finishReason }, aborted: false };
   }
+
+  /**
+   * Streaming wrapper that AUTOMATICALLY RESUMES on inactivity-abort,
+   * preserving partial output. Each resume opens a fresh connection and
+   * supplies the previous content so the model continues where it stopped.
+   */
+  private async streamOpenAICompatibleWithResume(
+    endpoint: string, apiKey: string, modelId: string,
+    params: GenerationParams, maxTokens: number,
+    timeoutMs: number, inactivityMs: number,
+  ): Promise<ProviderCallResult> {
+    let acc: ProviderCallResult = { content: '', tokens: 0 };
+    let resumes = 0;
+
+    while (true) {
+      const { result, aborted, reason } = await this.streamOpenAICompatibleOnce(
+        endpoint, apiKey, modelId,
+        params.prompt, params.systemPrompt,
+        params.temperature ?? 0.7, maxTokens,
+        timeoutMs, inactivityMs,
+        acc.content || undefined,
+      );
+
+      // Merge whatever we received this round
+      acc = {
+        content: acc.content + (result.content || ''),
+        tokens: (acc.tokens || 0) + (result.tokens || 0),
+        finishReason: result.finishReason,
+      };
+
+      if (!aborted) {
+        return acc;
+      }
+
+      // Aborted — decide whether to resume.
+      const haveProgress = (result.content?.length ?? 0) > 200 || acc.content.length > 800;
+      if (resumes >= STREAM_RESUME_ATTEMPTS) {
+        if (haveProgress) {
+          this.log(`SSE: max resumes (${STREAM_RESUME_ATTEMPTS}) reached — keeping ${acc.content.length} chars as truncated.`);
+          acc.finishReason = acc.finishReason || 'length';
+          return acc;
+        }
+        throw new Error(`${modelId} stalled (no tokens for ${Math.round(inactivityMs / 1000)}s, ${resumes} resume attempts). Switch to a faster model in Setup.`);
+      }
+      if (reason === 'overall' && !haveProgress) {
+        throw new Error(`${modelId} stalled (overall timeout ${Math.round(timeoutMs / 1000)}s with no output). Switch to a faster model.`);
+      }
+
+      resumes++;
+      this.log(`SSE: ${reason === 'inactivity' ? 'inactivity' : 'overall'} abort — auto-resuming (${resumes}/${STREAM_RESUME_ATTEMPTS}) with ${acc.content.length} chars preserved…`);
+      await this.sleep(1500);
+    }
+  }
+
 
   getAvailableModels(): AIModel[] {
     const models: AIModel[] = ['gemini', 'openai', 'anthropic', 'openrouter', 'groq'];

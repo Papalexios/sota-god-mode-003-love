@@ -197,6 +197,13 @@ export function ReviewExport() {
     currentStep?: string;
     error?: string;
   }>>([]);
+  const [streamTelemetry, setStreamTelemetry] = useState<{
+    status: 'idle' | 'connecting' | 'streaming' | 'resuming' | 'completed' | 'aborted';
+    chars: number;
+    tokens: number;
+    modelId?: string;
+    note?: string;
+  }>({ status: 'idle', chars: 0, tokens: 0 });
 
   // ── Bulk Publish State ──
   const { publish, isConfigured: wpConfigured } = useWordPressPublish();
@@ -374,6 +381,7 @@ export function ReviewExport() {
     setGenerationProgress(0);
     setCurrentItemIndex(0);
     setGenerationError(undefined);
+    setStreamTelemetry({ status: 'idle', chars: 0, tokens: 0 });
     setGenerationSteps(createDefaultSteps());
     setGeneratingItems(toGenerate.map(item => ({
       id: item.id,
@@ -467,6 +475,28 @@ export function ReviewExport() {
           onProgress: (msg) => {
             const lowerMsg = msg.toLowerCase();
             let detectedStep = -1;
+
+            // ── SSE telemetry parser ──
+            if (msg.startsWith('SSE:')) {
+              const charsMatch = msg.match(/([\d,]+)\s*chars/i);
+              const chars = charsMatch ? Number(charsMatch[1].replace(/,/g, '')) : undefined;
+              const modelMatch = msg.match(/(?:to|streaming)\s+([^\s—]+)/i);
+              const modelId = modelMatch?.[1];
+              setStreamTelemetry(prev => {
+                let status: typeof prev.status = prev.status;
+                if (msg.includes('connecting')) status = 'connecting';
+                else if (msg.includes('auto-resuming')) status = 'resuming';
+                else if (msg.includes('max resumes')) status = 'aborted';
+                else if (msg.includes('streaming')) status = 'streaming';
+                return {
+                  status,
+                  chars: chars ?? prev.chars,
+                  tokens: prev.tokens,
+                  modelId: modelId ?? prev.modelId,
+                  note: msg.replace(/^SSE:\s*/, ''),
+                };
+              });
+            }
 
             if (lowerMsg.includes('serp') || lowerMsg.includes('research') || lowerMsg.includes('analyzing')) {
               updateStep('research', 'running', msg);
@@ -1136,6 +1166,7 @@ export function ReviewExport() {
         overallProgress={generationProgress}
         steps={generationSteps}
         error={generationError}
+        streamTelemetry={streamTelemetry}
       />
 
       {/* Content Viewer Panel */}
