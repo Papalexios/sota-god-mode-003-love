@@ -67,6 +67,8 @@ import {
 import { refineWithSelfCritique } from './HumanQualityRefiner';
 import { WordPressMediaService, type WordPressMediaItem } from './WordPressMediaService';
 import { runBlogPostChecklist, buildMissingSectionsRewritePrompt, type ChecklistResult } from './BlogPostChecklist';
+import { extractEntityCandidates } from './EntityGraph';
+import { injectCitedQuotes } from './CitedQuoteInjector';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS & CONFIGURATION
@@ -1419,18 +1421,32 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
       this.warn(`Phase 10: Schema generation failed (${e}). Using empty schema.`);
     }
 
+    // ── Phase 10b: Cited-quote blocks per H2 (LLM citation magnets) ────────
+    this.log('Phase 10b: Injecting hidden LLM cited-quote blocks per H2...');
+    const cq = injectCitedQuotes(html);
+    html = cq.html;
+    this.log(`Phase 10b ✅ ${cq.injected} cited-quote blocks injected.`);
+
     // ── Phase 11: Pre-publish Checklist + Targeted Auto-Retry ──────────────
-    // Validate every mandatory SEO/AEO/GEO/E-E-A-T block is present. If
-    // anything is missing, run a focused rewrite (regenerate ONLY the missing
-    // sections) using the user's chosen model. If that still fails, try once
-    // more with the first user-defined fallback model + a smaller target.
     this.log('Phase 11: Running pre-publish checklist validator...');
     const provisionalMeta = `A comprehensive guide and analysis on ${options.keyword}.`;
+    const entityCandidates = extractEntityCandidates({
+      serpTitles: top3Competitors.map((c: any) => c.title || '').filter(Boolean),
+      paaQuestions: ((neuron?.analysis as any)?.questions || []).slice(0, 10),
+      neuronTerms: [
+        ...((neuron?.analysis?.terms || []).map((t: any) => t.term)),
+        ...((neuron?.analysis?.termsExtended || []).map((t: any) => t.term)),
+      ].filter(Boolean),
+      primaryKeyword: options.keyword,
+      max: 30,
+    });
     let checklist: ChecklistResult = runBlogPostChecklist({
       html,
       title: options.title || options.keyword,
       metaDescription: provisionalMeta,
       primaryKeyword: options.keyword,
+      slug,
+      entities: entityCandidates,
     });
     this.log(`Phase 11 ✅ Checklist score ${checklist.score}/100 — ${checklist.mandatoryFailures.length} mandatory failures, ${checklist.recommendedFailures.length} recommended.`);
 
@@ -1469,6 +1485,8 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
               title: options.title || options.keyword,
               metaDescription: provisionalMeta,
               primaryKeyword: options.keyword,
+              slug,
+              entities: entityCandidates,
             });
             if (newChecklist.mandatoryFailures.length < checklist.mandatoryFailures.length) {
               html = candidate;
