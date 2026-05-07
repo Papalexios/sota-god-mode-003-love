@@ -67,6 +67,8 @@ import {
 import { refineWithSelfCritique } from './HumanQualityRefiner';
 import { WordPressMediaService, type WordPressMediaItem } from './WordPressMediaService';
 import { runBlogPostChecklist, buildMissingSectionsRewritePrompt, type ChecklistResult } from './BlogPostChecklist';
+import { extractEntityCandidates } from './EntityGraph';
+import { injectCitedQuotes } from './CitedQuoteInjector';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS & CONFIGURATION
