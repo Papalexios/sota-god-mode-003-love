@@ -201,6 +201,10 @@ export function ReviewExport() {
     status: 'idle' | 'connecting' | 'streaming' | 'resuming' | 'completed' | 'aborted';
     chars: number;
     tokens: number;
+    cps?: number;
+    phase?: number;
+    phaseLabel?: string;
+    snippet?: string;
     modelId?: string;
     note?: string;
   }>({ status: 'idle', chars: 0, tokens: 0 });
