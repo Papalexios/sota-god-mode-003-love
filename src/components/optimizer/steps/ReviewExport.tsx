@@ -625,15 +625,17 @@ export function ReviewExport() {
           : String(error) || 'Unknown generation error';
 
         // Classify error for user-friendly message
-        const friendlyMsg = errorMsg.includes('AbortError') || errorMsg.includes('timeout')
-          ? 'Generation timed out. Try a shorter target word count or switch AI model.'
-          : errorMsg.includes('401') || errorMsg.includes('auth') || errorMsg.includes('API key')
-            ? 'Invalid API key. Check your AI provider key in Setup.'
-            : errorMsg.includes('429') || errorMsg.includes('rate limit')
-              ? 'API rate limit hit. Wait 30s and retry.'
-              : errorMsg.includes('empty content')
-                ? 'AI returned empty content. Try switching to a different model (e.g., Gemini → GPT-4o).'
-                : errorMsg;
+        const friendlyMsg = errorMsg.includes('MODEL_INCOMPATIBLE')
+          ? errorMsg.replace(/^.*MODEL_INCOMPATIBLE:\s*/, '⚠️ Incompatible model: ')
+          : errorMsg.includes('AbortError') || errorMsg.includes('timed out')
+            ? 'Generation timed out — the AI provider stalled. Switch to a faster model (Gemini 2.0 Flash, GPT-4o, or Groq Llama 3.3) in Setup.'
+            : errorMsg.includes('401') || errorMsg.includes('auth') || errorMsg.includes('API key')
+              ? 'Invalid API key. Check your AI provider key in Setup.'
+              : errorMsg.includes('429') || errorMsg.includes('rate limit')
+                ? 'API rate limit hit. Wait 30s and retry.'
+                : errorMsg.includes('empty content')
+                  ? 'AI returned empty content. Try switching to a different model (e.g., Gemini → GPT-4o).'
+                  : errorMsg;
         console.error(`[ReviewExport] Generation failed for "${item.title}":`, errorMsg, error);
         toast.error(`Generation failed: ${friendlyMsg.slice(0, 150)}`);
         updateContentItem(item.id, { status: 'error', error: friendlyMsg });
