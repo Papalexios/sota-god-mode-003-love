@@ -14,6 +14,7 @@ import { useSupabaseSyncContext } from "@/providers/SupabaseSyncProvider";
 import { useWordPressPublish } from "@/hooks/useWordPressPublish";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Helper to reconstruct GeneratedContent from persisted store (minimal shape for viewer)
 function reconstructGeneratedContent(stored: GeneratedContentStore[string] | undefined): GeneratedContent | null {
