@@ -606,7 +606,7 @@ export class SOTAContentGenerationEngine {
     }
 
     const controller = new AbortController();
-    let abortReason: 'inactivity' | 'overall' | 'slow' | undefined;
+    let abortReason: 'inactivity' | 'overall' | 'slow' | 'user' | undefined;
     const overall = setTimeout(() => { abortReason = 'overall'; controller.abort(); }, timeoutMs);
     let inactivity: ReturnType<typeof setTimeout> | null = null;
     const resetInactivity = () => {
@@ -614,6 +614,10 @@ export class SOTAContentGenerationEngine {
       inactivity = setTimeout(() => { abortReason = 'inactivity'; controller.abort(); }, inactivityMs);
     };
     resetInactivity();
+    // Link master abort: user-stop cancels the SSE immediately.
+    const unlink = this.linkAbort(controller);
+    const masterListener = () => { abortReason = 'user'; };
+    this.masterAbort.signal.addEventListener('abort', masterListener, { once: true });
 
     let response: Response;
     try {
