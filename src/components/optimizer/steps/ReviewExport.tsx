@@ -201,6 +201,10 @@ export function ReviewExport() {
     status: 'idle' | 'connecting' | 'streaming' | 'resuming' | 'completed' | 'aborted';
     chars: number;
     tokens: number;
+    cps?: number;
+    phase?: number;
+    phaseLabel?: string;
+    snippet?: string;
     modelId?: string;
     note?: string;
   }>({ status: 'idle', chars: 0, tokens: 0 });
@@ -475,6 +479,7 @@ export function ReviewExport() {
           onProgress: (msg) => {
             const lowerMsg = msg.toLowerCase();
             let detectedStep = -1;
+            let detectedPhase: number | undefined;
             let isSSE = false;
 
             // ── SSE telemetry parser (live stream progress) ──
@@ -482,43 +487,47 @@ export function ReviewExport() {
               isSSE = true;
               const charsMatch = msg.match(/([\d,]+)\s*chars/i);
               const chars = charsMatch ? Number(charsMatch[1].replace(/,/g, '')) : undefined;
+              const cpsMatch = msg.match(/([\d.]+)\s*cps/i);
+              const cps = cpsMatch ? Number(cpsMatch[1]) : undefined;
               const modelMatch = msg.match(/(?:to|streaming)\s+([^\s—]+)/i);
               const modelId = modelMatch?.[1];
               setStreamTelemetry(prev => {
                 let status: typeof prev.status = prev.status;
                 if (msg.includes('connecting')) status = 'connecting';
                 else if (msg.includes('auto-resuming') || msg.includes('resuming')) status = 'resuming';
-                else if (msg.includes('max resumes') || msg.includes('aborted')) status = 'aborted';
+                else if (msg.includes('max resumes') || msg.includes('aborted') || msg.includes('slow-throughput')) status = 'aborted';
                 else if (msg.includes('streaming')) status = 'streaming';
                 else if (msg.includes('completed') || msg.includes('done')) status = 'completed';
                 return {
+                  ...prev,
                   status,
                   chars: chars ?? prev.chars,
-                  tokens: prev.tokens,
+                  cps: cps ?? prev.cps,
                   modelId: modelId ?? prev.modelId,
+                  snippet: msg.replace(/^SSE:\s*/, '').slice(0, 140),
                   note: msg.replace(/^SSE:\s*/, ''),
                 };
               });
               // Streaming = AI Generation phase. Force-advance to step 4 ("content").
               detectedStep = 4;
+              detectedPhase = 5;
             }
 
             if (!isSSE) {
               // Match by SPECIFIC phase markers first to avoid keyword collisions
-              // (e.g. "Phase 5: Master Content Generation" must beat the
-              // generic "reference" keyword from a leftover Phase 3 line).
               const phaseMatch = msg.match(/Phase\s+(\d+)([a-z])?/i);
               if (phaseMatch) {
                 const n = parseInt(phaseMatch[1], 10);
+                detectedPhase = n;
                 if (n <= 1) detectedStep = 0;
                 else if (n === 2) detectedStep = 1;
                 else if (n === 3) detectedStep = 2;
-                else if (n === 4) detectedStep = 2;        // WP media still under research bucket
-                else if (n === 5 || n === 6) detectedStep = 4;  // content gen + NW enforcement
-                else if (n === 7 || n === 8) detectedStep = 5;  // critique / aesthetics = enhance
-                else if (n === 9) detectedStep = 6;        // links / media injection
-                else if (n === 10) detectedStep = 8;       // schema / refs
-                else if (n === 11) detectedStep = 7;       // checklist validation
+                else if (n === 4) detectedStep = 2;
+                else if (n === 5 || n === 6) detectedStep = 4;
+                else if (n === 7 || n === 8) detectedStep = 5;
+                else if (n === 9) detectedStep = 6;
+                else if (n === 10) detectedStep = 8;
+                else if (n === 11) detectedStep = 7;
               } else if (lowerMsg.includes('serp') || lowerMsg.includes('research') || lowerMsg.includes('analyzing')) {
                 detectedStep = 0;
               } else if (lowerMsg.includes('youtube') || lowerMsg.includes('video')) {
@@ -540,26 +549,54 @@ export function ReviewExport() {
               }
             }
 
+            if (detectedPhase !== undefined) {
+              setStreamTelemetry(prev => ({
+                ...prev,
+                phase: Math.max(prev.phase ?? 0, detectedPhase!),
+                phaseLabel: msg.slice(0, 140),
+                snippet: prev.snippet ?? msg.slice(0, 140),
+              }));
+            }
+
             if (detectedStep >= 0) {
               currentStepIdx = Math.max(currentStepIdx, detectedStep);
-              // CRITICAL: mark ALL prior steps completed and ONLY the current as running,
-              // so the headline "currentStep" label reflects the latest real phase.
               setGenerationSteps(prev => prev.map((s, idx) => {
                 if (idx < currentStepIdx) {
                   return s.status === 'error' ? s : { ...s, status: 'completed' as const };
                 }
                 if (idx === currentStepIdx) {
-                  return { ...s, status: 'running' as const, message: msg };
+                  const phaseTag = detectedPhase !== undefined ? `Phase ${detectedPhase} • ` : '';
+                  return { ...s, status: 'running' as const, message: `${phaseTag}${msg}`.slice(0, 200) };
                 }
                 return s.status === 'pending' ? s : { ...s, status: 'pending' as const };
               }));
             }
 
-            // Build a richer per-item label: include live char count while streaming
-            const liveLabel = isSSE
-              ? msg.replace(/^SSE:\s*/, '')
-              : msg;
-            const itemProgress = Math.min(99, Math.round(((currentStepIdx + 1) / stepIds.length) * 100));
+            // ── Global per-item progress: phase-weighted with char-based bonus ──
+            // Phases 1-11 map roughly to portions of the pipeline.
+            // While streaming, use chars to grow progress smoothly inside Phase 5.
+            const TARGET_CHARS = 12000;
+            const phaseFloor: Record<number, number> = {
+              0: 2, 1: 5, 2: 12, 3: 18, 4: 25, 5: 32, 6: 75, 7: 82, 8: 88, 9: 92, 10: 96, 11: 99,
+            };
+            const stepFloor = Math.round(((currentStepIdx + 1) / stepIds.length) * 100);
+            let itemProgress = stepFloor;
+            const phaseNum = detectedPhase ?? (isSSE ? 5 : undefined);
+            if (phaseNum !== undefined) {
+              const floor = phaseFloor[phaseNum] ?? stepFloor;
+              const next = phaseFloor[phaseNum + 1] ?? Math.min(99, floor + 10);
+              if (isSSE) {
+                const charsMatch = msg.match(/([\d,]+)\s*chars/i);
+                const chars = charsMatch ? Number(charsMatch[1].replace(/,/g, '')) : 0;
+                const ratio = Math.min(1, chars / TARGET_CHARS);
+                itemProgress = Math.round(floor + (next - floor) * ratio);
+              } else {
+                itemProgress = floor;
+              }
+            }
+            itemProgress = Math.min(99, Math.max(itemProgress, stepFloor));
+
+            const liveLabel = isSSE ? msg.replace(/^SSE:\s*/, '') : msg;
             setGeneratingItems(prev => prev.map(gi =>
               gi.id === item.id ? { ...gi, progress: itemProgress, currentStep: liveLabel } : gi
             ));

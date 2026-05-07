@@ -90,6 +90,15 @@ const DEFAULT_STREAM_INACTIVITY_MS = 90_000;
 const STREAM_RESUME_ATTEMPTS = 3;
 const TRUNCATED_FINISH_REASONS = new Set(['length', 'max_tokens', 'max_output_tokens', 'MAX_TOKENS']);
 
+// Throughput watchdog: if a stream sustains a char-per-second rate below this
+// threshold for the grace window AND we haven't already produced enough output,
+// treat it as "too slow" and trigger an immediate fallback to the next model.
+// This is what saves users from 8-minute "Forging Content 56%" hangs on
+// stalled free OpenRouter backends.
+const SLOW_THROUGHPUT_CPS = 3;
+const SLOW_THROUGHPUT_GRACE_MS = 75_000;
+const SLOW_THROUGHPUT_MIN_ELAPSED_MS = 30_000;
+
 // Per-model OVERRIDES for known-slow OpenRouter / community-routed backends.
 interface ModelTimingPreset { pattern: RegExp; label: string; timeoutMs: number; inactivityMs: number; }
 const SLOW_MODEL_PRESETS: ModelTimingPreset[] = [
@@ -398,6 +407,9 @@ export class SOTAContentGenerationEngine {
         return result;
       } catch (error) {
         lastError = error;
+        const msg = error instanceof Error ? error.message : '';
+        // Slow-throughput abort → skip retrying the same slow model, jump to fallbacks.
+        if (msg.includes('SLOW_MODEL')) break;
         if (attempt < MAX_RETRIES && this.isRetryableError(error)) continue;
         break;
       }
@@ -555,7 +567,7 @@ export class SOTAContentGenerationEngine {
     temperature: number, maxTokens: number,
     timeoutMs: number, inactivityMs: number,
     priorContent?: string,
-  ): Promise<{ result: ProviderCallResult; aborted: boolean; reason?: 'inactivity' | 'overall' }> {
+  ): Promise<{ result: ProviderCallResult; aborted: boolean; reason?: 'inactivity' | 'overall' | 'slow' }> {
     const messages: any[] = [];
     if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
     messages.push({ role: 'user', content: prompt });
@@ -565,7 +577,7 @@ export class SOTAContentGenerationEngine {
     }
 
     const controller = new AbortController();
-    let abortReason: 'inactivity' | 'overall' | undefined;
+    let abortReason: 'inactivity' | 'overall' | 'slow' | undefined;
     const overall = setTimeout(() => { abortReason = 'overall'; controller.abort(); }, timeoutMs);
     let inactivity: ReturnType<typeof setTimeout> | null = null;
     const resetInactivity = () => {
@@ -619,6 +631,7 @@ export class SOTAContentGenerationEngine {
     let finishReason: string | undefined;
     let lastLogChars = 0;
 
+    const streamStart = Date.now();
     try {
       while (true) {
         const { done, value } = await reader.read();
@@ -644,7 +657,20 @@ export class SOTAContentGenerationEngine {
               if (content.length - lastLogChars > 800) {
                 lastLogChars = content.length;
                 const totalChars = (priorContent?.length ?? 0) + content.length;
-                this.log(`SSE: streaming ${modelId} — ${totalChars.toLocaleString()} chars`);
+                const elapsedMs = Date.now() - streamStart;
+                const cps = elapsedMs > 0 ? content.length / (elapsedMs / 1000) : 0;
+                this.log(`SSE: streaming ${modelId} — ${totalChars.toLocaleString()} chars @ ${cps.toFixed(1)} cps`);
+                // Throughput watchdog — fallback if model is too slow.
+                if (
+                  elapsedMs > SLOW_THROUGHPUT_MIN_ELAPSED_MS &&
+                  elapsedMs > SLOW_THROUGHPUT_GRACE_MS &&
+                  cps < SLOW_THROUGHPUT_CPS &&
+                  totalChars < 4000
+                ) {
+                  this.log(`SSE: throughput too low (${cps.toFixed(1)} cps < ${SLOW_THROUGHPUT_CPS}) after ${Math.round(elapsedMs / 1000)}s — aborting for fallback.`);
+                  abortReason = 'slow';
+                  controller.abort();
+                }
               }
             }
             if (choice?.finish_reason) finishReason = choice.finish_reason;
@@ -698,6 +724,15 @@ export class SOTAContentGenerationEngine {
 
       if (!aborted) {
         return acc;
+      }
+
+      // Slow throughput → bail out fast so the outer retry/fallback loop
+      // can switch to a faster model. Keep partial content for telemetry.
+      if (reason === 'slow') {
+        this.log(`SSE: slow-throughput abort on ${modelId} — surfacing for fallback (have ${acc.content.length} chars).`);
+        const err: any = new Error(`SLOW_MODEL: ${modelId} throughput below ${SLOW_THROUGHPUT_CPS} cps — falling back to a faster model.`);
+        err.partialContent = acc.content;
+        throw err;
       }
 
       // Aborted — decide whether to resume.
