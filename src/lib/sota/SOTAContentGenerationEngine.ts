@@ -762,6 +762,12 @@ export class SOTAContentGenerationEngine {
         return acc;
       }
 
+      // User pressed STOP — bubble out, do not auto-resume.
+      if (reason === 'user' || this.masterAbort.signal.aborted) {
+        this.log(`SSE: user aborted on ${modelId}.`);
+        throw new Error('USER_ABORT: generation stopped by user');
+      }
+
       // Slow throughput → bail out fast so the outer retry/fallback loop
       // can switch to a faster model. Keep partial content for telemetry.
       if (reason === 'slow') {
