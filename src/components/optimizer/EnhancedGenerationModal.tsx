@@ -327,6 +327,11 @@ export function EnhancedGenerationModal({
                   )} />
                   SSE {streamTelemetry.status}
                 </span>
+                {streamTelemetry.phase !== undefined && (
+                  <span className="inline-flex items-center px-2 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider bg-primary/15 border border-primary/40 text-primary">
+                    Phase {streamTelemetry.phase}
+                  </span>
+                )}
                 {streamTelemetry.modelId && (
                   <span className="text-xs font-mono text-zinc-400 truncate max-w-[260px]" title={streamTelemetry.modelId}>
                     {streamTelemetry.modelId}
@@ -338,6 +343,15 @@ export function EnhancedGenerationModal({
                   <span className="text-zinc-500">chars </span>
                   <span className="font-mono font-bold text-white tabular-nums">{streamTelemetry.chars.toLocaleString()}</span>
                 </div>
+                {streamTelemetry.cps !== undefined && streamTelemetry.cps > 0 && (
+                  <div>
+                    <span className="text-zinc-500">cps </span>
+                    <span className={cn(
+                      "font-mono font-bold tabular-nums",
+                      streamTelemetry.cps < 3 ? "text-red-300" : streamTelemetry.cps < 10 ? "text-amber-300" : "text-emerald-300"
+                    )}>{streamTelemetry.cps.toFixed(1)}</span>
+                  </div>
+                )}
                 {streamTelemetry.tokens > 0 && (
                   <div>
                     <span className="text-zinc-500">tokens </span>
@@ -346,9 +360,9 @@ export function EnhancedGenerationModal({
                 )}
               </div>
             </div>
-            {streamTelemetry.note && (
-              <div className="mt-2 text-[11px] text-zinc-500 truncate" title={streamTelemetry.note}>
-                {streamTelemetry.note}
+            {streamTelemetry.snippet && (
+              <div className="mt-2 text-[11px] font-mono text-zinc-400 truncate bg-black/40 px-2 py-1 rounded border border-white/5" title={streamTelemetry.note || streamTelemetry.snippet}>
+                › {streamTelemetry.snippet}
               </div>
             )}
           </div>
