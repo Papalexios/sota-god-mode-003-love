@@ -173,6 +173,9 @@ export class SOTAContentGenerationEngine {
   private isRetryableError(error: unknown): boolean {
     if (error instanceof Error) {
       const msg = error.message;
+      // MODEL_INCOMPATIBLE = the model itself can't do the job. Retrying it
+      // produces the same garbage — surface it immediately.
+      if (msg.includes('MODEL_INCOMPATIBLE')) return false;
       return RETRYABLE_STATUS_CODES.some(code => msg.includes(String(code))) ||
         msg.includes('ECONNRESET') || msg.includes('ETIMEDOUT') ||
         msg.includes('ERR_HTTP2_PROTOCOL_ERROR') || msg.includes('fetch failed') ||
