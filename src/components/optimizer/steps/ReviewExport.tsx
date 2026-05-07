@@ -1249,6 +1249,9 @@ export function ReviewExport() {
         steps={generationSteps}
         error={generationError}
         streamTelemetry={streamTelemetry}
+        logFeed={generationLog}
+        onStop={handleStopGeneration}
+        canStop={isGenerating}
       />
 
       {/* Content Viewer Panel */}
