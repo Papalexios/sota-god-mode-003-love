@@ -1324,3 +1324,63 @@ function InputField({
     </div>
   );
 }
+
+function ConnectionStatusPill({
+  enabled,
+  loading,
+  error,
+  hasKey,
+  projects,
+  selected,
+}: {
+  enabled: boolean;
+  loading: boolean;
+  error: boolean;
+  hasKey: boolean;
+  projects: number;
+  selected: boolean;
+}) {
+  let label = "Disabled";
+  let tone = "bg-zinc-500/15 text-zinc-300 ring-zinc-400/30";
+  let dot = "bg-zinc-400";
+
+  if (enabled) {
+    if (loading) {
+      label = "Connecting…";
+      tone = "bg-blue-500/15 text-blue-300 ring-blue-400/30";
+      dot = "bg-blue-400 animate-pulse";
+    } else if (error) {
+      label = "Error";
+      tone = "bg-red-500/15 text-red-300 ring-red-400/30";
+      dot = "bg-red-400";
+    } else if (!hasKey) {
+      label = "Add API key";
+      tone = "bg-amber-500/15 text-amber-300 ring-amber-400/30";
+      dot = "bg-amber-400";
+    } else if (selected) {
+      label = "Connected";
+      tone = "bg-emerald-500/15 text-emerald-300 ring-emerald-400/30";
+      dot = "bg-emerald-400";
+    } else if (projects > 0) {
+      label = "Pick a project";
+      tone = "bg-amber-500/15 text-amber-300 ring-amber-400/30";
+      dot = "bg-amber-400";
+    } else {
+      label = "Ready";
+      tone = "bg-primary/15 text-primary ring-primary/30";
+      dot = "bg-primary";
+    }
+  }
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ring-1",
+        tone
+      )}
+    >
+      <span className={cn("w-1.5 h-1.5 rounded-full", dot)} />
+      {label}
+    </span>
+  );
+}
