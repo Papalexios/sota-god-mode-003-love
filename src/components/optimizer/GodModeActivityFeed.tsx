@@ -14,6 +14,7 @@ import { useOptimizerStore } from '@/lib/store';
 import { useGodModeEngine } from '@/hooks/useGodModeEngine';
 import { Activity, CheckCircle2, AlertTriangle, XCircle, Info, Trash2, Filter, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { EmptyState } from '@/components/ui/empty-state';
 
 type ActivityFilter = 'all' | 'success' | 'warning' | 'error' | 'info';
 
@@ -112,12 +113,13 @@ export function GodModeActivityFeed() {
 
       <div className="flex-1 overflow-y-auto custom-scrollbar bg-black/10 backdrop-blur-sm p-2 space-y-1">
         {activities.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-zinc-500">
-            <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center mb-3">
-              <Zap className="w-6 h-6 text-zinc-600" />
-            </div>
-            <p className="text-sm font-medium text-zinc-400">System Ready</p>
-            <p className="text-xs text-zinc-600 mt-1">Waiting for engine start...</p>
+          <div className="h-full flex items-center justify-center p-3">
+            <EmptyState
+              icon={Zap}
+              title="System ready"
+              description={state.status === 'running' ? 'Waiting for first activity…' : 'Start the engine to see live updates here.'}
+              compact
+            />
           </div>
         ) : (
           activities.map((activity) => (
