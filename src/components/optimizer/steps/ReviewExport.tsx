@@ -381,6 +381,7 @@ export function ReviewExport() {
     setGenerationProgress(0);
     setCurrentItemIndex(0);
     setGenerationError(undefined);
+    setStreamTelemetry({ status: 'idle', chars: 0, tokens: 0 });
     setGenerationSteps(createDefaultSteps());
     setGeneratingItems(toGenerate.map(item => ({
       id: item.id,
