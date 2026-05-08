@@ -185,18 +185,31 @@ export class NeuronWriterService {
    * explicitly points to a Supabase functions endpoint. Auto-detection caused
    * "Failed to fetch" errors because the edge function is not deployed by default.
    */
-  private resolveProxyUrl(): string {
-    if (this.config.customProxyUrl) return this.config.customProxyUrl;
-    return '/api/neuronwriter';
+  private resolveProxyUrls(): string[] {
+    const urls: string[] = [];
+    if (this.config.customProxyUrl) urls.push(this.config.customProxyUrl);
+    // Cloudflare Pages Function (production)
+    urls.push('/api/neuronwriter');
+    // Supabase Edge Function fallback — used when the SPA is hosted on an
+    // environment without Cloudflare Pages Functions (e.g. lovable.app preview).
+    if (this.config.supabaseUrl) {
+      const base = this.config.supabaseUrl.replace(/\/$/, '');
+      urls.push(`${base}/functions/v1/neuronwriter-proxy`);
+    }
+    return Array.from(new Set(urls));
   }
 
   private async callProxy(endpoint: string, payload: any = {}): Promise<NWApiResponse> {
     let lastError = '';
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const candidateUrls = this.resolveProxyUrls();
+    // Track which proxy URLs are dead (returned HTML / 404 / network error)
+    const deadUrls: Set<string> = (this.constructor as any)._deadProxyUrls ||= new Set<string>();
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      // Pick first non-dead proxy URL, else fall back to the first candidate.
+      const url = candidateUrls.find(u => !deadUrls.has(u)) || candidateUrls[0];
       try {
-        const url = this.resolveProxyUrl();
         this.diag(`callProxy → ${url} | endpoint: ${cleanEndpoint} (attempt ${attempt + 1}/${MAX_RETRIES})`);
 
         const headers: Record<string, string> = {
@@ -205,6 +218,7 @@ export class NeuronWriterService {
 
         if (this.config.supabaseAnonKey && this.config.supabaseUrl && url.includes(this.config.supabaseUrl)) {
           headers['Authorization'] = `Bearer ${this.config.supabaseAnonKey}`;
+          headers['apikey'] = this.config.supabaseAnonKey;
         }
 
         if (this.config.neuronWriterApiKey) {
@@ -225,12 +239,30 @@ export class NeuronWriterService {
           body: JSON.stringify(requestBody)
         });
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        const rawText = await response.text();
+        const looksLikeHtml = /^\s*<(!doctype|html)/i.test(rawText);
+
+        if (looksLikeHtml || response.status === 404) {
+          // The proxy endpoint isn't actually mounted (e.g. SPA fallback served index.html).
+          deadUrls.add(url);
+          throw new Error(
+            `Proxy endpoint unavailable at ${url} (server returned ${looksLikeHtml ? 'HTML' : 'HTTP ' + response.status}).` +
+            (candidateUrls.some(u => !deadUrls.has(u))
+              ? ' Trying fallback proxy…'
+              : ' No working proxy available — deploy the Cloudflare Pages function or the Supabase neuronwriter-proxy edge function.')
+          );
         }
 
-        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${rawText.slice(0, 300)}`);
+        }
+
+        let result: any;
+        try {
+          result = JSON.parse(rawText);
+        } catch {
+          throw new Error(`Proxy returned non-JSON response: ${rawText.slice(0, 200)}`);
+        }
 
         if (result.success === false && result.error) {
           throw new Error(result.error);
