@@ -20,7 +20,7 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
-console.info('neuronwriter-proxy starting');
+console.info('neuronwriter-proxy starting v1.1');
 
 serve(async (req: Request) => {
   try {
