@@ -1,0 +1,47 @@
+{
+  "ci": {
+    "collect": {
+      "url": [
+        "http://localhost:4173/",
+        "http://localhost:4173/perf",
+        "http://localhost:4173/status"
+      ],
+      "numberOfRuns": 3,
+      "startServerCommand": "bun run preview -- --port 4173 --strictPort",
+      "startServerReadyPattern": "Local:",
+      "startServerReadyTimeout": 60000,
+      "settings": {
+        "preset": "desktop",
+        "budgetsPath": "./lighthouse-budgets.mobile.json",
+        "skipAudits": ["uses-http2", "redirects-http"],
+        "throttlingMethod": "simulate",
+        "formFactor": "mobile",
+        "screenEmulation": {
+          "mobile": true,
+          "width": 820,
+          "height": 1180,
+          "deviceScaleFactor": 2,
+          "disabled": false
+        },
+        "emulatedUserAgent": "Mozilla/5.0 (iPad; CPU OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1"
+      }
+    },
+    "assert": {
+      "assertions": {
+        "categories:performance": ["error", { "minScore": 0.92 }],
+        "categories:accessibility": ["error", { "minScore": 0.95 }],
+        "categories:seo": ["error", { "minScore": 0.95 }],
+        "largest-contentful-paint": ["error", { "maxNumericValue": 2200 }],
+        "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1 }],
+        "first-contentful-paint": ["error", { "maxNumericValue": 1600 }],
+        "total-blocking-time": ["warn", { "maxNumericValue": 180 }],
+        "resource-summary:script:size": ["error", { "maxNumericValue": 300000 }],
+        "resource-summary:stylesheet:size": ["error", { "maxNumericValue": 75000 }],
+        "resource-summary:total:size": ["warn", { "maxNumericValue": 800000 }],
+        "viewport": "error",
+        "tap-targets": ["error", { "minScore": 0.95 }]
+      }
+    },
+    "upload": { "target": "temporary-public-storage" }
+  }
+}
