@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   Zap,
   Sparkles,
@@ -24,9 +24,54 @@ import {
   Quote,
   Star,
   ChevronDown,
+  Cpu,
+  Network,
+  ScanLine,
+  ShieldCheck,
+  Sigma,
+  Send,
 } from "lucide-react";
 import { OptimizerDashboard } from "@/components/optimizer/OptimizerDashboard";
 import { useOptimizerStore } from "@/lib/store";
+
+/* ───────────────────────────────────────────────────────────────────────────
+ *  WP CONTENT OPTIMIZER PRO — Landing v5.0
+ *  Aurora ambient · Spotlight cards · Pipeline viz · Conic quality ring
+ *  Aesthetic: dark editorial × Linear/Vercel polish × SOTA terminal energy
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+// ── Animated count-up ───────────────────────────────────────────────────────
+function useCountUp(target: number, durationMs = 1400, start = false): number {
+  const [val, setVal] = useState(0);
+  useEffect(() => {
+    if (!start) return;
+    let raf = 0;
+    const t0 = performance.now();
+    const step = (t: number) => {
+      const p = Math.min(1, (t - t0) / durationMs);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setVal(target * eased);
+      if (p < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [target, durationMs, start]);
+  return val;
+}
+
+// ── Spotlight cursor-tracking wrapper ──────────────────────────────────────
+function useSpotlight() {
+  const ref = useRef<HTMLDivElement>(null);
+  const onMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    el.style.setProperty("--x", `${e.clientX - r.left}px`);
+    el.style.setProperty("--y", `${e.clientY - r.top}px`);
+  }, []);
+  return { ref, onMove };
+}
+
 
 /* ───────────────────────────────────────────────────────────────────────────
  *  WP CONTENT OPTIMIZER PRO — Landing v4.0
