@@ -2,9 +2,16 @@
 // Live health-check page for NeuronWriter proxy, WordPress, AI models.
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { CheckCircle2, XCircle, Loader2, AlertTriangle, ArrowLeft, PlayCircle } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, AlertTriangle, ArrowLeft, PlayCircle, ShieldCheck, ExternalLink } from "lucide-react";
 import { useOptimizerStore } from "@/lib/store";
 import { NeuronWriterService } from "@/lib/sota/NeuronWriterService";
+import {
+  getLatestFactCheckReport,
+  loadPersistedFactCheckReport,
+  subscribeFactCheckReport,
+  type FactCheckReport,
+  type FactCheckOutcome,
+} from "@/lib/sota/FactCheckReport";
 
 type CheckStatus = "idle" | "running" | "ok" | "warn" | "error";
 interface CheckResult {
@@ -352,10 +359,15 @@ const Status = () => {
   }
 
   const autoRanRef = useRef(false);
+  const [factReport, setFactReport] = useState<FactCheckReport | null>(
+    () => getLatestFactCheckReport() || loadPersistedFactCheckReport()
+  );
   useEffect(() => {
-    if (autoRanRef.current) return;
+    const unsub = subscribeFactCheckReport(setFactReport);
+    if (autoRanRef.current) return unsub;
     autoRanRef.current = true;
     runAll();
+    return unsub;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -461,8 +473,108 @@ const Status = () => {
           </div>
           <Btn onClick={runAllModels}>Check all model providers</Btn>
         </section>
+
+        <FactCheckSection report={factReport} />
       </main>
     </div>
+  );
+};
+
+// ── Fact-check report section ───────────────────────────────────────────────
+const outcomeStyle: Record<FactCheckOutcome, { label: string; cls: string }> = {
+  kept:       { label: "Kept",       cls: "bg-emerald-500/10 text-emerald-300 border-emerald-500/30" },
+  corrected:  { label: "Corrected",  cls: "bg-sky-500/10 text-sky-300 border-sky-500/30" },
+  softened:   { label: "Softened",   cls: "bg-amber-500/10 text-amber-300 border-amber-500/30" },
+  removed:    { label: "Removed",    cls: "bg-red-500/10 text-red-300 border-red-500/30" },
+  unverified: { label: "Unverified", cls: "bg-muted/40 text-muted-foreground border-muted-foreground/20" },
+};
+
+const FactCheckSection = ({ report }: { report: FactCheckReport | null }) => {
+  return (
+    <section className="space-y-4">
+      <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+        <ShieldCheck className="w-4 h-4" /> Live fact-check (latest run)
+      </h3>
+
+      {!report && (
+        <div className="rounded-2xl border border-border/60 bg-card/40 backdrop-blur p-6 text-sm text-muted-foreground">
+          No fact-check has run yet. Generate an article — the orchestrator's Phase 7c will populate this section
+          with the up-to-6 highest-stakes claims, the live web sources used to verify them, and whether the final
+          HTML kept, corrected, softened, or removed each one. Serper queries are cached per claim for 24 hours
+          to cut cost and latency on subsequent runs.
+        </div>
+      )}
+
+      {report && (
+        <div className="rounded-2xl border border-border/60 bg-card/40 backdrop-blur p-5 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm">
+                <span className="text-muted-foreground">Keyword:</span>{" "}
+                <span className="font-medium text-foreground">{report.keyword || "—"}</span>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {new Date(report.generatedAt).toLocaleString()} · Scanned {report.totalParagraphsScanned} paragraphs ·
+                Detected {report.candidatesDetected} candidates · Checked {report.claimsChecked} ·
+                Cached {report.claims.filter(c => c.cached).length}/{report.claims.length}
+              </p>
+            </div>
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
+              report.reconciled ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/30"
+                                : "bg-amber-500/10 text-amber-300 border-amber-500/30"
+            }`}>
+              {report.reconciled ? "Reconciled" : "Not reconciled"}
+            </span>
+          </div>
+
+          {report.notes && (
+            <p className="text-xs text-muted-foreground italic">{report.notes}</p>
+          )}
+
+          {report.claims.length === 0 && (
+            <p className="text-sm text-muted-foreground">No claim paragraphs were extracted.</p>
+          )}
+
+          <ol className="space-y-3">
+            {report.claims.map((c) => {
+              const o = outcomeStyle[c.outcome];
+              return (
+                <li key={c.index} className="rounded-xl border border-border/40 bg-black/20 p-4 space-y-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-sm text-foreground leading-relaxed">
+                      <span className="text-muted-foreground mr-1">#{c.index + 1}</span>
+                      {c.claim.length > 320 ? `${c.claim.slice(0, 320)}…` : c.claim}
+                    </p>
+                    <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${o.cls}`}>
+                      {o.label}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    {c.cached ? "cache hit" : "live Serper"} · {c.latencyMs ?? 0} ms · {c.sources.length} source(s)
+                  </p>
+                  {c.sources.length > 0 && (
+                    <ul className="space-y-1">
+                      {c.sources.map((s, i) => (
+                        <li key={i} className="text-xs">
+                          <a href={s.link} target="_blank" rel="noreferrer"
+                             className="inline-flex items-center gap-1 text-sky-300 hover:text-sky-200">
+                            <ExternalLink className="w-3 h-3" />
+                            {s.title || s.link}
+                          </a>
+                          {s.snippet && (
+                            <p className="text-muted-foreground mt-0.5 line-clamp-2">{s.snippet}</p>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      )}
+    </section>
   );
 };
 

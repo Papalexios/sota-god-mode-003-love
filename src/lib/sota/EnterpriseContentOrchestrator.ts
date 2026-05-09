@@ -53,6 +53,17 @@ import {
 import { EEATValidator, createEEATValidator } from './EEATValidator';
 import { generationCache } from './cache';
 import {
+  detectClaimParagraphs,
+  buildSerperCacheKey,
+  getCachedSerper,
+  setCachedSerper,
+  classifyClaimOutcome,
+  setLatestFactCheckReport,
+  type FactCheckClaim,
+  type FactCheckSource,
+  type FactCheckReport,
+} from './FactCheckReport';
+import {
   NeuronWriterService,
   createNeuronWriterService,
   type NeuronWriterAnalysis,
@@ -247,50 +258,97 @@ export class EnterpriseContentOrchestrator {
   // FACT-CHECK PASS — live web search verification of factual claims
   // ─────────────────────────────────────────────────────────────────────────
   private async runFactCheckPass(html: string, keyword: string, model: string): Promise<string> {
+    const startedAt = Date.now();
+    const totalParagraphs = (html.match(/<p[^>]*>/gi) || []).length;
+
+    const baseReport: FactCheckReport = {
+      generatedAt: startedAt,
+      keyword,
+      totalParagraphsScanned: totalParagraphs,
+      candidatesDetected: 0,
+      claimsChecked: 0,
+      reconciled: false,
+      claims: [],
+    };
+
     if (!this.serperKey) {
       this.warn('Fact-check: skipped (no Serper API key configured).');
+      setLatestFactCheckReport({ ...baseReport, notes: 'Skipped — no Serper API key configured.' });
       return html;
     }
 
-    // Extract paragraphs containing factual claims (numbers, %, $, years, "according to")
-    const claimRegex = /\b(\d+(?:\.\d+)?\s?%|\$\s?\d{2,}|\b(?:19|20)\d{2}\b|\baccording to\b|\bstudy\b|\breport\b|\bsurvey\b)/i;
-    const paragraphs = (html.match(/<p[^>]*>[\s\S]*?<\/p>/gi) || [])
-      .map(p => ({ raw: p, text: p.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() }))
-      .filter(p => p.text.split(/\s+/).length >= 20 && claimRegex.test(p.text))
-      .slice(0, 6);
+    // Improved claim-paragraph detection (scored, deduped, false-positive filtered)
+    const detected = detectClaimParagraphs(html, 6);
+    baseReport.candidatesDetected = detected.length;
 
-    if (paragraphs.length === 0) {
+    if (detected.length === 0) {
       this.log('Fact-check: no high-stakes claims detected.');
+      setLatestFactCheckReport({ ...baseReport, notes: 'No high-stakes claims detected in draft.' });
       return html;
     }
 
-    // Run Serper for each claim paragraph (parallel)
-    const evidence: { claim: string; sources: { title: string; snippet: string; link: string }[] }[] = [];
-    await Promise.all(paragraphs.map(async (p) => {
+    // Run Serper for each claim (parallel) with per-claim cache
+    const claims: FactCheckClaim[] = [];
+    const evidenceForPrompt: { claim: string; sources: FactCheckSource[] }[] = [];
+
+    await Promise.all(detected.map(async (p, idx) => {
       const query = `${keyword} ${p.text.slice(0, 140)}`;
-      try {
-        const res = await fetch('https://google.serper.dev/search', {
-          method: 'POST',
-          headers: { 'X-API-KEY': this.serperKey, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ q: query, num: 4 }),
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        const sources = (data.organic || []).slice(0, 4).map((o: any) => ({
-          title: o.title || '', snippet: o.snippet || '', link: o.link || '',
-        }));
-        if (sources.length) evidence.push({ claim: p.text, sources });
-      } catch { /* ignore */ }
+      const cacheKey = buildSerperCacheKey(keyword, p.text);
+      const cached = getCachedSerper(cacheKey);
+      let sources: FactCheckSource[] = [];
+      let cachedHit = false;
+      const t0 = Date.now();
+
+      if (cached) {
+        sources = cached;
+        cachedHit = true;
+      } else {
+        try {
+          const res = await fetch('https://google.serper.dev/search', {
+            method: 'POST',
+            headers: { 'X-API-KEY': this.serperKey, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ q: query, num: 4 }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            sources = (data.organic || []).slice(0, 4).map((o: any) => ({
+              title: o.title || '',
+              snippet: o.snippet || '',
+              link: o.link || '',
+            }));
+            if (sources.length) setCachedSerper(cacheKey, sources);
+          }
+        } catch { /* ignore */ }
+      }
+
+      claims.push({
+        index: idx,
+        claim: p.text,
+        query,
+        sources,
+        outcome: sources.length ? 'kept' : 'unverified', // tentative; refined after rewrite
+        cached: cachedHit,
+        latencyMs: Date.now() - t0,
+      });
+      if (sources.length) evidenceForPrompt.push({ claim: p.text, sources });
     }));
 
-    if (evidence.length === 0) {
+    claims.sort((a, b) => a.index - b.index);
+    baseReport.claimsChecked = claims.length;
+
+    if (evidenceForPrompt.length === 0) {
       this.warn('Fact-check: no live evidence retrieved (Serper unreachable or rate-limited).');
+      setLatestFactCheckReport({
+        ...baseReport,
+        claims,
+        notes: 'No live evidence retrieved — content left unchanged.',
+      });
       return html;
     }
 
-    this.log(`Fact-check: gathered live evidence for ${evidence.length} claims. Asking model to reconcile...`);
+    this.log(`Fact-check: gathered live evidence for ${evidenceForPrompt.length}/${claims.length} claims (cached: ${claims.filter(c => c.cached).length}). Reconciling…`);
 
-    const evidenceBlock = evidence.map((e, i) =>
+    const evidenceBlock = evidenceForPrompt.map((e, i) =>
       `CLAIM ${i + 1}: ${e.claim}\nLIVE EVIDENCE:\n${e.sources.map(s => `- ${s.title}: ${s.snippet} (${s.link})`).join('\n')}`
     ).join('\n\n');
 
@@ -308,6 +366,8 @@ ${html}
 
 Return the full corrected HTML article only, starting with <article and ending with </article>.`;
 
+    let finalHtml = html;
+    let reconciled = false;
     try {
       const result = await this.engine.generateWithModel({
         prompt,
@@ -320,14 +380,33 @@ Return the full corrected HTML article only, starting with <article and ending w
       });
       const match = result.content.match(/<article[\s\S]*?<\/article>/i);
       if (match && match[0].length > html.length * 0.6) {
-        this.log(`Fact-check ✅ ${evidence.length} claims reconciled against live web evidence.`);
-        return match[0];
+        finalHtml = match[0];
+        reconciled = true;
+        this.log(`Fact-check ✅ ${evidenceForPrompt.length} claims reconciled against live web evidence.`);
       }
     } catch (e) {
       this.warn(`Fact-check pass failed: ${e instanceof Error ? e.message : e}`);
     }
-    return html;
+
+    // Classify per-claim outcome by comparing draft → final HTML
+    if (reconciled) {
+      for (const c of claims) {
+        c.outcome = c.sources.length === 0 ? 'unverified' : classifyClaimOutcome(c.claim, finalHtml);
+      }
+    }
+
+    setLatestFactCheckReport({
+      ...baseReport,
+      reconciled,
+      claims,
+      notes: reconciled
+        ? `Reconciled ${claims.filter(c => c.outcome === 'corrected' || c.outcome === 'softened' || c.outcome === 'removed').length} of ${claims.length} claims against live web evidence.`
+        : 'Reconciliation rewrite did not produce a usable article — original draft preserved.',
+    });
+
+    return finalHtml;
   }
+
 
 
   private async maybeInitNeuronWriter(keyword: string, options: any): Promise<NeuronBundle | null> {
