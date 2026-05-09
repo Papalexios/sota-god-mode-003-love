@@ -398,6 +398,7 @@ const Index = () => {
             <a href="#proof" className="hover:text-foreground transition">Why it ranks</a>
             <a href="#faq" className="hover:text-foreground transition">FAQ</a>
             <a href="/status" className="hover:text-foreground transition">Status</a>
+            <a href="/perf" className="hover:text-foreground transition">Perf</a>
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
@@ -447,15 +448,15 @@ const Index = () => {
                 onClick={launch}
                 className="group w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 h-12 rounded-full bg-primary text-primary-foreground text-sm md:text-base font-bold shadow-[0_8px_30px_-6px_hsla(160,84%,39%,0.6)] hover:shadow-[0_12px_40px_-6px_hsla(160,84%,39%,0.85)] active:scale-[.98] transition-all"
               >
-                Start optimizing free
+                Run the 10-phase pipeline
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition" />
               </button>
               <a
-                href="#how"
+                href="#pipeline"
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 h-12 rounded-full bg-card/70 border border-border/60 text-sm md:text-base font-semibold text-foreground/90 hover:bg-card transition"
               >
                 <PlayCircle className="w-4 h-4 text-primary" />
-                See how it works
+                See the 10 phases
               </a>
             </div>
 
@@ -890,14 +891,14 @@ const Index = () => {
                 onClick={launch}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 h-12 md:h-14 rounded-full bg-primary text-primary-foreground text-sm md:text-base font-bold shadow-[0_10px_40px_-8px_hsla(160,84%,39%,0.7)] hover:shadow-[0_14px_50px_-8px_hsla(160,84%,39%,0.9)] active:scale-[.98] transition-all"
               >
-                Launch the engine
+                Launch phase 00 → 09 now
                 <ArrowRight className="w-4 h-4" />
               </button>
               <a
-                href="#capabilities"
+                href="#pipeline"
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 h-12 md:h-14 rounded-full border border-border/60 bg-card/60 text-sm md:text-base font-semibold text-foreground/90 hover:bg-card transition"
               >
-                Explore capabilities
+                Walk the pipeline
               </a>
             </div>
             <div className="mt-5 text-[11px] md:text-xs text-muted-foreground/80">
