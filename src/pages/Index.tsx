@@ -410,7 +410,7 @@ const Index = () => {
             </button>
             <button
               onClick={launch}
-              className="inline-flex items-center gap-1.5 px-4 h-9 rounded-full bg-primary text-primary-foreground text-[13px] font-bold shadow-lg shadow-primary/30 hover:shadow-primary/50 active:scale-[.97] transition"
+              className="btn-magnetic btn-sheen inline-flex items-center gap-1.5 px-4 h-9 rounded-full bg-primary text-primary-foreground text-[13px] font-bold shadow-lg shadow-primary/30 hover:shadow-primary/60 transition"
             >
               Launch app
               <ArrowRight className="w-3.5 h-3.5" />
