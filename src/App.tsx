@@ -10,6 +10,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { SupabaseSyncProvider } from "@/providers/SupabaseSyncProvider";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import Status from "./pages/Status";
 
 // ═══════════════════════════════════════════════════════════════════
 // ERROR BOUNDARY
@@ -112,6 +113,7 @@ const App = () => (
             <BrowserRouter>
               <Routes>
                 <Route path="/" element={<Index />} />
+                <Route path="/status" element={<Status />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
