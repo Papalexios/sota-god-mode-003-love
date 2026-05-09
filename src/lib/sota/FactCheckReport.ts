@@ -19,12 +19,17 @@ export type FactCheckOutcome =
 
 export interface FactCheckClaim {
   index: number;
-  claim: string;            // plain-text excerpt
+  claim: string;            // plain-text excerpt of the original draft paragraph
   query: string;            // serper query used
   sources: FactCheckSource[];
   outcome: FactCheckOutcome;
   cached: boolean;
   latencyMs?: number;
+  // ─── Per-claim diff support ────────────────────────────────────────────
+  originalParagraphHtml?: string; // raw <p>...</p> from the draft
+  finalParagraphHtml?: string;    // best-match <p>...</p> from reconciled HTML ('' if removed)
+  finalText?: string;             // plain-text version of finalParagraphHtml
+  recheckedAt?: number;           // last manual re-check timestamp
 }
 
 export interface FactCheckReport {
@@ -36,6 +41,11 @@ export interface FactCheckReport {
   reconciled: boolean;          // model rewrite was applied
   claims: FactCheckClaim[];
   notes?: string;
+  // ─── Re-check context (in-memory only; not persisted to localStorage) ──
+  model?: string;
+  apiKeys?: Record<string, string | undefined>;
+  serperKey?: string;
+  currentHtml?: string;         // post-reconciliation HTML, used + updated by re-check
 }
 
 // ─── Serper cache (per claim) ────────────────────────────────────────────────
