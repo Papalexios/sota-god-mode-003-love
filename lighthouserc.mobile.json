@@ -1,0 +1,60 @@
+{
+  "ci": {
+    "collect": {
+      "url": [
+        "http://localhost:4173/",
+        "http://localhost:4173/perf",
+        "http://localhost:4173/status"
+      ],
+      "numberOfRuns": 3,
+      "startServerCommand": "bun run preview -- --port 4173 --strictPort",
+      "startServerReadyPattern": "Local:",
+      "startServerReadyTimeout": 60000,
+      "settings": {
+        "preset": "mobile",
+        "budgetsPath": "./lighthouse-budgets.mobile.json",
+        "skipAudits": ["uses-http2", "redirects-http"],
+        "throttlingMethod": "simulate",
+        "formFactor": "mobile",
+        "screenEmulation": {
+          "mobile": true,
+          "width": 412,
+          "height": 915,
+          "deviceScaleFactor": 2.625,
+          "disabled": false
+        },
+        "emulatedUserAgent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+      }
+    },
+    "assert": {
+      "assertions": {
+        "categories:performance": ["error", { "minScore": 0.9 }],
+        "categories:accessibility": ["error", { "minScore": 0.95 }],
+        "categories:best-practices": ["warn", { "minScore": 0.9 }],
+        "categories:seo": ["error", { "minScore": 0.95 }],
+
+        "largest-contentful-paint": ["error", { "maxNumericValue": 2500 }],
+        "interaction-to-next-paint": ["warn", { "maxNumericValue": 200 }],
+        "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1 }],
+        "first-contentful-paint": ["error", { "maxNumericValue": 1800 }],
+        "total-blocking-time": ["warn", { "maxNumericValue": 200 }],
+        "speed-index": ["warn", { "maxNumericValue": 3400 }],
+
+        "resource-summary:script:size": ["error", { "maxNumericValue": 280000 }],
+        "resource-summary:stylesheet:size": ["error", { "maxNumericValue": 70000 }],
+        "resource-summary:image:size": ["warn", { "maxNumericValue": 150000 }],
+        "resource-summary:font:size": ["warn", { "maxNumericValue": 100000 }],
+        "resource-summary:total:size": ["warn", { "maxNumericValue": 750000 }],
+
+        "uses-text-compression": "error",
+        "uses-responsive-images": "warn",
+        "modern-image-formats": "warn",
+        "viewport": "error",
+        "tap-targets": ["error", { "minScore": 0.95 }]
+      }
+    },
+    "upload": {
+      "target": "temporary-public-storage"
+    }
+  }
+}
