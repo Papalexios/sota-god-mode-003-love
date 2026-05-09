@@ -53,6 +53,17 @@ import {
 import { EEATValidator, createEEATValidator } from './EEATValidator';
 import { generationCache } from './cache';
 import {
+  detectClaimParagraphs,
+  buildSerperCacheKey,
+  getCachedSerper,
+  setCachedSerper,
+  classifyClaimOutcome,
+  setLatestFactCheckReport,
+  type FactCheckClaim,
+  type FactCheckSource,
+  type FactCheckReport,
+} from './FactCheckReport';
+import {
   NeuronWriterService,
   createNeuronWriterService,
   type NeuronWriterAnalysis,
