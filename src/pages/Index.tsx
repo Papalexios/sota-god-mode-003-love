@@ -279,13 +279,14 @@ const Index = () => {
         .marquee-track { animation: marquee 38s linear infinite; }
       `}</style>
 
-      {/* ── Ambient background ─────────────────────────────────────────────── */}
-      <div aria-hidden className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -left-40 w-[680px] h-[680px] rounded-full bg-primary/15 blur-[160px]" />
-        <div className="absolute top-[18%] -right-48 w-[560px] h-[560px] rounded-full bg-accent/10 blur-[160px]" />
-        <div className="absolute bottom-[-10%] left-[10%] w-[560px] h-[560px] rounded-full bg-emerald-500/10 blur-[160px]" />
+      {/* ── Ambient aurora ─────────────────────────────────────────────────── */}
+      <div aria-hidden className="fixed inset-0 -z-10 overflow-hidden pointer-events-none bg-noise">
+        <div className="aurora-layer w-[820px] h-[820px] -top-56 -left-56 bg-primary/30" />
+        <div className="aurora-layer w-[680px] h-[680px] top-[12%] -right-48 bg-accent/25" style={{ animationDelay: "-7s" }} />
+        <div className="aurora-layer w-[640px] h-[640px] bottom-[-12%] left-[8%] bg-emerald-500/25" style={{ animationDelay: "-14s" }} />
+        <div className="aurora-layer w-[520px] h-[520px] top-[55%] left-[55%] bg-sky-500/15" style={{ animationDelay: "-3s" }} />
         <div
-          className="absolute inset-0 opacity-[0.045] grid-mask"
+          className="absolute inset-0 opacity-[0.05] grid-mask"
           style={{
             backgroundImage:
               "linear-gradient(hsl(var(--foreground)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--foreground)) 1px, transparent 1px)",
@@ -293,6 +294,7 @@ const Index = () => {
           }}
         />
       </div>
+
 
       {/* ── Header ────────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-50 backdrop-blur-2xl bg-background/55 border-b border-border/30">
