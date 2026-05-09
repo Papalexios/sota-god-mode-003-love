@@ -59,6 +59,7 @@ import {
   setCachedSerper,
   classifyClaimOutcome,
   setLatestFactCheckReport,
+  findBestMatchingParagraph,
   type FactCheckClaim,
   type FactCheckSource,
   type FactCheckReport,
@@ -329,6 +330,7 @@ export class EnterpriseContentOrchestrator {
         outcome: sources.length ? 'kept' : 'unverified', // tentative; refined after rewrite
         cached: cachedHit,
         latencyMs: Date.now() - t0,
+        originalParagraphHtml: p.raw,
       });
       if (sources.length) evidenceForPrompt.push({ claim: p.text, sources });
     }));
@@ -395,6 +397,19 @@ Return the full corrected HTML article only, starting with <article and ending w
       }
     }
 
+    // Snapshot the matching paragraph in the final HTML so /status can render a per-claim diff.
+    for (const c of claims) {
+      const match = findBestMatchingParagraph(finalHtml, c.claim, 0.2);
+      if (match) {
+        c.finalParagraphHtml = match.html;
+        c.finalText = match.text;
+      } else {
+        c.finalParagraphHtml = '';
+        c.finalText = '';
+        if (reconciled && c.outcome !== 'unverified') c.outcome = 'removed';
+      }
+    }
+
     setLatestFactCheckReport({
       ...baseReport,
       reconciled,
@@ -402,6 +417,11 @@ Return the full corrected HTML article only, starting with <article and ending w
       notes: reconciled
         ? `Reconciled ${claims.filter(c => c.outcome === 'corrected' || c.outcome === 'softened' || c.outcome === 'removed').length} of ${claims.length} claims against live web evidence.`
         : 'Reconciliation rewrite did not produce a usable article — original draft preserved.',
+      // Re-check context (in-memory only — stripped before localStorage persistence)
+      model,
+      apiKeys: (this.config.apiKeys || {}) as any,
+      serperKey: this.serperKey,
+      currentHtml: finalHtml,
     });
 
     return finalHtml;

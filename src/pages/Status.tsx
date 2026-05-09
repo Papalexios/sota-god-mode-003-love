@@ -2,15 +2,20 @@
 // Live health-check page for NeuronWriter proxy, WordPress, AI models.
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { CheckCircle2, XCircle, Loader2, AlertTriangle, ArrowLeft, PlayCircle, ShieldCheck, ExternalLink } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, AlertTriangle, ArrowLeft, PlayCircle, ShieldCheck, ExternalLink, GitCompare, RefreshCw } from "lucide-react";
 import { useOptimizerStore } from "@/lib/store";
 import { NeuronWriterService } from "@/lib/sota/NeuronWriterService";
+import { createSOTAEngine } from "@/lib/sota/SOTAContentGenerationEngine";
 import {
   getLatestFactCheckReport,
   loadPersistedFactCheckReport,
   subscribeFactCheckReport,
+  recheckClaim,
+  wordDiff,
   type FactCheckReport,
+  type FactCheckClaim,
   type FactCheckOutcome,
+  type DiffOp,
 } from "@/lib/sota/FactCheckReport";
 
 type CheckStatus = "idle" | "running" | "ok" | "warn" | "error";
@@ -536,46 +541,136 @@ const FactCheckSection = ({ report }: { report: FactCheckReport | null }) => {
           )}
 
           <ol className="space-y-3">
-            {report.claims.map((c) => {
-              const o = outcomeStyle[c.outcome];
-              return (
-                <li key={c.index} className="rounded-xl border border-border/40 bg-black/20 p-4 space-y-2">
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="text-sm text-foreground leading-relaxed">
-                      <span className="text-muted-foreground mr-1">#{c.index + 1}</span>
-                      {c.claim.length > 320 ? `${c.claim.slice(0, 320)}…` : c.claim}
-                    </p>
-                    <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${o.cls}`}>
-                      {o.label}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    {c.cached ? "cache hit" : "live Serper"} · {c.latencyMs ?? 0} ms · {c.sources.length} source(s)
-                  </p>
-                  {c.sources.length > 0 && (
-                    <ul className="space-y-1">
-                      {c.sources.map((s, i) => (
-                        <li key={i} className="text-xs">
-                          <a href={s.link} target="_blank" rel="noreferrer"
-                             className="inline-flex items-center gap-1 text-sky-300 hover:text-sky-200">
-                            <ExternalLink className="w-3 h-3" />
-                            {s.title || s.link}
-                          </a>
-                          {s.snippet && (
-                            <p className="text-muted-foreground mt-0.5 line-clamp-2">{s.snippet}</p>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </li>
-              );
-            })}
+            {report.claims.map((c) => (
+              <ClaimRow key={c.index} claim={c} />
+            ))}
           </ol>
         </div>
       )}
     </section>
   );
 };
+
+// ── Single claim row with diff + re-check ──────────────────────────────────
+const ClaimRow = ({ claim }: { claim: FactCheckClaim }) => {
+  const [showDiff, setShowDiff] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const o = outcomeStyle[claim.outcome];
+
+  const before = (claim.originalParagraphHtml || "")
+    .replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  const after = (claim.finalText ||
+    (claim.finalParagraphHtml || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()
+  );
+  const hasDiff = !!before && before !== after;
+
+  async function onRecheck() {
+    setBusy(true);
+    setMsg("Calling Serper + reconciliation…");
+    try {
+      const report = getLatestFactCheckReport();
+      const apiKeys = (report?.apiKeys || {}) as any;
+      // Build a fresh engine from the in-memory report's apiKeys snapshot.
+      const engine = createSOTAEngine(apiKeys);
+      const r = await recheckClaim({ index: claim.index, engine });
+      setMsg(r.message || (r.ok ? "Done." : "Failed."));
+    } catch (e: any) {
+      setMsg(`Error: ${e?.message || e}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <li className="rounded-xl border border-border/40 bg-black/20 p-4 space-y-2">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm text-foreground leading-relaxed">
+          <span className="text-muted-foreground mr-1">#{claim.index + 1}</span>
+          {claim.claim.length > 320 ? `${claim.claim.slice(0, 320)}…` : claim.claim}
+        </p>
+        <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${o.cls}`}>
+          {o.label}
+        </span>
+      </div>
+
+      <p className="text-[11px] text-muted-foreground">
+        {claim.cached ? "cache hit" : "live Serper"} · {claim.latencyMs ?? 0} ms · {claim.sources.length} source(s)
+        {claim.recheckedAt && (
+          <> · re-checked {new Date(claim.recheckedAt).toLocaleTimeString()}</>
+        )}
+      </p>
+
+      {claim.sources.length > 0 && (
+        <ul className="space-y-1">
+          {claim.sources.map((s, i) => (
+            <li key={i} className="text-xs">
+              <a href={s.link} target="_blank" rel="noreferrer"
+                 className="inline-flex items-center gap-1 text-sky-300 hover:text-sky-200">
+                <ExternalLink className="w-3 h-3" />
+                {s.title || s.link}
+              </a>
+              {s.snippet && (
+                <p className="text-muted-foreground mt-0.5 line-clamp-2">{s.snippet}</p>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2 pt-1">
+        <button
+          type="button"
+          onClick={() => setShowDiff(s => !s)}
+          disabled={!hasDiff && claim.outcome !== "removed"}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium border border-border/50 bg-muted/30 text-foreground hover:bg-muted/50 disabled:opacity-40 disabled:cursor-not-allowed"
+          title={hasDiff ? "Show word-level diff" : "No textual change"}
+        >
+          <GitCompare className="w-3 h-3" />
+          {showDiff ? "Hide diff" : "Show diff"}
+        </button>
+        <button
+          type="button"
+          onClick={onRecheck}
+          disabled={busy}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium border border-sky-500/30 bg-sky-500/10 text-sky-200 hover:bg-sky-500/20 disabled:opacity-50"
+        >
+          {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+          Re-check this claim
+        </button>
+        {msg && <span className="text-[11px] text-muted-foreground">{msg}</span>}
+      </div>
+
+      {showDiff && (
+        <div className="grid md:grid-cols-2 gap-3 pt-2">
+          <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-3">
+            <p className="text-[10px] uppercase tracking-wider text-red-300 mb-1">Draft</p>
+            <p className="text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap break-words">
+              {before || <em className="text-muted-foreground">— empty —</em>}
+            </p>
+          </div>
+          <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
+            <p className="text-[10px] uppercase tracking-wider text-emerald-300 mb-1">Reconciled</p>
+            <p className="text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap break-words">
+              {after
+                ? <DiffInline ops={wordDiff(before, after)} />
+                : <em className="text-muted-foreground">— removed from final article —</em>}
+            </p>
+          </div>
+        </div>
+      )}
+    </li>
+  );
+};
+
+const DiffInline = ({ ops }: { ops: DiffOp[] }) => (
+  <>
+    {ops.map((op, i) => {
+      if (op.type === "equal")  return <span key={i}>{op.text}</span>;
+      if (op.type === "insert") return <span key={i} className="bg-emerald-500/20 text-emerald-200 rounded px-0.5">{op.text}</span>;
+      return <span key={i} className="bg-red-500/20 text-red-200 line-through rounded px-0.5">{op.text}</span>;
+    })}
+  </>
+);
 
 export default Status;
