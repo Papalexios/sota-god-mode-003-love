@@ -446,7 +446,7 @@ const Index = () => {
             <div className="mt-8 md:mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
               <button
                 onClick={launch}
-                className="group w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 h-12 rounded-full bg-primary text-primary-foreground text-sm md:text-base font-bold shadow-[0_8px_30px_-6px_hsla(160,84%,39%,0.6)] hover:shadow-[0_12px_40px_-6px_hsla(160,84%,39%,0.85)] active:scale-[.98] transition-all"
+                className="btn-magnetic btn-sheen group w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 h-12 rounded-full bg-primary text-primary-foreground text-sm md:text-base font-bold shadow-[0_8px_30px_-6px_hsla(160,84%,39%,0.6)] hover:shadow-[0_14px_44px_-6px_hsla(160,84%,39%,0.95)] transition-all"
               >
                 Run the 10-phase pipeline
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition" />
