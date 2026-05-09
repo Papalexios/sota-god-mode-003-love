@@ -523,6 +523,57 @@ const Index = () => {
         </div>
       </section>
 
+      {/* ── PIPELINE VISUALIZATION (10 phases) ────────────────────────────── */}
+      <section id="pipeline" className="relative px-4 md:px-8 py-20 md:py-28 border-t border-border/30">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center reveal" ref={reg}>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/25 text-primary text-[11px] font-bold tracking-[0.15em] uppercase">
+              <Workflow className="w-3 h-3" />
+              The engine
+            </div>
+            <h2 className="mt-4 text-3xl md:text-5xl font-black tracking-tight text-balance">
+              <span className="shine-text">Ten phases.</span>{" "}
+              <span className="gradient-text">Zero hand-holding.</span>
+            </h2>
+            <p className="mt-3 max-w-2xl mx-auto text-muted-foreground text-base md:text-lg">
+              Every article runs the same deterministic pipeline. SERP-grounded, fact-checked, self-critiqued, schema-armed.
+            </p>
+          </div>
+
+          {/* Animated flow line — desktop only */}
+          <div className="relative mt-12 md:mt-16">
+            <svg
+              aria-hidden
+              className="hidden lg:block absolute -top-3 left-0 right-0 mx-auto pointer-events-none"
+              width="100%" height="40" viewBox="0 0 1200 40" preserveAspectRatio="none"
+            >
+              <defs>
+                <linearGradient id="flowGrad" x1="0" x2="1" y1="0" y2="0">
+                  <stop offset="0%"   stopColor="hsl(var(--primary))" stopOpacity="0" />
+                  <stop offset="50%"  stopColor="hsl(var(--primary))" stopOpacity="0.6" />
+                  <stop offset="100%" stopColor="hsl(var(--accent))"  stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <path d="M 20 20 L 1180 20" stroke="url(#flowGrad)" strokeWidth="1.5" fill="none" />
+              <path className="flow-line" d="M 20 20 L 1180 20" stroke="hsl(var(--primary))" strokeWidth="1.2" fill="none" />
+            </svg>
+
+            <div ref={reg} className="reveal grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 md:gap-4">
+              {PIPELINE.map((p, i) => (
+                <PipelineNode key={p.n} step={p} idx={i} />
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-2 text-[11px] md:text-xs text-muted-foreground">
+            <span className="font-mono px-2 py-1 rounded-md bg-muted/40 border border-border/40">avg 23s end-to-end</span>
+            <span className="font-mono px-2 py-1 rounded-md bg-muted/40 border border-border/40">95+ quality gate</span>
+            <span className="font-mono px-2 py-1 rounded-md bg-muted/40 border border-border/40">live web fact-check</span>
+            <span className="font-mono px-2 py-1 rounded-md bg-muted/40 border border-border/40">no hallucinated URLs</span>
+          </div>
+        </div>
+      </section>
+
       {/* ── HOW IT WORKS ──────────────────────────────────────────────────── */}
       <section id="how" className="relative px-4 md:px-8 py-20 md:py-28">
         <div className="max-w-6xl mx-auto">
