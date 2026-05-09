@@ -21,7 +21,11 @@
     "e2e:ui": "playwright test --ui",
     "lhci": "lhci autorun --config=./lighthouserc.json",
     "lhci:mobile": "lhci autorun --config=./lighthouserc.mobile.json",
-    "lhci:all": "lhci autorun --config=./lighthouserc.json && lhci autorun --config=./lighthouserc.mobile.json"
+    "lhci:iphone-se": "lhci autorun --config=./lighthouserc.iphone-se.json",
+    "lhci:ipad": "lhci autorun --config=./lighthouserc.ipad.json",
+    "lhci:all": "bun run lhci && bun run lhci:mobile && bun run lhci:iphone-se && bun run lhci:ipad",
+    "e2e:visual": "playwright test landing-visual.spec.ts",
+    "e2e:visual:update": "playwright test landing-visual.spec.ts --update-snapshots"
   },
   "dependencies": {
     "@radix-ui/react-toast": "^1.2.15",
