@@ -1108,7 +1108,7 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
     // ── Phase 0: Top-3 SERP Scan + Gap Analysis ─────────────────────────────
     this.log('Phase 0: Top-3 SERP ranking scan and gap analysis...');
     const serpAnalysis = await this.serpAnalyzer.analyze(options.keyword);
-    const gapTargets = this.buildTopGapTargetsFromSerp(serpAnalysis, options.keyword, 20);
+    let gapTargets = this.buildTopGapTargetsFromSerp(serpAnalysis, options.keyword, 50);
     const top3Competitors = (serpAnalysis.topCompetitors || []).slice(0, 3);
 
     this.log(
