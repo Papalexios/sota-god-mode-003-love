@@ -924,6 +924,19 @@ const Index = () => {
           </div>
         </div>
       </footer>
+
+      {/* ── Mobile sticky CTA bar — appears on small screens for conversion ── */}
+      <div
+        className="md:hidden fixed bottom-0 inset-x-0 z-40 px-3 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 bg-gradient-to-t from-background via-background/95 to-transparent"
+      >
+        <button
+          onClick={launch}
+          className="btn-magnetic btn-sheen w-full inline-flex items-center justify-center gap-2 h-12 rounded-full bg-primary text-primary-foreground text-sm font-bold shadow-[0_12px_40px_-8px_hsla(160,84%,39%,0.85)]"
+        >
+          Run the 10-phase pipeline
+          <ArrowRight className="w-4 h-4" />
+        </button>
+      </div>
     </div>
   );
 };
