@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   Zap,
   Sparkles,
@@ -24,9 +24,54 @@ import {
   Quote,
   Star,
   ChevronDown,
+  Cpu,
+  Network,
+  ScanLine,
+  ShieldCheck,
+  Sigma,
+  Send,
 } from "lucide-react";
 import { OptimizerDashboard } from "@/components/optimizer/OptimizerDashboard";
 import { useOptimizerStore } from "@/lib/store";
+
+/* ───────────────────────────────────────────────────────────────────────────
+ *  WP CONTENT OPTIMIZER PRO — Landing v5.0
+ *  Aurora ambient · Spotlight cards · Pipeline viz · Conic quality ring
+ *  Aesthetic: dark editorial × Linear/Vercel polish × SOTA terminal energy
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+// ── Animated count-up ───────────────────────────────────────────────────────
+function useCountUp(target: number, durationMs = 1400, start = false): number {
+  const [val, setVal] = useState(0);
+  useEffect(() => {
+    if (!start) return;
+    let raf = 0;
+    const t0 = performance.now();
+    const step = (t: number) => {
+      const p = Math.min(1, (t - t0) / durationMs);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setVal(target * eased);
+      if (p < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [target, durationMs, start]);
+  return val;
+}
+
+// ── Spotlight cursor-tracking wrapper ──────────────────────────────────────
+function useSpotlight() {
+  const ref = useRef<HTMLDivElement>(null);
+  const onMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    el.style.setProperty("--x", `${e.clientX - r.left}px`);
+    el.style.setProperty("--y", `${e.clientY - r.top}px`);
+  }, []);
+  return { ref, onMove };
+}
+
 
 /* ───────────────────────────────────────────────────────────────────────────
  *  WP CONTENT OPTIMIZER PRO — Landing v4.0
@@ -173,6 +218,76 @@ const FAQS = [
   },
 ];
 
+// ── Pipeline visualization data (10-phase engine) ──────────────────────────
+const PIPELINE = [
+  { n: "00", icon: ScanLine,   title: "SERP scan",       hint: "Top-3 + entities" },
+  { n: "01", icon: Brain,      title: "NeuronWriter",    hint: "Live terms sync"  },
+  { n: "02", icon: Layers,     title: "Outline lock",    hint: "12 H2 / 4.8k tgt" },
+  { n: "03", icon: FileText,   title: "Long-form draft", hint: "8-attempt loop"   },
+  { n: "04", icon: ImageIcon,  title: "WP media",        hint: "Multi-term score" },
+  { n: "05", icon: Link2,      title: "Internal links",  hint: "IDF n-gram"       },
+  { n: "06", icon: Sigma,      title: "Fact-check",      hint: "Live web evidence"},
+  { n: "07", icon: ShieldCheck,title: "Self-critique",   hint: "Until 95+"        },
+  { n: "08", icon: Cpu,        title: "Schema + GEO",    hint: "Article/FAQ/HowTo"},
+  { n: "09", icon: Send,       title: "Publish",         hint: "WordPress REST"   },
+];
+
+// ── Hero metric card with count-up + spotlight ─────────────────────────────
+type HeroMetricItem = (typeof HERO_METRICS)[number];
+const HeroMetric = ({ metric, delay }: { metric: HeroMetricItem; delay: number }) => {
+  const sp = useSpotlight();
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setArmed(true), delay);
+    return () => clearTimeout(t);
+  }, [delay]);
+  const numericMatch = metric.v.match(/^(\d+(?:\.\d+)?)/);
+  const targetNum = numericMatch ? parseFloat(numericMatch[1]) : NaN;
+  const trail = numericMatch ? metric.v.slice(numericMatch[0].length) : "";
+  const animated = useCountUp(isFinite(targetNum) ? targetNum : 0, 1400, armed && isFinite(targetNum));
+  const display = isFinite(targetNum)
+    ? (targetNum % 1 === 0 ? Math.round(animated).toString() : animated.toFixed(1)) + trail
+    : metric.v;
+  return (
+    <div
+      ref={sp.ref}
+      onMouseMove={sp.onMove}
+      className="spotlight rounded-2xl border border-border/50 bg-card/60 backdrop-blur-xl px-4 py-4 md:px-5 md:py-5 transition-transform duration-300 hover:-translate-y-1"
+    >
+      <div className="flex items-baseline gap-0.5">
+        <span className="text-2xl md:text-4xl font-black tracking-tight text-foreground tabular-nums animate-count-pop">
+          {display}
+        </span>
+        <span className="text-base md:text-xl font-bold text-primary">{metric.suf}</span>
+      </div>
+      <div className="mt-1 text-[12px] md:text-sm font-semibold text-foreground/90">{metric.label}</div>
+      <div className="text-[10px] md:text-xs text-muted-foreground/80">{metric.sub}</div>
+    </div>
+  );
+};
+
+// ── Pipeline node with spotlight ───────────────────────────────────────────
+const PipelineNode = ({ step, idx }: { step: (typeof PIPELINE)[number]; idx: number }) => {
+  const sp = useSpotlight();
+  return (
+    <div
+      ref={sp.ref}
+      onMouseMove={sp.onMove}
+      className="spotlight relative rounded-2xl border border-border/50 bg-card/70 backdrop-blur-xl p-4 md:p-5 hover:-translate-y-1 hover:border-primary/40 transition-all"
+      style={{ animationDelay: `${idx * 60}ms` }}
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-mono font-bold tracking-[0.2em] text-primary/70">{step.n}</span>
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/30 to-accent/15 border border-primary/30 flex items-center justify-center shadow-[0_0_24px_-8px_hsla(160,84%,55%,0.6)]">
+          <step.icon className="w-4 h-4 text-primary" />
+        </div>
+      </div>
+      <div className="mt-3 text-[13px] md:text-sm font-bold tracking-tight">{step.title}</div>
+      <div className="mt-0.5 text-[10px] md:text-[11px] text-muted-foreground font-mono">{step.hint}</div>
+    </div>
+  );
+};
+
 const Index = () => {
   const { showOptimizer: storeShowOptimizer, setShowOptimizer, contentItems } = useOptimizerStore();
   const shouldShowOptimizer = storeShowOptimizer || contentItems.length > 0;
@@ -234,13 +349,14 @@ const Index = () => {
         .marquee-track { animation: marquee 38s linear infinite; }
       `}</style>
 
-      {/* ── Ambient background ─────────────────────────────────────────────── */}
-      <div aria-hidden className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -left-40 w-[680px] h-[680px] rounded-full bg-primary/15 blur-[160px]" />
-        <div className="absolute top-[18%] -right-48 w-[560px] h-[560px] rounded-full bg-accent/10 blur-[160px]" />
-        <div className="absolute bottom-[-10%] left-[10%] w-[560px] h-[560px] rounded-full bg-emerald-500/10 blur-[160px]" />
+      {/* ── Ambient aurora ─────────────────────────────────────────────────── */}
+      <div aria-hidden className="fixed inset-0 -z-10 overflow-hidden pointer-events-none bg-noise">
+        <div className="aurora-layer w-[820px] h-[820px] -top-56 -left-56 bg-primary/30" />
+        <div className="aurora-layer w-[680px] h-[680px] top-[12%] -right-48 bg-accent/25" style={{ animationDelay: "-7s" }} />
+        <div className="aurora-layer w-[640px] h-[640px] bottom-[-12%] left-[8%] bg-emerald-500/25" style={{ animationDelay: "-14s" }} />
+        <div className="aurora-layer w-[520px] h-[520px] top-[55%] left-[55%] bg-sky-500/15" style={{ animationDelay: "-3s" }} />
         <div
-          className="absolute inset-0 opacity-[0.045] grid-mask"
+          className="absolute inset-0 opacity-[0.05] grid-mask"
           style={{
             backgroundImage:
               "linear-gradient(hsl(var(--foreground)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--foreground)) 1px, transparent 1px)",
@@ -248,6 +364,7 @@ const Index = () => {
           }}
         />
       </div>
+
 
       {/* ── Header ────────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-50 backdrop-blur-2xl bg-background/55 border-b border-border/30">
@@ -267,6 +384,7 @@ const Index = () => {
           </a>
 
           <nav className="hidden lg:flex items-center gap-7 mx-auto text-sm font-medium text-muted-foreground">
+            <a href="#pipeline" className="hover:text-foreground transition">Pipeline</a>
             <a href="#how" className="hover:text-foreground transition">How it works</a>
             <a href="#capabilities" className="hover:text-foreground transition">Capabilities</a>
             <a href="#strategies" className="hover:text-foreground transition">Strategies</a>
@@ -306,7 +424,7 @@ const Index = () => {
             </div>
 
             <h1 className="text-balance text-[40px] leading-[1.04] sm:text-[56px] sm:leading-[1.02] md:text-[80px] md:leading-[0.98] lg:text-[96px] lg:leading-[0.96] font-black tracking-[-0.04em]">
-              Ship articles that
+              <span className="shine-text">Ship articles that</span>
               <br className="hidden sm:block" />{" "}
               <span className="gradient-text">actually rank.</span>
             </h1>
@@ -375,20 +493,10 @@ const Index = () => {
               </div>
             </div>
 
-            {/* Hero metrics */}
+            {/* Hero metrics — spotlight cards with count-up */}
             <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-              {HERO_METRICS.map((m) => (
-                <div
-                  key={m.label}
-                  className="rounded-2xl border border-border/50 bg-card/60 backdrop-blur-xl px-4 py-4 md:px-5 md:py-5"
-                >
-                  <div className="flex items-baseline gap-0.5">
-                    <span className="text-2xl md:text-4xl font-black tracking-tight text-foreground">{m.v}</span>
-                    <span className="text-base md:text-xl font-bold text-primary">{m.suf}</span>
-                  </div>
-                  <div className="mt-1 text-[12px] md:text-sm font-semibold text-foreground/90">{m.label}</div>
-                  <div className="text-[10px] md:text-xs text-muted-foreground/80">{m.sub}</div>
-                </div>
+              {HERO_METRICS.map((m, i) => (
+                <HeroMetric key={m.label} metric={m} delay={i * 110} />
               ))}
             </div>
           </div>
@@ -412,6 +520,57 @@ const Index = () => {
                 {n}
               </span>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── PIPELINE VISUALIZATION (10 phases) ────────────────────────────── */}
+      <section id="pipeline" className="relative px-4 md:px-8 py-20 md:py-28 border-t border-border/30">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center reveal" ref={reg}>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/25 text-primary text-[11px] font-bold tracking-[0.15em] uppercase">
+              <Workflow className="w-3 h-3" />
+              The engine
+            </div>
+            <h2 className="mt-4 text-3xl md:text-5xl font-black tracking-tight text-balance">
+              <span className="shine-text">Ten phases.</span>{" "}
+              <span className="gradient-text">Zero hand-holding.</span>
+            </h2>
+            <p className="mt-3 max-w-2xl mx-auto text-muted-foreground text-base md:text-lg">
+              Every article runs the same deterministic pipeline. SERP-grounded, fact-checked, self-critiqued, schema-armed.
+            </p>
+          </div>
+
+          {/* Animated flow line — desktop only */}
+          <div className="relative mt-12 md:mt-16">
+            <svg
+              aria-hidden
+              className="hidden lg:block absolute -top-3 left-0 right-0 mx-auto pointer-events-none"
+              width="100%" height="40" viewBox="0 0 1200 40" preserveAspectRatio="none"
+            >
+              <defs>
+                <linearGradient id="flowGrad" x1="0" x2="1" y1="0" y2="0">
+                  <stop offset="0%"   stopColor="hsl(var(--primary))" stopOpacity="0" />
+                  <stop offset="50%"  stopColor="hsl(var(--primary))" stopOpacity="0.6" />
+                  <stop offset="100%" stopColor="hsl(var(--accent))"  stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <path d="M 20 20 L 1180 20" stroke="url(#flowGrad)" strokeWidth="1.5" fill="none" />
+              <path className="flow-line" d="M 20 20 L 1180 20" stroke="hsl(var(--primary))" strokeWidth="1.2" fill="none" />
+            </svg>
+
+            <div ref={reg} className="reveal grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 md:gap-4">
+              {PIPELINE.map((p, i) => (
+                <PipelineNode key={p.n} step={p} idx={i} />
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-2 text-[11px] md:text-xs text-muted-foreground">
+            <span className="font-mono px-2 py-1 rounded-md bg-muted/40 border border-border/40">avg 23s end-to-end</span>
+            <span className="font-mono px-2 py-1 rounded-md bg-muted/40 border border-border/40">95+ quality gate</span>
+            <span className="font-mono px-2 py-1 rounded-md bg-muted/40 border border-border/40">live web fact-check</span>
+            <span className="font-mono px-2 py-1 rounded-md bg-muted/40 border border-border/40">no hallucinated URLs</span>
           </div>
         </div>
       </section>
