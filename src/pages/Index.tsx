@@ -889,7 +889,7 @@ const Index = () => {
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
               <button
                 onClick={launch}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 h-12 md:h-14 rounded-full bg-primary text-primary-foreground text-sm md:text-base font-bold shadow-[0_10px_40px_-8px_hsla(160,84%,39%,0.7)] hover:shadow-[0_14px_50px_-8px_hsla(160,84%,39%,0.9)] active:scale-[.98] transition-all"
+                className="btn-magnetic btn-sheen w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 h-12 md:h-14 rounded-full bg-primary text-primary-foreground text-sm md:text-base font-bold shadow-[0_10px_40px_-8px_hsla(160,84%,39%,0.7)] hover:shadow-[0_18px_60px_-8px_hsla(160,84%,39%,1)] transition-all"
               >
                 Launch phase 00 → 09 now
                 <ArrowRight className="w-4 h-4" />
