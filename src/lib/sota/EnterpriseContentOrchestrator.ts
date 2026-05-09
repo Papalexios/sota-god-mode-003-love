@@ -1441,6 +1441,10 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
       `Phase 7b ✅ Gap coverage: ${gapTargets.length - gapCoverage.missingAfter.length}/${gapTargets.length} terms covered.`
     );
 
+    // ── Phase 7c: Live Web Fact-Check Pass ────────────────────────────────
+    this.log('Phase 7c: Live web fact-check pass (Serper)...');
+    html = await this.runFactCheckPass(html, options.keyword, options.model || this.config.primaryModel || 'gemini');
+
     // ── Phase 8: SOTA Refinement & Aesthetics ─────────────────────────────
     this.log('Phase 8: Anti-AI Polish & Premium Design Overlay...');
 
