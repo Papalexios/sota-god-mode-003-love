@@ -1291,14 +1291,14 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
         html,
         contentGaps: gapTargets,
         maxPasses: 3,
-        minScore: 92,
+        minScore: 95,
       });
 
       html = critique.html;
       let finalCritiqueScore = critique.finalScore;
 
-      if (finalCritiqueScore < 88 || finalCritiqueScore <= critique.initialScore) {
-        this.warn('Phase 7: Quality gain is weak. Running aggressive second critique pass...');
+      if (finalCritiqueScore < 95 || finalCritiqueScore <= critique.initialScore) {
+        this.warn('Phase 7: Score below 95 hard gate. Running aggressive second critique pass...');
         const aggressiveCritique = await refineWithSelfCritique({
           engine: this.engine,
           model: options.model || this.config.primaryModel || 'gemini',
@@ -1307,7 +1307,7 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
           html,
           contentGaps: gapTargets,
           maxPasses: 3,
-          minScore: 94,
+          minScore: 96,
         });
 
         if (aggressiveCritique.finalScore > finalCritiqueScore) {

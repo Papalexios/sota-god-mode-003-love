@@ -79,7 +79,7 @@ ${draftHtml}`;
 
 export async function refineWithSelfCritique(options: SelfCritiqueOptions): Promise<SelfCritiqueResult> {
   const maxPasses = Math.min(3, Math.max(1, options.maxPasses ?? 2));
-  const targetScore = Math.max(82, Math.min(98, options.minScore ?? 92));
+  const targetScore = Math.max(82, Math.min(99, options.minScore ?? 95));
 
   let workingHtml = extractArticleHtml(options.html);
   let workingScore = score(workingHtml, options.keyword, options.contentGaps || []);
