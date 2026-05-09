@@ -218,6 +218,76 @@ const FAQS = [
   },
 ];
 
+// ── Pipeline visualization data (10-phase engine) ──────────────────────────
+const PIPELINE = [
+  { n: "00", icon: ScanLine,   title: "SERP scan",       hint: "Top-3 + entities" },
+  { n: "01", icon: Brain,      title: "NeuronWriter",    hint: "Live terms sync"  },
+  { n: "02", icon: Layers,     title: "Outline lock",    hint: "12 H2 / 4.8k tgt" },
+  { n: "03", icon: FileText,   title: "Long-form draft", hint: "8-attempt loop"   },
+  { n: "04", icon: ImageIcon,  title: "WP media",        hint: "Multi-term score" },
+  { n: "05", icon: Link2,      title: "Internal links",  hint: "IDF n-gram"       },
+  { n: "06", icon: Sigma,      title: "Fact-check",      hint: "Live web evidence"},
+  { n: "07", icon: ShieldCheck,title: "Self-critique",   hint: "Until 95+"        },
+  { n: "08", icon: Cpu,        title: "Schema + GEO",    hint: "Article/FAQ/HowTo"},
+  { n: "09", icon: Send,       title: "Publish",         hint: "WordPress REST"   },
+];
+
+// ── Hero metric card with count-up + spotlight ─────────────────────────────
+type HeroMetricItem = (typeof HERO_METRICS)[number];
+const HeroMetric = ({ metric, delay }: { metric: HeroMetricItem; delay: number }) => {
+  const sp = useSpotlight();
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setArmed(true), delay);
+    return () => clearTimeout(t);
+  }, [delay]);
+  const numericMatch = metric.v.match(/^(\d+(?:\.\d+)?)/);
+  const targetNum = numericMatch ? parseFloat(numericMatch[1]) : NaN;
+  const trail = numericMatch ? metric.v.slice(numericMatch[0].length) : "";
+  const animated = useCountUp(isFinite(targetNum) ? targetNum : 0, 1400, armed && isFinite(targetNum));
+  const display = isFinite(targetNum)
+    ? (targetNum % 1 === 0 ? Math.round(animated).toString() : animated.toFixed(1)) + trail
+    : metric.v;
+  return (
+    <div
+      ref={sp.ref}
+      onMouseMove={sp.onMove}
+      className="spotlight rounded-2xl border border-border/50 bg-card/60 backdrop-blur-xl px-4 py-4 md:px-5 md:py-5 transition-transform duration-300 hover:-translate-y-1"
+    >
+      <div className="flex items-baseline gap-0.5">
+        <span className="text-2xl md:text-4xl font-black tracking-tight text-foreground tabular-nums animate-count-pop">
+          {display}
+        </span>
+        <span className="text-base md:text-xl font-bold text-primary">{metric.suf}</span>
+      </div>
+      <div className="mt-1 text-[12px] md:text-sm font-semibold text-foreground/90">{metric.label}</div>
+      <div className="text-[10px] md:text-xs text-muted-foreground/80">{metric.sub}</div>
+    </div>
+  );
+};
+
+// ── Pipeline node with spotlight ───────────────────────────────────────────
+const PipelineNode = ({ step, idx }: { step: (typeof PIPELINE)[number]; idx: number }) => {
+  const sp = useSpotlight();
+  return (
+    <div
+      ref={sp.ref}
+      onMouseMove={sp.onMove}
+      className="spotlight relative rounded-2xl border border-border/50 bg-card/70 backdrop-blur-xl p-4 md:p-5 hover:-translate-y-1 hover:border-primary/40 transition-all"
+      style={{ animationDelay: `${idx * 60}ms` }}
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-mono font-bold tracking-[0.2em] text-primary/70">{step.n}</span>
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/30 to-accent/15 border border-primary/30 flex items-center justify-center shadow-[0_0_24px_-8px_hsla(160,84%,55%,0.6)]">
+          <step.icon className="w-4 h-4 text-primary" />
+        </div>
+      </div>
+      <div className="mt-3 text-[13px] md:text-sm font-bold tracking-tight">{step.title}</div>
+      <div className="mt-0.5 text-[10px] md:text-[11px] text-muted-foreground font-mono">{step.hint}</div>
+    </div>
+  );
+};
+
 const Index = () => {
   const { showOptimizer: storeShowOptimizer, setShowOptimizer, contentItems } = useOptimizerStore();
   const shouldShowOptimizer = storeShowOptimizer || contentItems.length > 0;
