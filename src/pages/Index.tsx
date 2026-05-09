@@ -332,7 +332,12 @@ const Index = () => {
     if (el && !revealRefs.current.includes(el)) revealRefs.current.push(el);
   };
 
-  if (shouldShowOptimizer) return <OptimizerDashboard />;
+  if (shouldShowOptimizer)
+    return (
+      <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-muted-foreground">Loading engine…</div>}>
+        <OptimizerDashboard />
+      </Suspense>
+    );
 
   const launch = () => setShowOptimizer(true);
 
