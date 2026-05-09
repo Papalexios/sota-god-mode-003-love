@@ -272,6 +272,7 @@ const Index = () => {
             <a href="#strategies" className="hover:text-foreground transition">Strategies</a>
             <a href="#proof" className="hover:text-foreground transition">Why it ranks</a>
             <a href="#faq" className="hover:text-foreground transition">FAQ</a>
+            <a href="/status" className="hover:text-foreground transition">Status</a>
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
