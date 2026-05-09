@@ -359,10 +359,15 @@ const Status = () => {
   }
 
   const autoRanRef = useRef(false);
+  const [factReport, setFactReport] = useState<FactCheckReport | null>(
+    () => getLatestFactCheckReport() || loadPersistedFactCheckReport()
+  );
   useEffect(() => {
-    if (autoRanRef.current) return;
+    const unsub = subscribeFactCheckReport(setFactReport);
+    if (autoRanRef.current) return unsub;
     autoRanRef.current = true;
     runAll();
+    return unsub;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
