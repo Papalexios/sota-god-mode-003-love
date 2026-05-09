@@ -410,7 +410,7 @@ const Index = () => {
             </button>
             <button
               onClick={launch}
-              className="inline-flex items-center gap-1.5 px-4 h-9 rounded-full bg-primary text-primary-foreground text-[13px] font-bold shadow-lg shadow-primary/30 hover:shadow-primary/50 active:scale-[.97] transition"
+              className="btn-magnetic btn-sheen inline-flex items-center gap-1.5 px-4 h-9 rounded-full bg-primary text-primary-foreground text-[13px] font-bold shadow-lg shadow-primary/30 hover:shadow-primary/60 transition"
             >
               Launch app
               <ArrowRight className="w-3.5 h-3.5" />
@@ -446,7 +446,7 @@ const Index = () => {
             <div className="mt-8 md:mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
               <button
                 onClick={launch}
-                className="group w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 h-12 rounded-full bg-primary text-primary-foreground text-sm md:text-base font-bold shadow-[0_8px_30px_-6px_hsla(160,84%,39%,0.6)] hover:shadow-[0_12px_40px_-6px_hsla(160,84%,39%,0.85)] active:scale-[.98] transition-all"
+                className="btn-magnetic btn-sheen group w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 h-12 rounded-full bg-primary text-primary-foreground text-sm md:text-base font-bold shadow-[0_8px_30px_-6px_hsla(160,84%,39%,0.6)] hover:shadow-[0_14px_44px_-6px_hsla(160,84%,39%,0.95)] transition-all"
               >
                 Run the 10-phase pipeline
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition" />
@@ -889,7 +889,7 @@ const Index = () => {
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
               <button
                 onClick={launch}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 h-12 md:h-14 rounded-full bg-primary text-primary-foreground text-sm md:text-base font-bold shadow-[0_10px_40px_-8px_hsla(160,84%,39%,0.7)] hover:shadow-[0_14px_50px_-8px_hsla(160,84%,39%,0.9)] active:scale-[.98] transition-all"
+                className="btn-magnetic btn-sheen w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 h-12 md:h-14 rounded-full bg-primary text-primary-foreground text-sm md:text-base font-bold shadow-[0_10px_40px_-8px_hsla(160,84%,39%,0.7)] hover:shadow-[0_18px_60px_-8px_hsla(160,84%,39%,1)] transition-all"
               >
                 Launch phase 00 → 09 now
                 <ArrowRight className="w-4 h-4" />
@@ -924,6 +924,19 @@ const Index = () => {
           </div>
         </div>
       </footer>
+
+      {/* ── Mobile sticky CTA bar — appears on small screens for conversion ── */}
+      <div
+        className="md:hidden fixed bottom-0 inset-x-0 z-40 px-3 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 bg-gradient-to-t from-background via-background/95 to-transparent"
+      >
+        <button
+          onClick={launch}
+          className="btn-magnetic btn-sheen w-full inline-flex items-center justify-center gap-2 h-12 rounded-full bg-primary text-primary-foreground text-sm font-bold shadow-[0_12px_40px_-8px_hsla(160,84%,39%,0.85)]"
+        >
+          Run the 10-phase pipeline
+          <ArrowRight className="w-4 h-4" />
+        </button>
+      </div>
     </div>
   );
 };

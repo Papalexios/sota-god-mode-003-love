@@ -11,9 +11,13 @@ concurrency:
 
 jobs:
   lighthouse:
-    name: Lighthouse CI (CWV + bundle budgets)
+    name: Lighthouse CI · ${{ matrix.preset }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [desktop, mobile]
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -21,15 +25,20 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - run: bun run build
-      - name: Run Lighthouse CI
-        run: bunx lhci autorun --config=./lighthouserc.json
+      - name: Run Lighthouse CI (${{ matrix.preset }})
+        run: |
+          if [ "${{ matrix.preset }}" = "mobile" ]; then
+            bunx lhci autorun --config=./lighthouserc.mobile.json
+          else
+            bunx lhci autorun --config=./lighthouserc.json
+          fi
         env:
           LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
-      - name: Upload Lighthouse reports
+      - name: Upload Lighthouse reports (${{ matrix.preset }})
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: lighthouse-reports
+          name: lighthouse-reports-${{ matrix.preset }}
           path: .lighthouseci
           if-no-files-found: ignore
 
