@@ -384,6 +384,7 @@ const Index = () => {
           </a>
 
           <nav className="hidden lg:flex items-center gap-7 mx-auto text-sm font-medium text-muted-foreground">
+            <a href="#pipeline" className="hover:text-foreground transition">Pipeline</a>
             <a href="#how" className="hover:text-foreground transition">How it works</a>
             <a href="#capabilities" className="hover:text-foreground transition">Capabilities</a>
             <a href="#strategies" className="hover:text-foreground transition">Strategies</a>
