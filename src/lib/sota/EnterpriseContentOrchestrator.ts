@@ -1133,6 +1133,27 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
       this.warn('Phase 1: NeuronWriter data unavailable — generating without semantic optimization.');
     }
 
+    // ── Phase 1b: Merge ALL semantically relevant entities/terms into gap targets ──
+    if (neuron?.analysis) {
+      const a = neuron.analysis;
+      const merged = new Set(gapTargets.map(t => t.toLowerCase()));
+      const ordered: string[] = [...gapTargets];
+      const pushUnique = (term?: string) => {
+        if (!term) return;
+        const t = term.trim();
+        if (t.length < 3) return;
+        const k = t.toLowerCase();
+        if (merged.has(k)) return;
+        merged.add(k);
+        ordered.push(t);
+      };
+      (a.entities || []).forEach((e: any) => pushUnique(e.entity));
+      (a.termsExtended || []).forEach((t: any) => pushUnique(t.term));
+      (a.terms || []).forEach((t: any) => pushUnique(t.term));
+      gapTargets = ordered;
+      this.log(`Phase 1b ✅ Total semantic coverage targets: ${gapTargets.length} (entities + terms + SERP gaps).`);
+    }
+
     // ── Phase 2: YouTube Video Discovery (parallel with Phase 3/4) ─────────
     this.log('Phase 2: YouTube Video Discovery...');
     const videosPromise = this.fetchYouTubeVideos(options.keyword);
