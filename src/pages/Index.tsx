@@ -353,7 +353,7 @@ const Index = () => {
             </div>
 
             <h1 className="text-balance text-[40px] leading-[1.04] sm:text-[56px] sm:leading-[1.02] md:text-[80px] md:leading-[0.98] lg:text-[96px] lg:leading-[0.96] font-black tracking-[-0.04em]">
-              Ship articles that
+              <span className="shine-text">Ship articles that</span>
               <br className="hidden sm:block" />{" "}
               <span className="gradient-text">actually rank.</span>
             </h1>
