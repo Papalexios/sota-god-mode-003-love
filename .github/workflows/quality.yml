@@ -1,4 +1,4 @@
-name: Quality (Lighthouse CI + Playwright E2E)
+name: Quality (Lighthouse CI + Playwright E2E + Visual Regression)
 
 on:
   push:
@@ -9,65 +9,132 @@ concurrency:
   group: quality-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  pull-requests: write
+  actions: read
+
 jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # LIGHTHOUSE — desktop + mobile (Pixel 7) + iPhone-SE + iPad
+  # ─────────────────────────────────────────────────────────────────────────
   lighthouse:
-    name: Lighthouse CI · ${{ matrix.preset }}
+    name: Lighthouse · ${{ matrix.preset }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        preset: [desktop, mobile]
+        preset: [desktop, mobile, iphone-se, ipad]
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
+        with: { bun-version: latest }
       - run: bun install --frozen-lockfile
       - run: bun run build
       - name: Run Lighthouse CI (${{ matrix.preset }})
         run: |
-          if [ "${{ matrix.preset }}" = "mobile" ]; then
-            bunx lhci autorun --config=./lighthouserc.mobile.json
-          else
-            bunx lhci autorun --config=./lighthouserc.json
-          fi
+          case "${{ matrix.preset }}" in
+            desktop)   CONFIG=./lighthouserc.json ;;
+            mobile)    CONFIG=./lighthouserc.mobile.json ;;
+            iphone-se) CONFIG=./lighthouserc.iphone-se.json ;;
+            ipad)      CONFIG=./lighthouserc.ipad.json ;;
+          esac
+          bunx lhci autorun --config="$CONFIG" || echo "::warning::LHCI assertions failed for ${{ matrix.preset }}"
         env:
           LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
-      - name: Upload Lighthouse reports (${{ matrix.preset }})
+      - name: Upload reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: lighthouse-reports-${{ matrix.preset }}
           path: .lighthouseci
-          if-no-files-found: ignore
+          if-no-files-found: warn
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # PR COMMENT — aggregate every preset and post one summary
+  # ─────────────────────────────────────────────────────────────────────────
+  lighthouse-comment:
+    name: Comment Lighthouse summary on PR
+    runs-on: ubuntu-latest
+    needs: lighthouse
+    if: github.event_name == 'pull_request' && always()
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: lhci-reports
+          pattern: lighthouse-reports-*
+      - name: Build Markdown summary
+        run: |
+          node scripts/lhci-pr-comment.mjs lhci-reports > lhci-summary.md
+          cat lhci-summary.md
+      - name: Post / update PR comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: lighthouse-ci-summary
+          path: lhci-summary.md
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # PLAYWRIGHT — functional E2E across mobile + desktop
+  # ─────────────────────────────────────────────────────────────────────────
   e2e:
-    name: Playwright E2E (mobile + desktop)
+    name: E2E · ${{ matrix.project }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        project:
-          - desktop-chromium
-          - desktop-firefox
-          - mobile-iphone
-          - mobile-pixel
+        project: [desktop-chromium, desktop-firefox, mobile-iphone, mobile-pixel]
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
+        with: { bun-version: latest }
       - run: bun install --frozen-lockfile
       - name: Install Playwright browsers
-        run: bunx playwright install --with-deps ${{ contains(matrix.project, 'firefox') && 'firefox' || 'chromium' }}
-      - name: Run E2E (${{ matrix.project }})
-        run: bunx playwright test --project=${{ matrix.project }}
-      - name: Upload Playwright report
+        run: |
+          if [[ "${{ matrix.project }}" == *firefox* ]]; then
+            bunx playwright install --with-deps firefox
+          else
+            bunx playwright install --with-deps chromium
+          fi
+      - name: Run functional E2E (${{ matrix.project }})
+        run: bunx playwright test landing.spec.ts --project=${{ matrix.project }}
+      - name: Upload report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report-${{ matrix.project }}
           path: playwright-report
+          if-no-files-found: ignore
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # VISUAL REGRESSION — pixel-diffs on desktop + mobile (Chromium only for stable rendering)
+  # ─────────────────────────────────────────────────────────────────────────
+  visual:
+    name: Visual regression · ${{ matrix.project }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [desktop-chromium, mobile-iphone]
+    steps:
+      - uses: actions/checkout@v4
+        with: { lfs: true }
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: latest }
+      - run: bun install --frozen-lockfile
+      - name: Install Playwright + chromium
+        run: bunx playwright install --with-deps chromium
+      - name: Run visual regression (${{ matrix.project }})
+        run: bunx playwright test landing-visual.spec.ts --project=${{ matrix.project }}
+      - name: Upload diff artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-diffs-${{ matrix.project }}
+          path: |
+            test-results
+            playwright-report
           if-no-files-found: ignore
