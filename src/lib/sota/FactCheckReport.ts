@@ -220,3 +220,213 @@ export function classifyClaimOutcome(
   if (hits >= Math.ceil(keywords.length * 0.4)) return "softened";
   return "removed";
 }
+
+// ─── Paragraph matching (draft → final) ──────────────────────────────────────
+export interface ParagraphMatch {
+  html: string;
+  text: string;
+  similarity: number; // 0..1 Jaccard over token sets
+}
+
+function tokenize(text: string): string[] {
+  return text.toLowerCase().match(/[a-z0-9%$.]+/gi) || [];
+}
+
+function jaccard(a: string[], b: string[]): number {
+  if (!a.length || !b.length) return 0;
+  const sa = new Set(a), sb = new Set(b);
+  let inter = 0;
+  for (const t of sa) if (sb.has(t)) inter++;
+  return inter / (sa.size + sb.size - inter);
+}
+
+/**
+ * Find the paragraph in `html` that best matches the original `draftText`.
+ * Returns null when no paragraph clears the similarity threshold (claim removed).
+ */
+export function findBestMatchingParagraph(
+  html: string,
+  draftText: string,
+  threshold = 0.25,
+): ParagraphMatch | null {
+  const blocks = html.match(/<p[^>]*>[\s\S]*?<\/p>/gi) || [];
+  const draftTokens = tokenize(draftText);
+  let best: ParagraphMatch | null = null;
+  for (const raw of blocks) {
+    const text = raw.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    const sim = jaccard(draftTokens, tokenize(text));
+    if (!best || sim > best.similarity) best = { html: raw, text, similarity: sim };
+  }
+  return best && best.similarity >= threshold ? best : null;
+}
+
+// ─── Word-level diff (LCS) ───────────────────────────────────────────────────
+export type DiffOp = { type: "equal" | "insert" | "delete"; text: string };
+
+export function wordDiff(a: string, b: string): DiffOp[] {
+  const aw = a.split(/(\s+)/);
+  const bw = b.split(/(\s+)/);
+  const m = aw.length, n = bw.length;
+  // LCS DP — capped to keep memory bounded
+  if (m * n > 250_000) {
+    return [{ type: "delete", text: a }, { type: "insert", text: b }];
+  }
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = m - 1; i >= 0; i--) {
+    for (let j = n - 1; j >= 0; j--) {
+      dp[i][j] = aw[i] === bw[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  const ops: DiffOp[] = [];
+  let i = 0, j = 0;
+  const push = (op: DiffOp) => {
+    const last = ops[ops.length - 1];
+    if (last && last.type === op.type) last.text += op.text;
+    else ops.push(op);
+  };
+  while (i < m && j < n) {
+    if (aw[i] === bw[j])      { push({ type: "equal",  text: aw[i] }); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) { push({ type: "delete", text: aw[i] }); i++; }
+    else                      { push({ type: "insert", text: bw[j] }); j++; }
+  }
+  while (i < m) { push({ type: "delete", text: aw[i++] }); }
+  while (j < n) { push({ type: "insert", text: bw[j++] }); }
+  return ops;
+}
+
+// ─── Single-claim re-check ──────────────────────────────────────────────────
+export interface RecheckResult {
+  ok: boolean;
+  message?: string;
+  claim?: FactCheckClaim;
+  /** Updated full HTML, when reconciliation replaced the matching paragraph. */
+  updatedHtml?: string;
+}
+
+export interface RecheckEngine {
+  generateWithModel: (params: any) => Promise<{ content: string }>;
+}
+
+/**
+ * Re-runs Serper (cache-bypassed) for one claim and asks the model to
+ * reconcile only the matching paragraph in `currentHtml`. Updates the
+ * latest report in-place with new sources, outcome, and paragraph snapshots.
+ */
+export async function recheckClaim(args: {
+  index: number;
+  engine: RecheckEngine;
+}): Promise<RecheckResult> {
+  const report = getLatestFactCheckReport();
+  if (!report) return { ok: false, message: "No fact-check report in memory." };
+  const claim = report.claims.find(c => c.index === args.index);
+  if (!claim) return { ok: false, message: `Claim #${args.index + 1} not found.` };
+  if (!report.serperKey) return { ok: false, message: "Serper API key missing — cannot re-check." };
+  if (!report.currentHtml) return { ok: false, message: "Current article HTML missing — generate again first." };
+  if (!report.model) return { ok: false, message: "Model context missing — generate again first." };
+
+  const queryText = claim.claim.slice(0, 140);
+  const query = `${report.keyword} ${queryText}`;
+
+  // 1) Fresh Serper call (bypass cache, then refresh cache on success).
+  const t0 = Date.now();
+  let sources: FactCheckSource[] = [];
+  try {
+    const res = await fetch("https://google.serper.dev/search", {
+      method: "POST",
+      headers: { "X-API-KEY": report.serperKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ q: query, num: 5 }),
+    });
+    if (!res.ok) return { ok: false, message: `Serper HTTP ${res.status}` };
+    const data = await res.json();
+    sources = (data.organic || []).slice(0, 5).map((o: any) => ({
+      title: o.title || "", snippet: o.snippet || "", link: o.link || "",
+    }));
+    if (sources.length) setCachedSerper(buildSerperCacheKey(report.keyword, claim.claim), sources);
+  } catch (e: any) {
+    return { ok: false, message: `Serper error: ${e?.message || e}` };
+  }
+
+  if (sources.length === 0) {
+    Object.assign(claim, {
+      sources, query, cached: false,
+      latencyMs: Date.now() - t0, recheckedAt: Date.now(),
+      outcome: "unverified" as FactCheckOutcome,
+    });
+    setLatestFactCheckReport({ ...report });
+    return { ok: true, message: "No live evidence found.", claim };
+  }
+
+  // 2) Identify the paragraph in current HTML to rewrite.
+  const target = findBestMatchingParagraph(
+    report.currentHtml,
+    claim.finalText || claim.claim,
+    0.2,
+  );
+  if (!target) {
+    Object.assign(claim, {
+      sources, query, cached: false,
+      latencyMs: Date.now() - t0, recheckedAt: Date.now(),
+      outcome: "removed" as FactCheckOutcome,
+      finalParagraphHtml: "",
+      finalText: "",
+    });
+    setLatestFactCheckReport({ ...report });
+    return { ok: true, message: "Claim no longer present in article.", claim };
+  }
+
+  // 3) Focused reconciliation prompt — single paragraph only.
+  const evidenceBlock = sources.map(s => `- ${s.title}: ${s.snippet} (${s.link})`).join("\n");
+  const prompt = `Re-verify this single paragraph against fresh live web evidence.
+Rules:
+1. If supported, keep wording but tighten it.
+2. If contradicted, correct numbers/dates to match the most authoritative source (.gov / .edu / primary first).
+3. If unverifiable, soften ("studies suggest", "industry estimates") or remove the unverifiable claim.
+4. Never invent statistics. Preserve <p> tag and any inline links/embeds.
+
+KEYWORD: ${report.keyword}
+
+LIVE EVIDENCE:
+${evidenceBlock}
+
+ORIGINAL PARAGRAPH (HTML):
+${target.html}
+
+Return ONLY the rewritten <p>...</p> block.`;
+
+  let rewritten = "";
+  try {
+    const result = await args.engine.generateWithModel({
+      prompt,
+      systemPrompt: "You are a senior fact-checker. Only output a single rewritten <p>...</p> block.",
+      model: report.model as any,
+      apiKeys: report.apiKeys || {},
+      temperature: 0.15,
+      maxTokens: 1200,
+    });
+    const m = result.content.match(/<p[\s\S]*?<\/p>/i);
+    if (m) rewritten = m[0];
+  } catch (e: any) {
+    return { ok: false, message: `Model rewrite failed: ${e?.message || e}` };
+  }
+
+  if (!rewritten) {
+    return { ok: false, message: "Model did not return a valid <p> block." };
+  }
+
+  const updatedHtml = report.currentHtml.replace(target.html, rewritten);
+  const newText = rewritten.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  const outcome: FactCheckOutcome = newText === target.text
+    ? "kept"
+    : classifyClaimOutcome(claim.claim, rewritten);
+
+  Object.assign(claim, {
+    sources, query, cached: false,
+    latencyMs: Date.now() - t0, recheckedAt: Date.now(),
+    finalParagraphHtml: rewritten,
+    finalText: newText,
+    outcome,
+  });
+  report.currentHtml = updatedHtml;
+  setLatestFactCheckReport({ ...report });
+  return { ok: true, message: "Claim re-checked and reconciled.", claim, updatedHtml };
+}
