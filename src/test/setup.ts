@@ -30,8 +30,7 @@ class IO {
 
 // rAF polyfill (jsdom has it, but stabilize)
 if (!window.requestAnimationFrame) {
-  // @ts-expect-error attach
-  window.requestAnimationFrame = (cb: FrameRequestCallback) => setTimeout(() => cb(performance.now()), 0) as unknown as number;
-  // @ts-expect-error attach
-  window.cancelAnimationFrame = (id: number) => clearTimeout(id);
+  window.requestAnimationFrame = ((cb: FrameRequestCallback) =>
+    setTimeout(() => cb(performance.now()), 0) as unknown as number) as typeof window.requestAnimationFrame;
+  window.cancelAnimationFrame = ((id: number) => clearTimeout(id)) as typeof window.cancelAnimationFrame;
 }
