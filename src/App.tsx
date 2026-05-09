@@ -1,7 +1,7 @@
 // src/App.tsx
 // SOTA God Mode - App Root with Error Boundary v3.0
 
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,7 +10,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { SupabaseSyncProvider } from "@/providers/SupabaseSyncProvider";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
-import Status from "./pages/Status";
+const Status = lazy(() => import("./pages/Status"));
+const Perf = lazy(() => import("./pages/Perf"));
 
 // ═══════════════════════════════════════════════════════════════════
 // ERROR BOUNDARY
@@ -113,7 +114,22 @@ const App = () => (
             <BrowserRouter>
               <Routes>
                 <Route path="/" element={<Index />} />
-                <Route path="/status" element={<Status />} />
+                <Route
+                  path="/status"
+                  element={
+                    <Suspense fallback={<div className="p-8 text-muted-foreground">Loading status…</div>}>
+                      <Status />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/perf"
+                  element={
+                    <Suspense fallback={<div className="p-8 text-muted-foreground">Loading perf…</div>}>
+                      <Perf />
+                    </Suspense>
+                  }
+                />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
