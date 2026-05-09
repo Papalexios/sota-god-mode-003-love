@@ -329,6 +329,7 @@ export class EnterpriseContentOrchestrator {
         outcome: sources.length ? 'kept' : 'unverified', // tentative; refined after rewrite
         cached: cachedHit,
         latencyMs: Date.now() - t0,
+        originalParagraphHtml: p.raw,
       });
       if (sources.length) evidenceForPrompt.push({ claim: p.text, sources });
     }));
