@@ -59,6 +59,7 @@ import {
   setCachedSerper,
   classifyClaimOutcome,
   setLatestFactCheckReport,
+  findBestMatchingParagraph,
   type FactCheckClaim,
   type FactCheckSource,
   type FactCheckReport,
