@@ -438,3 +438,65 @@ button:active {
 /* Smoother scroll-snapped reveal with stagger helper */
 .reveal-up { opacity: 0; transform: translateY(22px) scale(.99); transition: opacity .8s cubic-bezier(.2,.7,.2,1), transform .8s cubic-bezier(.2,.7,.2,1); }
 .reveal-up.is-visible { opacity: 1; transform: none; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * SOTA polish v5.1 — focus rings, motion respect, premium micro-interactions
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Universal premium focus ring — accessible, brand-aligned, never ugly */
+*:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px hsl(var(--background)),
+    0 0 0 4px hsla(160, 84%, 55%, 0.55),
+    0 0 24px -4px hsla(160, 84%, 55%, 0.45);
+  border-radius: inherit;
+  transition: box-shadow .18s ease;
+}
+
+/* Smooth anchor scroll + safe top offset for sticky header */
+html { scroll-behavior: smooth; }
+:where(section[id]) { scroll-margin-top: 88px; }
+
+/* Selection — brand-tinted */
+::selection { background: hsla(160, 84%, 45%, 0.35); color: hsl(var(--foreground)); }
+
+/* Premium gradient scrollbar thumb on hover */
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, hsla(160,84%,55%,.45), hsla(262,83%,68%,.35));
+}
+
+/* Magnetic CTA — subtle scale + glow on hover, snappy on press */
+.btn-magnetic {
+  transition: transform .25s cubic-bezier(.2,.7,.2,1), box-shadow .25s ease, filter .25s ease;
+}
+.btn-magnetic:hover { transform: translateY(-1px) scale(1.015); filter: brightness(1.05); }
+.btn-magnetic:active { transform: translateY(0) scale(.98); }
+
+/* Sheen sweep — drag a soft highlight across primary CTAs */
+.btn-sheen { position: relative; overflow: hidden; isolation: isolate; }
+.btn-sheen::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(115deg, transparent 30%, hsla(0,0%,100%,.35) 50%, transparent 70%);
+  transform: translateX(-120%);
+  transition: transform .9s cubic-bezier(.2,.7,.2,1);
+  pointer-events: none;
+}
+.btn-sheen:hover::after { transform: translateX(120%); }
+
+/* Honor reduced-motion — kill non-essential animations */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .aurora-layer, .conic-ring, .flow-line, .animate-shimmer, .shine-text { animation: none !important; }
+}
+
+/* Mobile: hide aurora at small sizes to keep LCP/INP pristine */
+@media (max-width: 640px) {
+  .aurora-layer { filter: blur(80px); opacity: .35; }
+  .bg-noise::after { opacity: .025; }
+}
