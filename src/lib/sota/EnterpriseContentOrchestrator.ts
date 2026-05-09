@@ -107,6 +107,7 @@ export class EnterpriseContentOrchestrator {
   private schemaGenerator: SchemaGenerator;
   private eeatValidator: EEATValidator;
   private config: any;
+  private serperKey: string = '';
   private telemetry: any = { warnings: [], errors: [], timeline: [] };
   private onProgress?: (msg: string) => void;
 
@@ -115,6 +116,7 @@ export class EnterpriseContentOrchestrator {
 
     // Extract serperApiKey from nested apiKeys or from top-level config
     const serperKey = config.apiKeys?.serperApiKey || config.serperApiKey || '';
+    this.serperKey = serperKey;
 
     // CRITICAL: pipe engine progress (retries, continuations, fallbacks) to UI
     this.engine = createSOTAEngine(config.apiKeys, (msg: string) => {
