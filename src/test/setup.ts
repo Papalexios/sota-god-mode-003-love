@@ -25,10 +25,8 @@ class IO {
   rootMargin = "";
   thresholds = [];
 }
-// @ts-expect-error attach
-window.IntersectionObserver = IO;
-// @ts-expect-error attach
-global.IntersectionObserver = IO;
+(window as unknown as { IntersectionObserver: unknown }).IntersectionObserver = IO;
+(globalThis as unknown as { IntersectionObserver: unknown }).IntersectionObserver = IO;
 
 // rAF polyfill (jsdom has it, but stabilize)
 if (!window.requestAnimationFrame) {
