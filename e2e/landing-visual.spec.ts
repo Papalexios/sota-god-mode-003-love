@@ -60,6 +60,69 @@ test.describe("Visual regression — landing page", () => {
     });
   }
 
+  test("FAQ accordion · expanded state", async ({ page }) => {
+    const faq = page.locator("section#faq");
+    await faq.scrollIntoViewIfNeeded();
+    const firstQ = faq.locator('button[aria-expanded]').first();
+    await firstQ.click();
+    await expect(firstQ).toHaveAttribute("aria-expanded", "true");
+    // Wait for the 300ms grid-rows transition (paused via addStyleTag, so instant)
+    await page.waitForTimeout(150);
+    await expect(faq).toHaveScreenshot("faq-expanded.png", {
+      animations: "disabled",
+      maxDiffPixelRatio: 0.02,
+    });
+  });
+
+  test("FAQ accordion · all expanded", async ({ page }) => {
+    const faq = page.locator("section#faq");
+    await faq.scrollIntoViewIfNeeded();
+    const buttons = faq.locator('button[aria-expanded="false"]');
+    const count = await buttons.count();
+    for (let i = 0; i < count; i++) {
+      // Re-query each iteration since aria-expanded flips
+      await faq.locator('button[aria-expanded="false"]').first().click();
+    }
+    await page.waitForTimeout(200);
+    await expect(faq).toHaveScreenshot("faq-all-expanded.png", {
+      animations: "disabled",
+      maxDiffPixelRatio: 0.02,
+    });
+  });
+
+  test("Pipeline card · hover spotlight (desktop)", async ({ page, isMobile }) => {
+    test.skip(isMobile, "Hover spotlight is a desktop-only pointer interaction");
+    const pipeline = page.locator("section#pipeline");
+    await pipeline.scrollIntoViewIfNeeded();
+    const card = pipeline.locator(".spotlight").first();
+    await card.scrollIntoViewIfNeeded();
+    const box = await card.boundingBox();
+    if (box) {
+      // Move pointer to the card's center to trigger spotlight + lift
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 8 });
+      // Nudge to update the --x/--y CSS vars from the onMouseMove handler
+      await page.mouse.move(box.x + box.width * 0.4, box.y + box.height * 0.4, { steps: 4 });
+    }
+    await page.waitForTimeout(150);
+    await expect(card).toHaveScreenshot("pipeline-card-hover.png", {
+      animations: "disabled",
+      maxDiffPixelRatio: 0.025,
+    });
+  });
+
+  test("Pipeline card · default state (mobile)", async ({ page, isMobile }) => {
+    test.skip(!isMobile, "Mobile baseline — no hover available");
+    const pipeline = page.locator("section#pipeline");
+    await pipeline.scrollIntoViewIfNeeded();
+    const card = pipeline.locator(".spotlight").first();
+    await card.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(100);
+    await expect(card).toHaveScreenshot("pipeline-card-default.png", {
+      animations: "disabled",
+      maxDiffPixelRatio: 0.025,
+    });
+  });
+
   test("mobile sticky CTA bar", async ({ page, isMobile }) => {
     test.skip(!isMobile, "Sticky CTA only renders on mobile (md:hidden)");
     const cta = page.locator("button", { hasText: /run the 10-phase pipeline/i }).last();
