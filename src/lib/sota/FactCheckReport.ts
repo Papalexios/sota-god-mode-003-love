@@ -89,9 +89,20 @@ export function getLatestFactCheckReport(): FactCheckReport | null { return late
 export function setLatestFactCheckReport(r: FactCheckReport | null): void {
   latest = r;
   try {
-    if (r) localStorage.setItem("wpco:lastFactCheck", JSON.stringify(r));
+    if (r) {
+      // Strip heavy / sensitive fields before writing to localStorage.
+      const { currentHtml: _h, apiKeys: _k, serperKey: _s, ...persistable } = r;
+      localStorage.setItem("wpco:lastFactCheck", JSON.stringify(persistable));
+    }
   } catch { /* ignore */ }
   subs.forEach(fn => { try { fn(r); } catch { /* ignore */ } });
+}
+
+/** Patch the in-memory report (skips localStorage rewrite of heavy fields). */
+export function updateLatestFactCheckReport(patch: Partial<FactCheckReport>): void {
+  if (!latest) return;
+  latest = { ...latest, ...patch };
+  setLatestFactCheckReport(latest);
 }
 
 export function subscribeFactCheckReport(fn: (r: FactCheckReport | null) => void): () => void {
