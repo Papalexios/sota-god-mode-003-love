@@ -422,20 +422,10 @@ const Index = () => {
               </div>
             </div>
 
-            {/* Hero metrics */}
+            {/* Hero metrics — spotlight cards with count-up */}
             <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-              {HERO_METRICS.map((m) => (
-                <div
-                  key={m.label}
-                  className="rounded-2xl border border-border/50 bg-card/60 backdrop-blur-xl px-4 py-4 md:px-5 md:py-5"
-                >
-                  <div className="flex items-baseline gap-0.5">
-                    <span className="text-2xl md:text-4xl font-black tracking-tight text-foreground">{m.v}</span>
-                    <span className="text-base md:text-xl font-bold text-primary">{m.suf}</span>
-                  </div>
-                  <div className="mt-1 text-[12px] md:text-sm font-semibold text-foreground/90">{m.label}</div>
-                  <div className="text-[10px] md:text-xs text-muted-foreground/80">{m.sub}</div>
-                </div>
+              {HERO_METRICS.map((m, i) => (
+                <HeroMetric key={m.label} metric={m} delay={i * 110} />
               ))}
             </div>
           </div>
