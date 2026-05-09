@@ -232,7 +232,7 @@ export class EnterpriseContentOrchestrator {
     const missingBefore = gapTargets.filter((gap) => !isCovered(textBefore, gap));
     if (missingBefore.length === 0) return { html, missingBefore: [], missingAfter: [] };
 
-    const injectedHtml = injectMissingTerms(html, missingBefore.slice(0, 20));
+    const injectedHtml = injectMissingTerms(html, missingBefore);
     const textAfter = this.normalizeTextForGap(injectedHtml);
     const missingAfter = gapTargets.filter((gap) => !isCovered(textAfter, gap));
 
