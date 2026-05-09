@@ -2,15 +2,20 @@
 // Live health-check page for NeuronWriter proxy, WordPress, AI models.
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { CheckCircle2, XCircle, Loader2, AlertTriangle, ArrowLeft, PlayCircle, ShieldCheck, ExternalLink } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, AlertTriangle, ArrowLeft, PlayCircle, ShieldCheck, ExternalLink, GitCompare, RefreshCw } from "lucide-react";
 import { useOptimizerStore } from "@/lib/store";
 import { NeuronWriterService } from "@/lib/sota/NeuronWriterService";
+import { createSOTAEngine } from "@/lib/sota/SOTAContentGenerationEngine";
 import {
   getLatestFactCheckReport,
   loadPersistedFactCheckReport,
   subscribeFactCheckReport,
+  recheckClaim,
+  wordDiff,
   type FactCheckReport,
+  type FactCheckClaim,
   type FactCheckOutcome,
+  type DiffOp,
 } from "@/lib/sota/FactCheckReport";
 
 type CheckStatus = "idle" | "running" | "ok" | "warn" | "error";
