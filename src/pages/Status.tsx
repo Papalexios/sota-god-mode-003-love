@@ -443,9 +443,11 @@ const Status = () => {
                   `${p.label} API key`
                 }
                 result={models[p.label] || initial}
-                action={<Btn variant="ghost" onClick={async () => setModels(m => ({ ...m, [p.label]: { status: "running" } }))
-                  .then?.(() => p.check().then(r => setModels(m => ({ ...m, [p.label]: r }))))
-                }>Check {p.label}</Btn>}
+                action={<Btn variant="ghost" onClick={async () => {
+                  setModels(m => ({ ...m, [p.label]: { status: "running" } }));
+                  const r = await p.check();
+                  setModels(m => ({ ...m, [p.label]: r }));
+                }}>Check {p.label}</Btn>}
               />
             ))}
           </div>
