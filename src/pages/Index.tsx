@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback, lazy, Suspense } from "react";
 import {
   Zap,
   Sparkles,
@@ -31,7 +31,9 @@ import {
   Sigma,
   Send,
 } from "lucide-react";
-import { OptimizerDashboard } from "@/components/optimizer/OptimizerDashboard";
+const OptimizerDashboard = lazy(() =>
+  import("@/components/optimizer/OptimizerDashboard").then((m) => ({ default: m.OptimizerDashboard }))
+);
 import { useOptimizerStore } from "@/lib/store";
 
 /* ───────────────────────────────────────────────────────────────────────────
