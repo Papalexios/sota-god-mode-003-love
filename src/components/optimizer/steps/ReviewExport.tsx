@@ -41,7 +41,7 @@ function reconstructGeneratedContent(stored: GeneratedContentStore[string] | und
     },
     qualityScore: {
       ...stored.qualityScore,
-      passed: stored.qualityScore.overall >= 85,
+      passed: stored.qualityScore.overall >= 95,
       improvements: [],
     },
     internalLinks: (stored.internalLinks || []).map(l => ({

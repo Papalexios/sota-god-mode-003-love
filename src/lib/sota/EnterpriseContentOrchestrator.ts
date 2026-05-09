@@ -107,6 +107,7 @@ export class EnterpriseContentOrchestrator {
   private schemaGenerator: SchemaGenerator;
   private eeatValidator: EEATValidator;
   private config: any;
+  private serperKey: string = '';
   private telemetry: any = { warnings: [], errors: [], timeline: [] };
   private onProgress?: (msg: string) => void;
 
@@ -115,6 +116,7 @@ export class EnterpriseContentOrchestrator {
 
     // Extract serperApiKey from nested apiKeys or from top-level config
     const serperKey = config.apiKeys?.serperApiKey || config.serperApiKey || '';
+    this.serperKey = serperKey;
 
     // CRITICAL: pipe engine progress (retries, continuations, fallbacks) to UI
     this.engine = createSOTAEngine(config.apiKeys, (msg: string) => {
@@ -230,7 +232,7 @@ export class EnterpriseContentOrchestrator {
     const missingBefore = gapTargets.filter((gap) => !isCovered(textBefore, gap));
     if (missingBefore.length === 0) return { html, missingBefore: [], missingAfter: [] };
 
-    const injectedHtml = injectMissingTerms(html, missingBefore.slice(0, 20));
+    const injectedHtml = injectMissingTerms(html, missingBefore);
     const textAfter = this.normalizeTextForGap(injectedHtml);
     const missingAfter = gapTargets.filter((gap) => !isCovered(textAfter, gap));
 
@@ -242,8 +244,91 @@ export class EnterpriseContentOrchestrator {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // NEURONWRITER INTEGRATION v9.0 — AUTO-CREATE + FULL DATA POLLING
+  // FACT-CHECK PASS — live web search verification of factual claims
   // ─────────────────────────────────────────────────────────────────────────
+  private async runFactCheckPass(html: string, keyword: string, model: string): Promise<string> {
+    if (!this.serperKey) {
+      this.warn('Fact-check: skipped (no Serper API key configured).');
+      return html;
+    }
+
+    // Extract paragraphs containing factual claims (numbers, %, $, years, "according to")
+    const claimRegex = /\b(\d+(?:\.\d+)?\s?%|\$\s?\d{2,}|\b(?:19|20)\d{2}\b|\baccording to\b|\bstudy\b|\breport\b|\bsurvey\b)/i;
+    const paragraphs = (html.match(/<p[^>]*>[\s\S]*?<\/p>/gi) || [])
+      .map(p => ({ raw: p, text: p.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() }))
+      .filter(p => p.text.split(/\s+/).length >= 20 && claimRegex.test(p.text))
+      .slice(0, 6);
+
+    if (paragraphs.length === 0) {
+      this.log('Fact-check: no high-stakes claims detected.');
+      return html;
+    }
+
+    // Run Serper for each claim paragraph (parallel)
+    const evidence: { claim: string; sources: { title: string; snippet: string; link: string }[] }[] = [];
+    await Promise.all(paragraphs.map(async (p) => {
+      const query = `${keyword} ${p.text.slice(0, 140)}`;
+      try {
+        const res = await fetch('https://google.serper.dev/search', {
+          method: 'POST',
+          headers: { 'X-API-KEY': this.serperKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ q: query, num: 4 }),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const sources = (data.organic || []).slice(0, 4).map((o: any) => ({
+          title: o.title || '', snippet: o.snippet || '', link: o.link || '',
+        }));
+        if (sources.length) evidence.push({ claim: p.text, sources });
+      } catch { /* ignore */ }
+    }));
+
+    if (evidence.length === 0) {
+      this.warn('Fact-check: no live evidence retrieved (Serper unreachable or rate-limited).');
+      return html;
+    }
+
+    this.log(`Fact-check: gathered live evidence for ${evidence.length} claims. Asking model to reconcile...`);
+
+    const evidenceBlock = evidence.map((e, i) =>
+      `CLAIM ${i + 1}: ${e.claim}\nLIVE EVIDENCE:\n${e.sources.map(s => `- ${s.title}: ${s.snippet} (${s.link})`).join('\n')}`
+    ).join('\n\n');
+
+    const prompt = `Audit this draft article against live web evidence. For each numerical, date, statistic, or attributed claim:
+1. If supported by the evidence below, keep it.
+2. If contradicted, correct it to match the most authoritative source (prefer .gov, .edu, primary sources).
+3. If unverifiable, soften the language ("studies suggest", "industry estimates") or remove the claim.
+4. Never invent new statistics. Preserve all HTML structure, links, embeds, and overall length.
+
+LIVE EVIDENCE:
+${evidenceBlock}
+
+DRAFT HTML:
+${html}
+
+Return the full corrected HTML article only, starting with <article and ending with </article>.`;
+
+    try {
+      const result = await this.engine.generateWithModel({
+        prompt,
+        systemPrompt: 'You are a senior fact-checker. You only allow claims supported by primary sources. Output complete HTML only.',
+        model: model as any,
+        apiKeys: {} as any,
+        temperature: 0.15,
+        maxTokens: 16384,
+        validation: { type: 'article-html', requireCompleteArticle: true, minWords: 600 },
+      });
+      const match = result.content.match(/<article[\s\S]*?<\/article>/i);
+      if (match && match[0].length > html.length * 0.6) {
+        this.log(`Fact-check ✅ ${evidence.length} claims reconciled against live web evidence.`);
+        return match[0];
+      }
+    } catch (e) {
+      this.warn(`Fact-check pass failed: ${e instanceof Error ? e.message : e}`);
+    }
+    return html;
+  }
+
 
   private async maybeInitNeuronWriter(keyword: string, options: any): Promise<NeuronBundle | null> {
     if (!this.config.neuronWriterApiKey || !this.config.neuronWriterProjectId) {
@@ -1108,7 +1193,7 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
     // ── Phase 0: Top-3 SERP Scan + Gap Analysis ─────────────────────────────
     this.log('Phase 0: Top-3 SERP ranking scan and gap analysis...');
     const serpAnalysis = await this.serpAnalyzer.analyze(options.keyword);
-    const gapTargets = this.buildTopGapTargetsFromSerp(serpAnalysis, options.keyword, 20);
+    let gapTargets = this.buildTopGapTargetsFromSerp(serpAnalysis, options.keyword, 50);
     const top3Competitors = (serpAnalysis.topCompetitors || []).slice(0, 3);
 
     this.log(
@@ -1131,6 +1216,27 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
       );
     } else {
       this.warn('Phase 1: NeuronWriter data unavailable — generating without semantic optimization.');
+    }
+
+    // ── Phase 1b: Merge ALL semantically relevant entities/terms into gap targets ──
+    if (neuron?.analysis) {
+      const a = neuron.analysis;
+      const merged = new Set(gapTargets.map(t => t.toLowerCase()));
+      const ordered: string[] = [...gapTargets];
+      const pushUnique = (term?: string) => {
+        if (!term) return;
+        const t = term.trim();
+        if (t.length < 3) return;
+        const k = t.toLowerCase();
+        if (merged.has(k)) return;
+        merged.add(k);
+        ordered.push(t);
+      };
+      (a.entities || []).forEach((e: any) => pushUnique(e.entity));
+      (a.termsExtended || []).forEach((t: any) => pushUnique(t.term));
+      (a.terms || []).forEach((t: any) => pushUnique(t.term));
+      gapTargets = ordered;
+      this.log(`Phase 1b ✅ Total semantic coverage targets: ${gapTargets.length} (entities + terms + SERP gaps).`);
     }
 
     // ── Phase 2: YouTube Video Discovery (parallel with Phase 3/4) ─────────
@@ -1291,14 +1397,14 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
         html,
         contentGaps: gapTargets,
         maxPasses: 3,
-        minScore: 92,
+        minScore: 95,
       });
 
       html = critique.html;
       let finalCritiqueScore = critique.finalScore;
 
-      if (finalCritiqueScore < 88 || finalCritiqueScore <= critique.initialScore) {
-        this.warn('Phase 7: Quality gain is weak. Running aggressive second critique pass...');
+      if (finalCritiqueScore < 95 || finalCritiqueScore <= critique.initialScore) {
+        this.warn('Phase 7: Score below 95 hard gate. Running aggressive second critique pass...');
         const aggressiveCritique = await refineWithSelfCritique({
           engine: this.engine,
           model: options.model || this.config.primaryModel || 'gemini',
@@ -1307,7 +1413,7 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
           html,
           contentGaps: gapTargets,
           maxPasses: 3,
-          minScore: 94,
+          minScore: 96,
         });
 
         if (aggressiveCritique.finalScore > finalCritiqueScore) {
@@ -1334,6 +1440,10 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
     this.log(
       `Phase 7b ✅ Gap coverage: ${gapTargets.length - gapCoverage.missingAfter.length}/${gapTargets.length} terms covered.`
     );
+
+    // ── Phase 7c: Live Web Fact-Check Pass ────────────────────────────────
+    this.log('Phase 7c: Live web fact-check pass (Serper)...');
+    html = await this.runFactCheckPass(html, options.keyword, options.model || this.config.primaryModel || 'gemini');
 
     // ── Phase 8: SOTA Refinement & Aesthetics ─────────────────────────────
     this.log('Phase 8: Anti-AI Polish & Premium Design Overlay...');
