@@ -1,6 +1,6 @@
 // src/pages/Status.tsx
 // Live health-check page for NeuronWriter proxy, WordPress, AI models.
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { CheckCircle2, XCircle, Loader2, AlertTriangle, ArrowLeft, PlayCircle } from "lucide-react";
 import { useOptimizerStore } from "@/lib/store";
@@ -350,6 +350,14 @@ const Status = () => {
     const entries = await Promise.all(providers.map(async p => [p.label, await p.check()] as const));
     setModels(Object.fromEntries(entries));
   }
+
+  const autoRanRef = useRef(false);
+  useEffect(() => {
+    if (autoRanRef.current) return;
+    autoRanRef.current = true;
+    runAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function runAll() {
     probeProxy("/api/neuronwriter", setCfProxy);
