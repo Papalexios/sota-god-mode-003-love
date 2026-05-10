@@ -988,25 +988,11 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
     );
 
     // ── 2. PREMIUM HERO HEADER ─────────────────────────────────────────────
-    if (!output.includes('data-premium-hero')) {
-      const title = this.config.currentTitle || 'Strategic Analysis';
-      const author = this.config.authorName || 'Editorial Board';
-      const date = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-      const authorInitial = author.charAt(0).toUpperCase();
-
-      const hero = `
-<header data-premium-hero="true" style="font-family:'Inter','Helvetica Neue',Arial,sans-serif;margin:0 0 48px 0;padding:0 0 28px 0;border-bottom:1px solid #e5e7eb;">
-  <h1 style="font-size:clamp(30px,4.5vw,46px);line-height:1.12;font-weight:800;margin:0 0 20px 0;color:#0f172a;letter-spacing:-0.025em;">${title}</h1>
-  <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-    <div style="width:42px;height:42px;background:linear-gradient(135deg,#475569,#1e293b);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:17px;color:#fff;flex-shrink:0;">${authorInitial}</div>
-    <div>
-      <div style="font-weight:600;font-size:15px;color:#0f172a;">By ${author}</div>
-      <div style="font-size:13px;color:#64748b;margin-top:2px;">Published ${date} · ${Math.max(4, Math.round((output.replace(/<[^>]*>/g,' ').split(/\s+/).filter(Boolean).length)/220))} min read</div>
-    </div>
-  </div>
-</header>`;
-      output = output.replace(/<article[^>]*>/i, match => match + hero);
-    }
+    // Intentionally DISABLED: WordPress themes already render the post title,
+    // author byline, and date. Our previous custom hero produced a duplicate
+    // header AND a stray gradient avatar circle that rendered as a single
+    // floating letter (e.g. "S") when the WP theme stripped the inline flex CSS.
+    // Keep article wrapper styling above; let WP own the byline.
 
     // ── 3. AUTO-GENERATE TABLE OF CONTENTS ────────────────────────────────
     if (!output.includes('data-toc') && (output.match(/<h2[^>]*>/gi) || []).length >= 3) {
