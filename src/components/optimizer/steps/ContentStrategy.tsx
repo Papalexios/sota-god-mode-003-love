@@ -1953,3 +1953,23 @@ export function ContentStrategy() {
     </div>
   );
 }
+
+function StrategyStat({ label, value, tone }: { label: string; value: number; tone: "neutral" | "primary" | "warn" | "muted" }) {
+  const toneClass = {
+    neutral: "from-white/5 ring-white/10 text-zinc-200",
+    primary: "from-primary/15 ring-primary/30 text-primary",
+    warn: "from-amber-400/15 ring-amber-400/30 text-amber-300",
+    muted: "from-white/5 ring-white/10 text-zinc-500",
+  }[tone];
+  return (
+    <div className={cn(
+      "rounded-xl md:rounded-2xl px-3 py-2 md:px-3.5 md:py-2.5 ring-1 bg-gradient-to-br to-transparent flex flex-col items-start min-w-[64px]",
+      toneClass
+    )}>
+      <span className="text-[9px] md:text-[10px] uppercase tracking-[0.18em] font-bold opacity-80">{label}</span>
+      <span className="text-base md:text-lg font-black tabular-nums leading-tight mt-0.5">
+        {value.toLocaleString()}
+      </span>
+    </div>
+  );
+}
