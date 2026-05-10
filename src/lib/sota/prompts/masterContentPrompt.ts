@@ -456,9 +456,8 @@ NOTE: No NeuronWriter data available. Use extensive LSI keywords, semantic varia
 REQUIRED ARTICLE STRUCTURE — ALL SECTIONS MANDATORY:
 
 [1] VERDICT ALERT BOX (first element — this hooks the scanner):
-<div style="position:relative;background:linear-gradient(135deg,#0f172a 0%,#1e1b4b 40%,#312e81 100%);color:white;border-left:6px solid #818cf8;border-radius:0 24px 24px 0;padding:32px 36px;margin:0 0 48px 0;box-shadow:0 20px 60px rgba(15,23,42,0.45),0 1px 3px rgba(0,0,0,0.1);overflow:hidden;">
-<div style="position:absolute;top:-30%;right:-10%;width:250px;height:250px;background:radial-gradient(circle,rgba(129,140,248,0.12) 0%,transparent 70%);pointer-events:none;"></div>
-<div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;"><span style="font-size:22px;">⚡</span><strong style="font-size:13px;letter-spacing:0.14em;text-transform:uppercase;color:#a5b4fc;">The Verdict</strong></div>
+<div style="background:linear-gradient(135deg,#0f172a 0%,#1e1b4b 40%,#312e81 100%);color:white;border-left:6px solid #818cf8;border-radius:0 24px 24px 0;padding:32px 36px;margin:0 0 48px 0;box-shadow:0 20px 60px rgba(15,23,42,0.45),0 1px 3px rgba(0,0,0,0.1);">
+<div style="margin-bottom:18px;"><span style="font-size:22px;margin-right:8px;">⚡</span><strong style="font-size:13px;letter-spacing:0.14em;text-transform:uppercase;color:#a5b4fc;">The Verdict</strong></div>
 Write ONE bold contrarian sentence that challenges conventional wisdom. Then 3 bullets:
 • The most shocking statistic from your research (with source)
 • The #1 mistake most people make (be specific — name the mistake)
