@@ -1668,52 +1668,43 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
     this.log(`Phase 11 ✅ Checklist score ${checklist.score}/100 — ${checklist.mandatoryFailures.length} mandatory failures, ${checklist.recommendedFailures.length} recommended.`);
 
     if (!checklist.passed) {
-      this.warn(`Phase 11: Checklist failed (${checklist.mandatoryFailures.map(f => f.id).join(', ')}). Running targeted auto-retry...`);
-      const retryAttempts: Array<{ model: AIModel; tokens: number }> = [
-        { model: (options.model || this.config.primaryModel || 'gemini'), tokens: 12288 },
-      ];
-      const fallback = (this.config.apiKeys?.fallbackModels || [])[0];
-      if (typeof fallback === 'string' && fallback.length > 0) {
-        const provider = (fallback.split(':')[0] || 'gemini') as AIModel;
-        retryAttempts.push({ model: provider, tokens: 8192 });
-      }
-
-      for (const attempt of retryAttempts) {
-        if (checklist.passed) break;
-        try {
-          const rewritePrompt = buildMissingSectionsRewritePrompt(html, options.keyword, checklist.mandatoryFailures);
-          const rewrite = await this.engine.generateWithModel({
-            prompt: rewritePrompt,
-            systemPrompt: buildMasterSystemPrompt(),
-            model: attempt.model,
-            apiKeys: this.config.apiKeys,
-            maxTokens: attempt.tokens,
-            temperature: 0.6,
-            validation: {
-              type: 'article-html',
-              requireCompleteArticle: true,
-              minChars: MIN_VALID_CONTENT_LENGTH,
-            },
+      this.warn(`Phase 11: Checklist failed (${checklist.mandatoryFailures.map(f => f.id).join(', ')}). Running ONE bounded targeted patch (no full regeneration)...`);
+      try {
+        const t0 = Date.now();
+        const rewritePrompt = buildMissingSectionsRewritePrompt(html, options.keyword, checklist.mandatoryFailures);
+        const rewrite = await this.engine.generateWithModel({
+          prompt: rewritePrompt,
+          systemPrompt: buildMasterSystemPrompt(),
+          model: (options.model || this.config.primaryModel || 'gemini'),
+          apiKeys: this.config.apiKeys,
+          maxTokens: 6144,            // bounded — targeted patch only, NOT a full article
+          temperature: 0.5,
+          validation: {
+            type: 'article-html',
+            requireCompleteArticle: true,
+            minChars: MIN_VALID_CONTENT_LENGTH,
+          },
+        });
+        if (rewrite.content && rewrite.content.includes('<article')) {
+          const candidate = rewrite.content;
+          const newChecklist = runBlogPostChecklist({
+            html: candidate,
+            title: options.title || options.keyword,
+            metaDescription: provisionalMeta,
+            primaryKeyword: options.keyword,
+            slug,
+            entities: entityCandidates,
           });
-          if (rewrite.content && rewrite.content.includes('<article')) {
-            const candidate = rewrite.content;
-            const newChecklist = runBlogPostChecklist({
-              html: candidate,
-              title: options.title || options.keyword,
-              metaDescription: provisionalMeta,
-              primaryKeyword: options.keyword,
-              slug,
-              entities: entityCandidates,
-            });
-            if (newChecklist.mandatoryFailures.length < checklist.mandatoryFailures.length) {
-              html = candidate;
-              checklist = newChecklist;
-              this.log(`Phase 11 ✅ Auto-retry (${attempt.model}) closed gaps — now ${checklist.mandatoryFailures.length} mandatory failures.`);
-            }
+          if (newChecklist.mandatoryFailures.length < checklist.mandatoryFailures.length) {
+            html = candidate;
+            checklist = newChecklist;
+            this.log(`Phase 11 ✅ Targeted patch closed gaps in ${Math.round((Date.now() - t0) / 1000)}s — now ${checklist.mandatoryFailures.length} mandatory failures.`);
+          } else {
+            this.warn(`Phase 11: Patch did not improve checklist — finalizing with current article + warnings (${Math.round((Date.now() - t0) / 1000)}s).`);
           }
-        } catch (e) {
-          this.warn(`Phase 11: Auto-retry on ${attempt.model} failed (${e instanceof Error ? e.message : e}).`);
         }
+      } catch (e) {
+        this.warn(`Phase 11: Targeted patch failed (${e instanceof Error ? e.message : e}). Finalizing with warnings.`);
       }
     }
 
