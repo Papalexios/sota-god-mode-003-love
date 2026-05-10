@@ -997,7 +997,7 @@ export function ReviewExport() {
                 </span>
               </th>
               <th
-                className="p-4 text-left text-sm font-medium text-foreground cursor-pointer hover:text-primary"
+                className="hidden md:table-cell p-4 text-left text-sm font-medium text-foreground cursor-pointer hover:text-primary"
                 onClick={() => { setSortField('type'); setSortAsc(!sortAsc); }}
               >
                 <span className="flex items-center gap-1">
@@ -1012,14 +1012,14 @@ export function ReviewExport() {
                   Status <ArrowUpDown className="w-3 h-3" />
                 </span>
               </th>
-              <th className="p-4 text-left text-sm font-medium text-foreground">
+              <th className="hidden lg:table-cell p-4 text-left text-sm font-medium text-foreground">
                 Website
               </th>
               <th className="p-4 text-left text-sm font-medium text-foreground">
                 Quality / Words
               </th>
               <th
-                className="p-4 text-left text-sm font-medium text-foreground cursor-pointer hover:text-primary"
+                className="hidden md:table-cell p-4 text-left text-sm font-medium text-foreground cursor-pointer hover:text-primary"
                 onClick={() => { setSortField('generatedAt'); setSortAsc(!sortAsc); }}
                 title="Sort by generation date/time"
               >
@@ -1027,7 +1027,7 @@ export function ReviewExport() {
                   Generated <ArrowUpDown className="w-3 h-3" />
                 </span>
               </th>
-              <th className="p-4 text-left text-sm font-medium text-foreground">Checklist</th>
+              <th className="hidden md:table-cell p-4 text-left text-sm font-medium text-foreground">Checklist</th>
               <th className="p-4 text-left text-sm font-medium text-foreground">Actions</th>
             </tr>
           </thead>
