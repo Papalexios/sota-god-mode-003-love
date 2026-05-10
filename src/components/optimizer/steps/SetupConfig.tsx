@@ -531,7 +531,7 @@ export function SetupConfig() {
   };
 
   // Setup KPI signals — drives the hero status strip
-  const aiOk = !!(config.openRouterApiKey || config.groqApiKey || config.geminiApiKey || config.anthropicApiKey || config.openaiApiKey);
+  const aiOk = !!(config.openrouterApiKey || config.groqApiKey || config.geminiApiKey || config.anthropicApiKey || config.openaiApiKey);
   const wpOk = !!(config.wpUrl && config.wpUsername && config.wpAppPassword);
   const nwOk = !!(config.enableNeuronWriter && config.neuronWriterApiKey && (neuronWriterProjects?.length ?? 0) > 0);
   const sbOk = !!sbStatus.configured;
