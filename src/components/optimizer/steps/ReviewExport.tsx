@@ -1146,10 +1146,7 @@ export function ReviewExport() {
                       ) : item.status}
                     </span>
                   </td>
-                  <td className="p-4">
-                    {(() => {
-                      try {
-                        const u = new URL(item.url);
+                  <td className="hidden lg:table-cell p-4">
                         const host = u.hostname.replace(/^www\./, '');
                         const path = u.pathname.length > 28 ? u.pathname.slice(0, 26) + '…' : u.pathname;
                         return (
