@@ -1189,6 +1189,7 @@ export function ReviewExport() {
                     )}
                   </td>
                   <td className="hidden md:table-cell p-4">
+                    {generatedDate ? (
                       <div className="flex flex-col gap-0.5">
                         <span className="text-sm text-foreground font-medium" title={formatDate(generatedDate).absolute}>
                           {formatDate(generatedDate).relative}
