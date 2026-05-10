@@ -1463,3 +1463,22 @@ function ConnectionStatusPill({
     </span>
   );
 }
+
+function SetupStat({ label, ok, optional }: { label: string; ok: boolean; optional?: boolean }) {
+  const tone = ok
+    ? "from-emerald-400/15 ring-emerald-400/30 text-emerald-300"
+    : optional
+    ? "from-white/5 ring-white/10 text-zinc-400"
+    : "from-amber-400/10 ring-amber-400/30 text-amber-300";
+  return (
+    <div className={cn(
+      "rounded-xl md:rounded-2xl px-3 py-2 md:px-3.5 md:py-2.5 ring-1 bg-gradient-to-br to-transparent flex flex-col items-start min-w-[64px]",
+      tone
+    )}>
+      <span className="text-[9px] md:text-[10px] uppercase tracking-[0.18em] font-bold opacity-80">{label}</span>
+      <span className="text-base md:text-lg font-black tabular-nums leading-tight mt-0.5 flex items-center gap-1">
+        {ok ? <Check className="w-4 h-4" /> : optional ? "—" : <AlertCircle className="w-4 h-4" />}
+      </span>
+    </div>
+  );
+}
