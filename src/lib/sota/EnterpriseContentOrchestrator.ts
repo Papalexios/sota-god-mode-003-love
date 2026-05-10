@@ -1059,10 +1059,8 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
       `<blockquote$1 style="border:none;border-left:5px solid #6366f1;background:linear-gradient(to right,#fafafa,#ffffff);padding:32px 36px;margin:40px 0;border-radius:0 16px 16px 0;position:relative;overflow:hidden;">`
     );
     // Add the decorative quote mark
-    output = output.replace(
-      /(<blockquote[^>]*style="[^"]*border-left:5px solid #6366f1[^"]*"[^>]*>)/gi,
-      `$1<div style="position:absolute;top:-10px;right:20px;font-size:120px;color:#e0e7ff;font-family:Georgia,serif;line-height:1;pointer-events:none;user-select:none;">"</div>`
-    );
+    // Decorative giant quote mark intentionally REMOVED — it rendered as a
+    // stray floating " character on WordPress themes that strip overflow:hidden.
     output = output.replace(/<blockquote([^>]*)>\s*<p([^>]*)>/gi,
       `<blockquote$1><p$2 style="font-style:italic;font-size:1.15em;color:#1e293b;line-height:1.8;margin:0 0 16px 0;font-family:'Georgia',serif;">`
     );
