@@ -530,16 +530,55 @@ export function SetupConfig() {
     }
   };
 
+  // Setup KPI signals — drives the hero status strip
+  const aiOk = !!(config.openrouterApiKey || config.groqApiKey || config.geminiApiKey || config.anthropicApiKey || config.openaiApiKey);
+  const wpOk = !!(config.wpUrl && config.wpUsername && config.wpAppPassword);
+  const nwOk = !!(config.enableNeuronWriter && config.neuronWriterApiKey && (neuronWriterProjects?.length ?? 0) > 0);
+  const sbOk = !!sbStatus.configured;
+  const readyCount = [aiOk, wpOk, nwOk, sbOk].filter(Boolean).length;
+
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
-          <Settings className="w-7 h-7 text-primary" />
-          1. Setup & Configuration
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Connect your AI services and configure WordPress integration.
-        </p>
+    <div className="space-y-5 md:space-y-7">
+      {/* ── Premium Hero Header ── */}
+      <div className="relative overflow-hidden rounded-2xl md:rounded-3xl border border-white/10 bg-gradient-to-br from-emerald-950/40 via-background/60 to-background/30 p-5 md:p-8 shadow-2xl">
+        <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-32 -left-20 w-72 h-72 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
+        <div className="relative flex flex-col md:flex-row md:items-end md:justify-between gap-5">
+          <div className="min-w-0">
+            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-primary/15 border border-primary/30 text-[10px] font-bold uppercase tracking-[0.18em] text-primary mb-3">
+              <Sparkles className="w-3 h-3" /> Step 1 · Foundation
+            </div>
+            <h1 className="text-2xl md:text-4xl font-black text-foreground tracking-tight flex items-center gap-3">
+              <span className="hidden md:inline-flex w-11 h-11 items-center justify-center rounded-xl bg-gradient-to-br from-primary/30 to-emerald-700/20 border border-primary/40 shadow-lg shadow-primary/20">
+                <Settings className="w-5 h-5 text-primary" />
+              </span>
+              <span className="bg-gradient-to-r from-foreground via-foreground to-primary bg-clip-text text-transparent">
+                Setup &amp; Configuration
+              </span>
+            </h1>
+            <p className="text-muted-foreground mt-2 text-sm md:text-base max-w-xl">
+              Wire up AI providers, WordPress, NeuronWriter, and Supabase — then let the engine do the rest.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-4 gap-2 md:gap-3 md:flex md:items-stretch md:gap-2 shrink-0">
+            <SetupStat label="AI" ok={aiOk} />
+            <SetupStat label="WP" ok={wpOk} />
+            <SetupStat label="Neuron" ok={nwOk} optional />
+            <SetupStat label="DB" ok={sbOk} optional />
+          </div>
+        </div>
+
+        {/* progress strip */}
+        <div className="relative mt-5 md:mt-6 h-1.5 rounded-full bg-white/5 overflow-hidden">
+          <div
+            className="absolute inset-y-0 left-0 bg-gradient-to-r from-primary via-emerald-400 to-teal-300 shadow-[0_0_12px_hsla(160,84%,39%,0.6)] transition-all duration-700"
+            style={{ width: `${(readyCount / 4) * 100}%` }}
+          />
+        </div>
+        <div className="relative mt-2 text-[11px] md:text-xs text-muted-foreground/80 font-semibold tabular-nums">
+          {readyCount}/4 services ready
+        </div>
       </div>
 
       {/* Author Profiles + Brand Voice (M2 — E-E-A-T) — optional */}
@@ -1422,5 +1461,24 @@ function ConnectionStatusPill({
       <span className={cn("w-1.5 h-1.5 rounded-full", dot)} />
       {label}
     </span>
+  );
+}
+
+function SetupStat({ label, ok, optional }: { label: string; ok: boolean; optional?: boolean }) {
+  const tone = ok
+    ? "from-emerald-400/15 ring-emerald-400/30 text-emerald-300"
+    : optional
+    ? "from-white/5 ring-white/10 text-zinc-400"
+    : "from-amber-400/10 ring-amber-400/30 text-amber-300";
+  return (
+    <div className={cn(
+      "rounded-xl md:rounded-2xl px-3 py-2 md:px-3.5 md:py-2.5 ring-1 bg-gradient-to-br to-transparent flex flex-col items-start min-w-[64px]",
+      tone
+    )}>
+      <span className="text-[9px] md:text-[10px] uppercase tracking-[0.18em] font-bold opacity-80">{label}</span>
+      <span className="text-base md:text-lg font-black tabular-nums leading-tight mt-0.5 flex items-center gap-1">
+        {ok ? <Check className="w-4 h-4" /> : optional ? "—" : <AlertCircle className="w-4 h-4" />}
+      </span>
+    </div>
   );
 }
