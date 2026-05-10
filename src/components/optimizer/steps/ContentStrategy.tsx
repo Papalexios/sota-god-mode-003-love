@@ -713,16 +713,41 @@ export function ContentStrategy() {
   // ═══════════════════════════════════════════════════════════════════════
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
-          <BarChart3 className="w-7 h-7 text-primary" />
-          2. Content Strategy & Planning
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Enterprise-grade content planning, generation, and optimization.
-        </p>
+    <div className="space-y-5 md:space-y-7">
+      {/* ── Premium Hero Header ── */}
+      <div className="relative overflow-hidden rounded-2xl md:rounded-3xl border border-white/10 bg-gradient-to-br from-emerald-950/40 via-background/60 to-background/30 p-5 md:p-8 shadow-2xl">
+        <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-32 -left-20 w-72 h-72 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
+        <div className="relative flex flex-col md:flex-row md:items-end md:justify-between gap-5">
+          <div className="min-w-0">
+            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-primary/15 border border-primary/30 text-[10px] font-bold uppercase tracking-[0.18em] text-primary mb-3">
+              <Sparkles className="w-3 h-3" /> Step 2 · Engine Room
+              {godModeEnabled && (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[9px]">
+                  <Bot className="w-2.5 h-2.5" /> God Mode
+                </span>
+              )}
+            </div>
+            <h1 className="text-2xl md:text-4xl font-black text-foreground tracking-tight flex items-center gap-3">
+              <span className="hidden md:inline-flex w-11 h-11 items-center justify-center rounded-xl bg-gradient-to-br from-primary/30 to-emerald-700/20 border border-primary/40 shadow-lg shadow-primary/20">
+                <BarChart3 className="w-5 h-5 text-primary" />
+              </span>
+              <span className="bg-gradient-to-r from-foreground via-foreground to-primary bg-clip-text text-transparent">
+                Strategy &amp; Planning
+              </span>
+            </h1>
+            <p className="text-muted-foreground mt-2 text-sm md:text-base max-w-xl">
+              Plan pillar clusters, single articles, gap attacks, or unleash autonomous God Mode on your sitemap.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-4 gap-2 md:gap-3 md:flex md:items-stretch md:gap-2 shrink-0">
+            <StrategyStat label="Sitemap" value={sitemapUrls.length} tone="neutral" />
+            <StrategyStat label="Queued" value={contentItems.length} tone="primary" />
+            <StrategyStat label="Priority" value={priorityUrls.length} tone={priorityUrls.length > 0 ? "warn" : "neutral"} />
+            <StrategyStat label="Excluded" value={excludedUrls.length} tone="muted" />
+          </div>
+        </div>
       </div>
 
       {/* Tab Bar */}
