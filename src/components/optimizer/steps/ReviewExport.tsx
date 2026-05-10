@@ -929,35 +929,34 @@ export function ReviewExport() {
       )}
 
       {/* Action Bar */}
-      <div className="flex items-center justify-between">
-        <div className="flex gap-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4">
+        <div className="flex flex-col sm:flex-row gap-2.5 md:gap-3 w-full md:w-auto">
           <button
             onClick={handleGenerate}
             disabled={selectedItems.length === 0 || !hasAiProvider || isGenerating}
-            className="px-8 py-4 bg-gradient-to-r from-primary to-emerald-500 text-white font-bold text-lg rounded-2xl hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3 shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.4)] hover:-translate-y-1 transition-all duration-300"
+            className="w-full sm:w-auto px-6 md:px-8 py-3.5 md:py-4 bg-gradient-to-r from-primary to-emerald-500 text-white font-bold text-base md:text-lg rounded-2xl hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2.5 shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_32px_rgba(16,185,129,0.45)] hover:-translate-y-0.5 transition-all duration-300"
           >
-            {isGenerating ? <Loader2 className="w-6 h-6 animate-spin" /> : <Sparkles className="w-6 h-6 fill-current" />}
-            {isGenerating ? 'Forging Content...' : `Generate Selected (${selectedItems.length})`}
+            {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5 fill-current" />}
+            <span className="truncate">{isGenerating ? 'Forging…' : `Generate (${selectedItems.length})`}</span>
           </button>
 
           {(publishableSelected.length > 0 || allPublishable.length > 0) && (
             <button
               onClick={() => setShowBulkPublishModal(true)}
               disabled={isBulkPublishing}
-              className="px-6 py-4 bg-white/5 border border-white/10 text-white font-bold rounded-2xl hover:bg-white/10 disabled:opacity-50 flex items-center gap-3 transition-all hover:-translate-y-1"
+              className="w-full sm:w-auto px-5 md:px-6 py-3.5 md:py-4 bg-white/5 border border-white/10 text-white font-bold rounded-2xl hover:bg-white/10 disabled:opacity-50 flex items-center justify-center gap-2.5 transition-all hover:-translate-y-0.5"
             >
               {isBulkPublishing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
-              {isBulkPublishing ? 'Publishing...' : publishableSelected.length > 0
-                ? `Bulk Publish (${publishableSelected.length})`
-                : `Bulk Publish All`
-              }
+              <span className="truncate">{isBulkPublishing ? 'Publishing…' : publishableSelected.length > 0
+                ? `Publish (${publishableSelected.length})`
+                : `Publish All`}</span>
             </button>
           )}
 
           <button
             onClick={() => setShowAnalytics(!showAnalytics)}
             className={cn(
-              "px-5 py-4 rounded-2xl font-bold flex items-center gap-2 transition-all border",
+              "w-full sm:w-auto px-5 py-3.5 md:py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all border",
               showAnalytics
                 ? "bg-primary/20 border-primary/50 text-primary shadow-[0_0_15px_rgba(16,185,129,0.2)]"
                 : "bg-white/5 border-white/10 text-zinc-400 hover:text-white hover:bg-white/10"
@@ -968,32 +967,11 @@ export function ReviewExport() {
           </button>
         </div>
 
-        {/* Stats */}
-        <div className="flex gap-8 text-sm bg-black/20 backdrop-blur-sm p-2 px-6 rounded-2xl border border-white/5">
-          <div className="text-center">
-            <div className="text-2xl font-bold text-white">{stats.total}</div>
-            <div className="text-zinc-500 text-xs font-medium uppercase tracking-wider">Total</div>
+        {selectedItems.length > 0 && (
+          <div className="text-xs md:text-sm text-muted-foreground bg-white/5 border border-white/10 rounded-xl px-3 py-2 self-start md:self-auto">
+            <span className="font-bold text-primary">{selectedItems.length}</span> selected
           </div>
-          <div className="w-px bg-white/10 my-2" />
-          <div className="text-center">
-            <div className="text-2xl font-bold text-emerald-400 text-glow">{stats.completed}</div>
-            <div className="text-zinc-500 text-xs font-medium uppercase tracking-wider">Done</div>
-          </div>
-          <div className="w-px bg-white/10 my-2" />
-          <div className="text-center">
-            <div className="text-2xl font-bold text-yellow-400">{stats.pending}</div>
-            <div className="text-zinc-500 text-xs font-medium uppercase tracking-wider">Queued</div>
-          </div>
-          {(stats.errors > 0) && (
-            <>
-              <div className="w-px bg-white/10 my-2" />
-              <div className="text-center">
-                <div className="text-2xl font-bold text-red-400">{stats.errors}</div>
-                <div className="text-zinc-500 text-xs font-medium uppercase tracking-wider">Errors</div>
-              </div>
-            </>
-          )}
-        </div>
+        )}
       </div>
 
       {/* Content Table */}
