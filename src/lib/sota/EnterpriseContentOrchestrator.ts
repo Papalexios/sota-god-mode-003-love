@@ -1096,54 +1096,13 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
     // ── 10. ENHANCE STRONG/EM ────────────────────────────────────────────────
     // Don't touch strong tags that are already inside styled containers
 
-    // ── 11. ADD READING PROGRESS METADATA BAR ───────────────────────────────
-    if (!output.includes('data-reading-meta')) {
-      const wordCount = output.replace(/<[^>]*>/g, ' ').split(/\s+/).filter(Boolean).length;
-      const readTime = Math.max(1, Math.ceil(wordCount / 200));
-      const keyword = this.config.currentTitle || '';
-
-      const metaBar = `
-<div data-reading-meta="true" style="font-family:'Inter',system-ui,sans-serif;display:flex;align-items:center;gap:20px;padding:14px 20px;background:#f1f5f9;border-radius:12px;margin:0 0 36px 0;flex-wrap:wrap;">
-  <span style="display:flex;align-items:center;gap:6px;font-size:13px;color:#64748b;"><span style="font-size:15px;">⏱️</span> <strong style="color:#334155;">${readTime} min</strong> read</span>
-  <span style="color:#cbd5e1;">|</span>
-  <span style="display:flex;align-items:center;gap:6px;font-size:13px;color:#64748b;"><span style="font-size:15px;">📖</span> <strong style="color:#334155;">${wordCount.toLocaleString()}</strong> words</span>
-  <span style="color:#cbd5e1;">|</span>
-  <span style="display:flex;align-items:center;gap:6px;font-size:13px;color:#64748b;"><span style="font-size:15px;">✓</span> Updated <strong style="color:#334155;">${new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</strong></span>
-</div>`;
-
-      // Insert right after the hero
-      output = output.replace(
-        /(<nav data-toc="true")/,
-        `${metaBar}\n$1`
-      );
-      if (!output.includes('data-reading-meta="true"')) {
-        // Fallback: insert after the hero div
-        output = output.replace(
-          /(data-premium-hero="true"[\s\S]*?<\/div>\s*<\/div>)/i,
-          `$1\n${metaBar}`
-        );
-      }
-    }
-
+    // ── 11. READING META BAR — DISABLED (WordPress theme already shows read time) ──
     // ── 12. STYLE ANY BARE HR ELEMENTS ──────────────────────────────────────
     output = output.replace(/<hr(?!\s+[^>]*style=)\s*\/?>/gi,
       `<hr style="border:none;height:2px;background:linear-gradient(90deg,transparent,#e2e8f0,transparent);margin:48px 0;">`
     );
 
-    // ── 13. ADD SHARE/ENGAGEMENT FOOTER ─────────────────────────────────────
-    if (!output.includes('data-article-footer')) {
-      const footerBox = `
-<div data-article-footer="true" style="font-family:'Inter',system-ui,sans-serif;background:linear-gradient(135deg,#1e1b4b,#312e81);border-radius:20px;padding:40px;margin:56px 0 0 0;text-align:center;color:white;">
-  <div style="font-size:28px;font-weight:900;letter-spacing:-0.02em;margin-bottom:12px;">Did This Help?</div>
-  <p style="color:#a5b4fc;font-size:16px;margin:0 0 24px 0;line-height:1.6;">Bookmark this guide — the information here is updated regularly as the topic evolves.</p>
-  <div style="display:inline-flex;gap:12px;flex-wrap:wrap;justify-content:center;">
-    <span style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:100px;padding:10px 22px;font-size:14px;font-weight:600;">🔖 Bookmark</span>
-    <span style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:100px;padding:10px 22px;font-size:14px;font-weight:600;">📤 Share</span>
-    <span style="background:rgba(99,102,241,0.3);border:1px solid rgba(99,102,241,0.5);border-radius:100px;padding:10px 22px;font-size:14px;font-weight:600;">⭐ Save for Later</span>
-  </div>
-</div>`;
-      output = output.replace(/<\/article>/i, `${footerBox}\n</article>`);
-    }
+    // ── 13. SHARE/ENGAGEMENT FOOTER — DISABLED (non-functional decorative chips rendered poorly on published themes) ──
 
     return output;
   }
