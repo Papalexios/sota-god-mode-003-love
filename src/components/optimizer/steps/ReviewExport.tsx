@@ -1244,6 +1244,7 @@ export function ReviewExport() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Analytics Dashboard */}
