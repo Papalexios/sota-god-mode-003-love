@@ -988,25 +988,11 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
     );
 
     // ── 2. PREMIUM HERO HEADER ─────────────────────────────────────────────
-    if (!output.includes('data-premium-hero')) {
-      const title = this.config.currentTitle || 'Strategic Analysis';
-      const author = this.config.authorName || 'Editorial Board';
-      const date = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-      const authorInitial = author.charAt(0).toUpperCase();
-
-      const hero = `
-<header data-premium-hero="true" style="font-family:'Inter','Helvetica Neue',Arial,sans-serif;margin:0 0 48px 0;padding:0 0 28px 0;border-bottom:1px solid #e5e7eb;">
-  <h1 style="font-size:clamp(30px,4.5vw,46px);line-height:1.12;font-weight:800;margin:0 0 20px 0;color:#0f172a;letter-spacing:-0.025em;">${title}</h1>
-  <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-    <div style="width:42px;height:42px;background:linear-gradient(135deg,#475569,#1e293b);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:17px;color:#fff;flex-shrink:0;">${authorInitial}</div>
-    <div>
-      <div style="font-weight:600;font-size:15px;color:#0f172a;">By ${author}</div>
-      <div style="font-size:13px;color:#64748b;margin-top:2px;">Published ${date} · ${Math.max(4, Math.round((output.replace(/<[^>]*>/g,' ').split(/\s+/).filter(Boolean).length)/220))} min read</div>
-    </div>
-  </div>
-</header>`;
-      output = output.replace(/<article[^>]*>/i, match => match + hero);
-    }
+    // Intentionally DISABLED: WordPress themes already render the post title,
+    // author byline, and date. Our previous custom hero produced a duplicate
+    // header AND a stray gradient avatar circle that rendered as a single
+    // floating letter (e.g. "S") when the WP theme stripped the inline flex CSS.
+    // Keep article wrapper styling above; let WP own the byline.
 
     // ── 3. AUTO-GENERATE TABLE OF CONTENTS ────────────────────────────────
     if (!output.includes('data-toc') && (output.match(/<h2[^>]*>/gi) || []).length >= 3) {
@@ -1073,10 +1059,8 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
       `<blockquote$1 style="border:none;border-left:5px solid #6366f1;background:linear-gradient(to right,#fafafa,#ffffff);padding:32px 36px;margin:40px 0;border-radius:0 16px 16px 0;position:relative;overflow:hidden;">`
     );
     // Add the decorative quote mark
-    output = output.replace(
-      /(<blockquote[^>]*style="[^"]*border-left:5px solid #6366f1[^"]*"[^>]*>)/gi,
-      `$1<div style="position:absolute;top:-10px;right:20px;font-size:120px;color:#e0e7ff;font-family:Georgia,serif;line-height:1;pointer-events:none;user-select:none;">"</div>`
-    );
+    // Decorative giant quote mark intentionally REMOVED — it rendered as a
+    // stray floating " character on WordPress themes that strip overflow:hidden.
     output = output.replace(/<blockquote([^>]*)>\s*<p([^>]*)>/gi,
       `<blockquote$1><p$2 style="font-style:italic;font-size:1.15em;color:#1e293b;line-height:1.8;margin:0 0 16px 0;font-family:'Georgia',serif;">`
     );
@@ -1112,54 +1096,13 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
     // ── 10. ENHANCE STRONG/EM ────────────────────────────────────────────────
     // Don't touch strong tags that are already inside styled containers
 
-    // ── 11. ADD READING PROGRESS METADATA BAR ───────────────────────────────
-    if (!output.includes('data-reading-meta')) {
-      const wordCount = output.replace(/<[^>]*>/g, ' ').split(/\s+/).filter(Boolean).length;
-      const readTime = Math.max(1, Math.ceil(wordCount / 200));
-      const keyword = this.config.currentTitle || '';
-
-      const metaBar = `
-<div data-reading-meta="true" style="font-family:'Inter',system-ui,sans-serif;display:flex;align-items:center;gap:20px;padding:14px 20px;background:#f1f5f9;border-radius:12px;margin:0 0 36px 0;flex-wrap:wrap;">
-  <span style="display:flex;align-items:center;gap:6px;font-size:13px;color:#64748b;"><span style="font-size:15px;">⏱️</span> <strong style="color:#334155;">${readTime} min</strong> read</span>
-  <span style="color:#cbd5e1;">|</span>
-  <span style="display:flex;align-items:center;gap:6px;font-size:13px;color:#64748b;"><span style="font-size:15px;">📖</span> <strong style="color:#334155;">${wordCount.toLocaleString()}</strong> words</span>
-  <span style="color:#cbd5e1;">|</span>
-  <span style="display:flex;align-items:center;gap:6px;font-size:13px;color:#64748b;"><span style="font-size:15px;">✓</span> Updated <strong style="color:#334155;">${new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</strong></span>
-</div>`;
-
-      // Insert right after the hero
-      output = output.replace(
-        /(<nav data-toc="true")/,
-        `${metaBar}\n$1`
-      );
-      if (!output.includes('data-reading-meta="true"')) {
-        // Fallback: insert after the hero div
-        output = output.replace(
-          /(data-premium-hero="true"[\s\S]*?<\/div>\s*<\/div>)/i,
-          `$1\n${metaBar}`
-        );
-      }
-    }
-
+    // ── 11. READING META BAR — DISABLED (WordPress theme already shows read time) ──
     // ── 12. STYLE ANY BARE HR ELEMENTS ──────────────────────────────────────
     output = output.replace(/<hr(?!\s+[^>]*style=)\s*\/?>/gi,
       `<hr style="border:none;height:2px;background:linear-gradient(90deg,transparent,#e2e8f0,transparent);margin:48px 0;">`
     );
 
-    // ── 13. ADD SHARE/ENGAGEMENT FOOTER ─────────────────────────────────────
-    if (!output.includes('data-article-footer')) {
-      const footerBox = `
-<div data-article-footer="true" style="font-family:'Inter',system-ui,sans-serif;background:linear-gradient(135deg,#1e1b4b,#312e81);border-radius:20px;padding:40px;margin:56px 0 0 0;text-align:center;color:white;">
-  <div style="font-size:28px;font-weight:900;letter-spacing:-0.02em;margin-bottom:12px;">Did This Help?</div>
-  <p style="color:#a5b4fc;font-size:16px;margin:0 0 24px 0;line-height:1.6;">Bookmark this guide — the information here is updated regularly as the topic evolves.</p>
-  <div style="display:inline-flex;gap:12px;flex-wrap:wrap;justify-content:center;">
-    <span style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:100px;padding:10px 22px;font-size:14px;font-weight:600;">🔖 Bookmark</span>
-    <span style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:100px;padding:10px 22px;font-size:14px;font-weight:600;">📤 Share</span>
-    <span style="background:rgba(99,102,241,0.3);border:1px solid rgba(99,102,241,0.5);border-radius:100px;padding:10px 22px;font-size:14px;font-weight:600;">⭐ Save for Later</span>
-  </div>
-</div>`;
-      output = output.replace(/<\/article>/i, `${footerBox}\n</article>`);
-    }
+    // ── 13. SHARE/ENGAGEMENT FOOTER — DISABLED (non-functional decorative chips rendered poorly on published themes) ──
 
     return output;
   }
