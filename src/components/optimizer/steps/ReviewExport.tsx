@@ -827,19 +827,41 @@ export function ReviewExport() {
   const hasSerper = !!config.serperApiKey;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
-          <FileText className="w-7 h-7 text-primary" />
-          3. Review & Export
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Review generated content and publish to WordPress.
-        </p>
+    <div className="space-y-5 md:space-y-7">
+      {/* ── Premium Hero Header ── */}
+      <div className="relative overflow-hidden rounded-2xl md:rounded-3xl border border-white/10 bg-gradient-to-br from-emerald-950/40 via-background/60 to-background/30 p-5 md:p-8 shadow-2xl">
+        <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-32 -left-20 w-72 h-72 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
+        <div className="relative flex flex-col md:flex-row md:items-end md:justify-between gap-5">
+          <div className="min-w-0">
+            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-primary/15 border border-primary/30 text-[10px] font-bold uppercase tracking-[0.18em] text-primary mb-3">
+              <Sparkles className="w-3 h-3" /> Step 3 · Final Mile
+            </div>
+            <h1 className="text-2xl md:text-4xl font-black text-foreground tracking-tight flex items-center gap-3">
+              <span className="hidden md:inline-flex w-11 h-11 items-center justify-center rounded-xl bg-gradient-to-br from-primary/30 to-emerald-700/20 border border-primary/40 shadow-lg shadow-primary/20">
+                <FileText className="w-5 h-5 text-primary" />
+              </span>
+              <span className="bg-gradient-to-r from-foreground via-foreground to-primary bg-clip-text text-transparent">
+                Review &amp; Export
+              </span>
+            </h1>
+            <p className="text-muted-foreground mt-2 text-sm md:text-base max-w-xl">
+              Inspect quality scores, run pre-publish checks, then ship to WordPress in one click.
+            </p>
+          </div>
+
+          {/* Inline KPI strip */}
+          <div className="grid grid-cols-4 gap-2 md:gap-3 md:flex md:items-stretch md:gap-2 shrink-0">
+            <HeroStat label="Total" value={stats.total} tone="neutral" />
+            <HeroStat label="Done" value={stats.completed} tone="success" />
+            <HeroStat label="Queued" value={stats.pending} tone="warn" />
+            <HeroStat label="Errors" value={stats.errors} tone={stats.errors > 0 ? 'danger' : 'neutral'} />
+          </div>
+        </div>
       </div>
 
       {/* Status Indicators */}
-      <div className="flex flex-wrap gap-4 text-sm">
+      <div className="flex flex-wrap gap-2 md:gap-3 text-sm">
         <StatusBadge
           ok={!!hasAiProvider}
           label="AI Provider"
@@ -907,35 +929,34 @@ export function ReviewExport() {
       )}
 
       {/* Action Bar */}
-      <div className="flex items-center justify-between">
-        <div className="flex gap-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4">
+        <div className="flex flex-col sm:flex-row gap-2.5 md:gap-3 w-full md:w-auto">
           <button
             onClick={handleGenerate}
             disabled={selectedItems.length === 0 || !hasAiProvider || isGenerating}
-            className="px-8 py-4 bg-gradient-to-r from-primary to-emerald-500 text-white font-bold text-lg rounded-2xl hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3 shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.4)] hover:-translate-y-1 transition-all duration-300"
+            className="w-full sm:w-auto px-6 md:px-8 py-3.5 md:py-4 bg-gradient-to-r from-primary to-emerald-500 text-white font-bold text-base md:text-lg rounded-2xl hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2.5 shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_32px_rgba(16,185,129,0.45)] hover:-translate-y-0.5 transition-all duration-300"
           >
-            {isGenerating ? <Loader2 className="w-6 h-6 animate-spin" /> : <Sparkles className="w-6 h-6 fill-current" />}
-            {isGenerating ? 'Forging Content...' : `Generate Selected (${selectedItems.length})`}
+            {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5 fill-current" />}
+            <span className="truncate">{isGenerating ? 'Forging…' : `Generate (${selectedItems.length})`}</span>
           </button>
 
           {(publishableSelected.length > 0 || allPublishable.length > 0) && (
             <button
               onClick={() => setShowBulkPublishModal(true)}
               disabled={isBulkPublishing}
-              className="px-6 py-4 bg-white/5 border border-white/10 text-white font-bold rounded-2xl hover:bg-white/10 disabled:opacity-50 flex items-center gap-3 transition-all hover:-translate-y-1"
+              className="w-full sm:w-auto px-5 md:px-6 py-3.5 md:py-4 bg-white/5 border border-white/10 text-white font-bold rounded-2xl hover:bg-white/10 disabled:opacity-50 flex items-center justify-center gap-2.5 transition-all hover:-translate-y-0.5"
             >
               {isBulkPublishing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
-              {isBulkPublishing ? 'Publishing...' : publishableSelected.length > 0
-                ? `Bulk Publish (${publishableSelected.length})`
-                : `Bulk Publish All`
-              }
+              <span className="truncate">{isBulkPublishing ? 'Publishing…' : publishableSelected.length > 0
+                ? `Publish (${publishableSelected.length})`
+                : `Publish All`}</span>
             </button>
           )}
 
           <button
             onClick={() => setShowAnalytics(!showAnalytics)}
             className={cn(
-              "px-5 py-4 rounded-2xl font-bold flex items-center gap-2 transition-all border",
+              "w-full sm:w-auto px-5 py-3.5 md:py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all border",
               showAnalytics
                 ? "bg-primary/20 border-primary/50 text-primary shadow-[0_0_15px_rgba(16,185,129,0.2)]"
                 : "bg-white/5 border-white/10 text-zinc-400 hover:text-white hover:bg-white/10"
@@ -946,37 +967,17 @@ export function ReviewExport() {
           </button>
         </div>
 
-        {/* Stats */}
-        <div className="flex gap-8 text-sm bg-black/20 backdrop-blur-sm p-2 px-6 rounded-2xl border border-white/5">
-          <div className="text-center">
-            <div className="text-2xl font-bold text-white">{stats.total}</div>
-            <div className="text-zinc-500 text-xs font-medium uppercase tracking-wider">Total</div>
+        {selectedItems.length > 0 && (
+          <div className="text-xs md:text-sm text-muted-foreground bg-white/5 border border-white/10 rounded-xl px-3 py-2 self-start md:self-auto">
+            <span className="font-bold text-primary">{selectedItems.length}</span> selected
           </div>
-          <div className="w-px bg-white/10 my-2" />
-          <div className="text-center">
-            <div className="text-2xl font-bold text-emerald-400 text-glow">{stats.completed}</div>
-            <div className="text-zinc-500 text-xs font-medium uppercase tracking-wider">Done</div>
-          </div>
-          <div className="w-px bg-white/10 my-2" />
-          <div className="text-center">
-            <div className="text-2xl font-bold text-yellow-400">{stats.pending}</div>
-            <div className="text-zinc-500 text-xs font-medium uppercase tracking-wider">Queued</div>
-          </div>
-          {(stats.errors > 0) && (
-            <>
-              <div className="w-px bg-white/10 my-2" />
-              <div className="text-center">
-                <div className="text-2xl font-bold text-red-400">{stats.errors}</div>
-                <div className="text-zinc-500 text-xs font-medium uppercase tracking-wider">Errors</div>
-              </div>
-            </>
-          )}
-        </div>
+        )}
       </div>
 
       {/* Content Table */}
-      <div className="glass-card rounded-2xl overflow-hidden shadow-2xl">
-        <table className="w-full">
+      <div className="glass-card rounded-2xl overflow-hidden shadow-2xl border border-white/10">
+        <div className="overflow-x-auto custom-scrollbar">
+        <table className="w-full min-w-[720px] md:min-w-0">
           <thead>
             <tr className="border-b border-white/10 bg-white/5">
               <th className="p-4 text-left">
@@ -996,7 +997,7 @@ export function ReviewExport() {
                 </span>
               </th>
               <th
-                className="p-4 text-left text-sm font-medium text-foreground cursor-pointer hover:text-primary"
+                className="hidden md:table-cell p-4 text-left text-sm font-medium text-foreground cursor-pointer hover:text-primary"
                 onClick={() => { setSortField('type'); setSortAsc(!sortAsc); }}
               >
                 <span className="flex items-center gap-1">
@@ -1011,14 +1012,14 @@ export function ReviewExport() {
                   Status <ArrowUpDown className="w-3 h-3" />
                 </span>
               </th>
-              <th className="p-4 text-left text-sm font-medium text-foreground">
+              <th className="hidden lg:table-cell p-4 text-left text-sm font-medium text-foreground">
                 Website
               </th>
               <th className="p-4 text-left text-sm font-medium text-foreground">
                 Quality / Words
               </th>
               <th
-                className="p-4 text-left text-sm font-medium text-foreground cursor-pointer hover:text-primary"
+                className="hidden md:table-cell p-4 text-left text-sm font-medium text-foreground cursor-pointer hover:text-primary"
                 onClick={() => { setSortField('generatedAt'); setSortAsc(!sortAsc); }}
                 title="Sort by generation date/time"
               >
@@ -1026,7 +1027,7 @@ export function ReviewExport() {
                   Generated <ArrowUpDown className="w-3 h-3" />
                 </span>
               </th>
-              <th className="p-4 text-left text-sm font-medium text-foreground">Checklist</th>
+              <th className="hidden md:table-cell p-4 text-left text-sm font-medium text-foreground">Checklist</th>
               <th className="p-4 text-left text-sm font-medium text-foreground">Actions</th>
             </tr>
           </thead>
@@ -1105,10 +1106,19 @@ export function ReviewExport() {
                     />
                   </td>
                   <td className="p-4">
-                    <div className="font-medium text-foreground">{item.title}</div>
-                    <div className="text-xs text-muted-foreground">{item.primaryKeyword}</div>
+                    <div className="font-medium text-foreground line-clamp-2">{item.title}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{item.primaryKeyword}</div>
+                    <div className="md:hidden mt-1.5 flex flex-wrap items-center gap-1.5">
+                      <span className={cn(
+                        "px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
+                        item.type === 'pillar' && "bg-purple-500/20 text-purple-400",
+                        item.type === 'cluster' && "bg-blue-500/20 text-blue-400",
+                        item.type === 'single' && "bg-green-500/20 text-green-400",
+                        item.type === 'refresh' && "bg-yellow-500/20 text-yellow-400"
+                      )}>{item.type}</span>
+                    </div>
                   </td>
-                  <td className="p-4">
+                  <td className="hidden md:table-cell p-4">
                     <span className={cn(
                       "px-2 py-1 rounded text-xs font-medium",
                       item.type === 'pillar' && "bg-purple-500/20 text-purple-400",
@@ -1136,7 +1146,7 @@ export function ReviewExport() {
                       ) : item.status}
                     </span>
                   </td>
-                  <td className="p-4">
+                  <td className="hidden lg:table-cell p-4">
                     {(() => {
                       try {
                         const u = new URL(item.url);
@@ -1178,7 +1188,7 @@ export function ReviewExport() {
                       <span className="text-xs text-muted-foreground">—</span>
                     )}
                   </td>
-                  <td className="p-4">
+                  <td className="hidden md:table-cell p-4">
                     {generatedDate ? (
                       <div className="flex flex-col gap-0.5">
                         <span className="text-sm text-foreground font-medium" title={formatDate(generatedDate).absolute}>
@@ -1192,7 +1202,7 @@ export function ReviewExport() {
                       <span className="text-xs text-muted-foreground italic">Not yet generated</span>
                     )}
                   </td>
-                  <td className="p-4">
+                  <td className="hidden md:table-cell p-4">
                     {(() => {
                       const cl = stored?.checklist;
                       if (!cl) return <span className="text-xs text-muted-foreground italic">—</span>;
@@ -1243,6 +1253,7 @@ export function ReviewExport() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Analytics Dashboard */}
@@ -1589,3 +1600,21 @@ function StatusBadge({ ok, label, optional }: { ok: boolean; label: string; opti
     </div>
   );
 }
+
+function HeroStat({ label, value, tone }: { label: string; value: number; tone: 'neutral' | 'success' | 'warn' | 'danger' }) {
+  const toneCls =
+    tone === 'success' ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10 shadow-[0_0_18px_rgba(16,185,129,0.15)]'
+    : tone === 'warn' ? 'text-yellow-400 border-yellow-500/30 bg-yellow-500/10'
+    : tone === 'danger' ? 'text-red-400 border-red-500/30 bg-red-500/10'
+    : 'text-foreground border-white/10 bg-white/5';
+  return (
+    <div className={cn(
+      "min-w-0 rounded-xl md:rounded-2xl border px-3 py-2 md:px-4 md:py-3 backdrop-blur-sm flex flex-col items-center md:items-start justify-center text-center md:text-left transition-transform hover:-translate-y-0.5",
+      toneCls
+    )}>
+      <div className="text-xl md:text-2xl font-black tabular-nums leading-none">{value}</div>
+      <div className="mt-1 text-[9px] md:text-[10px] uppercase tracking-[0.18em] font-bold opacity-80">{label}</div>
+    </div>
+  );
+}
+
