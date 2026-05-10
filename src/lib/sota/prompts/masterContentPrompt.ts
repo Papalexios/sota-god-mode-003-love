@@ -98,23 +98,16 @@ These are your ONLY permitted visual elements. Use them EXACTLY as shown.
 <tr style="background:#f8fafc;"><td style="padding:16px 24px;border-bottom:1px solid #f1f5f9;color:#1e293b;">Data</td><td style="padding:16px 24px;border-bottom:1px solid #f1f5f9;color:#1e293b;">Data</td></tr>
 </tbody></table></div>
 
-═══ FAQ ACCORDION (clean, modern expandable Q&A) ═══
-<details style="border:1px solid #e2e8f0;border-radius:16px;margin:14px 0;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.03);transition:all 0.2s;">
-<summary style="padding:22px 28px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,#f8fafc,#f1f5f9);font-size:16.5px;color:#0f172a;display:flex;align-items:center;gap:12px;list-style:none;">
-<span style="flex-shrink:0;width:28px;height:28px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:8px;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;font-weight:900;">Q</span>
-QUESTION TEXT
-</summary>
-<div style="padding:22px 28px 22px 68px;line-height:1.85;color:#334155;font-size:15.5px;border-top:1px solid #e2e8f0;">ANSWER TEXT</div>
+═══ FAQ ACCORDION (clean expandable Q&A — WordPress-safe, no decorative badges) ═══
+<details style="border:1px solid #e2e8f0;border-radius:12px;margin:14px 0;overflow:hidden;background:#ffffff;">
+<summary style="padding:20px 24px;font-weight:700;cursor:pointer;background:#f8fafc;font-size:16.5px;color:#0f172a;line-height:1.45;">QUESTION TEXT</summary>
+<div style="padding:20px 24px;line-height:1.85;color:#334155;font-size:15.5px;border-top:1px solid #e2e8f0;">ANSWER TEXT</div>
 </details>
 
-═══ EXPERT QUOTE (editorial-grade blockquote) ═══
-<blockquote style="position:relative;border:none;background:linear-gradient(135deg,#fafafa 0%,#f8fafc 100%);border-left:5px solid #6366f1;padding:32px 36px 32px 36px;margin:44px 0;border-radius:0 20px 20px 0;box-shadow:0 4px 20px rgba(0,0,0,0.06);">
-<div style="position:absolute;top:8px;right:24px;font-size:120px;color:#e0e7ff;font-family:Georgia,serif;line-height:1;pointer-events:none;opacity:0.6;">"</div>
-<p style="font-style:italic;font-size:1.2em;color:#1e293b;line-height:1.75;margin:0 0 16px;position:relative;z-index:1;">"QUOTE TEXT"</p>
-<cite style="display:flex;align-items:center;gap:12px;font-style:normal;font-size:14px;color:#64748b;">
-<span style="width:40px;height:40px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:16px;flex-shrink:0;">N</span>
-<span><strong style="color:#1e293b;display:block;">Expert Name</strong>Credential / Title</span>
-</cite>
+═══ EXPERT QUOTE (editorial blockquote — NO decorative quote marks, NO avatar circle) ═══
+<blockquote style="border:none;background:#f8fafc;border-left:5px solid #6366f1;padding:28px 32px;margin:40px 0;border-radius:0 12px 12px 0;">
+<p style="font-style:italic;font-size:1.15em;color:#1e293b;line-height:1.75;margin:0 0 14px;">QUOTE TEXT (no surrounding quote marks — the styling indicates it is a quote)</p>
+<cite style="display:block;font-style:normal;font-size:14px;color:#64748b;font-weight:600;">— <strong style="color:#1e293b;">Expert Name</strong>, Credential / Title</cite>
 </blockquote>
 
 ═══ DO/DON'T GRID (visual comparison) ═══
@@ -129,13 +122,11 @@ QUESTION TEXT
 </div>
 </div>
 
-═══ STEP-BY-STEP (numbered with premium badges) ═══
-<div style="display:flex;gap:20px;margin:32px 0;align-items:flex-start;">
-<div style="flex-shrink:0;width:52px;height:52px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:16px;display:flex;align-items:center;justify-content:center;color:white;font-weight:900;font-size:22px;box-shadow:0 8px 24px rgba(99,102,241,0.3),0 2px 6px rgba(99,102,241,0.2);">N</div>
-<div style="flex:1;padding-top:4px;">
+═══ STEP-BY-STEP (numbered — WordPress-safe, no positioned badges) ═══
+<div style="margin:24px 0;padding:24px 28px;border-left:4px solid #6366f1;background:#f8fafc;border-radius:0 12px 12px 0;">
+<strong style="display:block;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;color:#6366f1;margin-bottom:8px;">Step N</strong>
 <strong style="display:block;font-size:17px;color:#0f172a;margin-bottom:6px;">Step Title</strong>
 <p style="margin:0;color:#475569;line-height:1.8;font-size:15.5px;">Step description content</p>
-</div>
 </div>
 
 ═══ QUICK MATH BOX (calculations & ROI) ═══
@@ -144,17 +135,15 @@ QUESTION TEXT
 <div style="color:#713f12;line-height:1.8;font-size:15.5px;font-family:'Georgia','Times New Roman',serif;">CALCULATION CONTENT</div>
 </div>
 
-═══ PULL QUOTE (mid-article attention grabber) ═══
-<div style="text-align:center;margin:56px 20px;padding:40px 32px;position:relative;">
-<div style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:60px;height:4px;background:linear-gradient(90deg,#6366f1,#8b5cf6,#a78bfa);border-radius:2px;"></div>
-<p style="font-size:clamp(22px,3vw,28px);font-weight:800;color:#0f172a;line-height:1.4;letter-spacing:-0.02em;margin:0;font-family:'Georgia','Times New Roman',serif;font-style:italic;">"PULL QUOTE TEXT"</p>
-<div style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:60px;height:4px;background:linear-gradient(90deg,#6366f1,#8b5cf6,#a78bfa);border-radius:2px;"></div>
+═══ PULL QUOTE (mid-article attention grabber — no absolute decorations) ═══
+<div style="text-align:center;margin:48px 0;padding:32px 24px;border-top:3px solid #6366f1;border-bottom:3px solid #6366f1;">
+<p style="font-size:clamp(22px,3vw,28px);font-weight:800;color:#0f172a;line-height:1.4;letter-spacing:-0.02em;margin:0;font-family:'Georgia','Times New Roman',serif;font-style:italic;">PULL QUOTE TEXT (no surrounding quote marks)</p>
 </div>
 
 ═══ NUMBERED LIST BOX (for ranked items) ═══
 <div style="background:linear-gradient(135deg,#f8fafc,#f1f5f9);border-radius:20px;padding:32px;margin:44px 0;border:1px solid #e2e8f0;box-shadow:0 4px 16px rgba(0,0,0,0.04);">
 <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;"><span style="font-size:20px;">🏆</span><strong style="font-size:15px;color:#0f172a;">TITLE</strong></div>
-<!-- Use step-by-step badges inside here for each item -->
+<!-- Use the WordPress-safe step blocks above for each item -->
 </div>
 `;
 
