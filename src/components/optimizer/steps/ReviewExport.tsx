@@ -975,8 +975,9 @@ export function ReviewExport() {
       </div>
 
       {/* Content Table */}
-      <div className="glass-card rounded-2xl overflow-hidden shadow-2xl">
-        <table className="w-full">
+      <div className="glass-card rounded-2xl overflow-hidden shadow-2xl border border-white/10">
+        <div className="overflow-x-auto custom-scrollbar">
+        <table className="w-full min-w-[720px] md:min-w-0">
           <thead>
             <tr className="border-b border-white/10 bg-white/5">
               <th className="p-4 text-left">
