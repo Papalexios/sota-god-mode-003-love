@@ -1483,53 +1483,41 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
       this.log('Phase 6: Skipped NW term enforcement — no NeuronWriter data.');
     }
 
-    // ── Phase 7: Built-in Self-Critique Rewrite ────────────────────────────
-    try {
-      this.log('Phase 7: Running enterprise self-critique pass...');
-      const scoreBeforeCritique = calculateQualityScore(html, options.keyword, [], gapTargets).overall;
+    // ── Phase 7: Built-in Self-Critique Rewrite (gated by Strategy toggles) ──
+    const critiqueEnabled = options.enableSelfCritique !== false;
+    const requestedPasses = Math.max(1, Math.min(3, Number(options.maxCritiquePasses) || 1));
+    if (!critiqueEnabled) {
+      this.log('Phase 7: Self-critique disabled by Strategy — skipping LLM rewrite passes.');
+    } else {
+      try {
+        const t0 = Date.now();
+        this.log(`Phase 7: Running self-critique (max ${requestedPasses} pass${requestedPasses === 1 ? '' : 'es'})...`);
+        const scoreBeforeCritique = calculateQualityScore(html, options.keyword, [], gapTargets).overall;
 
-      let critique = await refineWithSelfCritique({
-        engine: this.engine,
-        model: options.model || this.config.primaryModel || 'gemini',
-        keyword: options.keyword,
-        title: options.title || options.keyword,
-        html,
-        contentGaps: gapTargets,
-        maxPasses: 3,
-        minScore: 95,
-      });
-
-      html = critique.html;
-      let finalCritiqueScore = critique.finalScore;
-
-      if (finalCritiqueScore < 95 || finalCritiqueScore <= critique.initialScore) {
-        this.warn('Phase 7: Score below 95 hard gate. Running aggressive second critique pass...');
-        const aggressiveCritique = await refineWithSelfCritique({
+        const critique = await refineWithSelfCritique({
           engine: this.engine,
           model: options.model || this.config.primaryModel || 'gemini',
           keyword: options.keyword,
           title: options.title || options.keyword,
           html,
           contentGaps: gapTargets,
-          maxPasses: 3,
-          minScore: 96,
+          maxPasses: requestedPasses,
+          minScore: 92,
         });
 
-        if (aggressiveCritique.finalScore > finalCritiqueScore) {
-          html = aggressiveCritique.html;
-          finalCritiqueScore = aggressiveCritique.finalScore;
+        html = critique.html;
+        let finalCritiqueScore = critique.finalScore;
+
+        if (finalCritiqueScore < 70) {
+          this.warn(`Phase 7: Final score ${finalCritiqueScore} is below floor. Applying anti-fluff cleanup.`);
+          html = removeAIPhrases(polishReadability(html));
+          finalCritiqueScore = calculateQualityScore(html, options.keyword, [], gapTargets).overall;
         }
-      }
 
-      if (finalCritiqueScore < 82) {
-        this.warn(`Phase 7: Final score ${finalCritiqueScore} is below hard gate. Applying emergency anti-fluff cleanup.`);
-        html = removeAIPhrases(polishReadability(html));
-        finalCritiqueScore = calculateQualityScore(html, options.keyword, [], gapTargets).overall;
+        this.log(`Phase 7 ✅ Self-critique (${scoreBeforeCritique} → ${finalCritiqueScore}) in ${Math.round((Date.now() - t0) / 1000)}s.`);
+      } catch (e) {
+        this.warn(`Phase 7: Self-critique skipped (${e}).`);
       }
-
-      this.log(`Phase 7 ✅ Self-critique quality (${scoreBeforeCritique} → ${finalCritiqueScore}).`);
-    } catch (e) {
-      this.warn(`Phase 7: Self-critique skipped (${e}).`);
     }
 
     // ── Phase 7b: SERP Gap Coverage Enforcement ────────────────────────────
@@ -1680,52 +1668,43 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
     this.log(`Phase 11 ✅ Checklist score ${checklist.score}/100 — ${checklist.mandatoryFailures.length} mandatory failures, ${checklist.recommendedFailures.length} recommended.`);
 
     if (!checklist.passed) {
-      this.warn(`Phase 11: Checklist failed (${checklist.mandatoryFailures.map(f => f.id).join(', ')}). Running targeted auto-retry...`);
-      const retryAttempts: Array<{ model: AIModel; tokens: number }> = [
-        { model: (options.model || this.config.primaryModel || 'gemini'), tokens: 12288 },
-      ];
-      const fallback = (this.config.apiKeys?.fallbackModels || [])[0];
-      if (typeof fallback === 'string' && fallback.length > 0) {
-        const provider = (fallback.split(':')[0] || 'gemini') as AIModel;
-        retryAttempts.push({ model: provider, tokens: 8192 });
-      }
-
-      for (const attempt of retryAttempts) {
-        if (checklist.passed) break;
-        try {
-          const rewritePrompt = buildMissingSectionsRewritePrompt(html, options.keyword, checklist.mandatoryFailures);
-          const rewrite = await this.engine.generateWithModel({
-            prompt: rewritePrompt,
-            systemPrompt: buildMasterSystemPrompt(),
-            model: attempt.model,
-            apiKeys: this.config.apiKeys,
-            maxTokens: attempt.tokens,
-            temperature: 0.6,
-            validation: {
-              type: 'article-html',
-              requireCompleteArticle: true,
-              minChars: MIN_VALID_CONTENT_LENGTH,
-            },
+      this.warn(`Phase 11: Checklist failed (${checklist.mandatoryFailures.map(f => f.id).join(', ')}). Running ONE bounded targeted patch (no full regeneration)...`);
+      try {
+        const t0 = Date.now();
+        const rewritePrompt = buildMissingSectionsRewritePrompt(html, options.keyword, checklist.mandatoryFailures);
+        const rewrite = await this.engine.generateWithModel({
+          prompt: rewritePrompt,
+          systemPrompt: buildMasterSystemPrompt(),
+          model: (options.model || this.config.primaryModel || 'gemini'),
+          apiKeys: this.config.apiKeys,
+          maxTokens: 6144,            // bounded — targeted patch only, NOT a full article
+          temperature: 0.5,
+          validation: {
+            type: 'article-html',
+            requireCompleteArticle: true,
+            minChars: MIN_VALID_CONTENT_LENGTH,
+          },
+        });
+        if (rewrite.content && rewrite.content.includes('<article')) {
+          const candidate = rewrite.content;
+          const newChecklist = runBlogPostChecklist({
+            html: candidate,
+            title: options.title || options.keyword,
+            metaDescription: provisionalMeta,
+            primaryKeyword: options.keyword,
+            slug,
+            entities: entityCandidates,
           });
-          if (rewrite.content && rewrite.content.includes('<article')) {
-            const candidate = rewrite.content;
-            const newChecklist = runBlogPostChecklist({
-              html: candidate,
-              title: options.title || options.keyword,
-              metaDescription: provisionalMeta,
-              primaryKeyword: options.keyword,
-              slug,
-              entities: entityCandidates,
-            });
-            if (newChecklist.mandatoryFailures.length < checklist.mandatoryFailures.length) {
-              html = candidate;
-              checklist = newChecklist;
-              this.log(`Phase 11 ✅ Auto-retry (${attempt.model}) closed gaps — now ${checklist.mandatoryFailures.length} mandatory failures.`);
-            }
+          if (newChecklist.mandatoryFailures.length < checklist.mandatoryFailures.length) {
+            html = candidate;
+            checklist = newChecklist;
+            this.log(`Phase 11 ✅ Targeted patch closed gaps in ${Math.round((Date.now() - t0) / 1000)}s — now ${checklist.mandatoryFailures.length} mandatory failures.`);
+          } else {
+            this.warn(`Phase 11: Patch did not improve checklist — finalizing with current article + warnings (${Math.round((Date.now() - t0) / 1000)}s).`);
           }
-        } catch (e) {
-          this.warn(`Phase 11: Auto-retry on ${attempt.model} failed (${e instanceof Error ? e.message : e}).`);
         }
+      } catch (e) {
+        this.warn(`Phase 11: Targeted patch failed (${e instanceof Error ? e.message : e}). Finalizing with warnings.`);
       }
     }
 
