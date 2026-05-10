@@ -1106,10 +1106,19 @@ export function ReviewExport() {
                     />
                   </td>
                   <td className="p-4">
-                    <div className="font-medium text-foreground">{item.title}</div>
-                    <div className="text-xs text-muted-foreground">{item.primaryKeyword}</div>
+                    <div className="font-medium text-foreground line-clamp-2">{item.title}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{item.primaryKeyword}</div>
+                    <div className="md:hidden mt-1.5 flex flex-wrap items-center gap-1.5">
+                      <span className={cn(
+                        "px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
+                        item.type === 'pillar' && "bg-purple-500/20 text-purple-400",
+                        item.type === 'cluster' && "bg-blue-500/20 text-blue-400",
+                        item.type === 'single' && "bg-green-500/20 text-green-400",
+                        item.type === 'refresh' && "bg-yellow-500/20 text-yellow-400"
+                      )}>{item.type}</span>
+                    </div>
                   </td>
-                  <td className="p-4">
+                  <td className="hidden md:table-cell p-4">
                     <span className={cn(
                       "px-2 py-1 rounded text-xs font-medium",
                       item.type === 'pillar' && "bg-purple-500/20 text-purple-400",
