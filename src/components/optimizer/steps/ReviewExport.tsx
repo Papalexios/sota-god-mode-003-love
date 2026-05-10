@@ -1591,3 +1591,21 @@ function StatusBadge({ ok, label, optional }: { ok: boolean; label: string; opti
     </div>
   );
 }
+
+function HeroStat({ label, value, tone }: { label: string; value: number; tone: 'neutral' | 'success' | 'warn' | 'danger' }) {
+  const toneCls =
+    tone === 'success' ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10 shadow-[0_0_18px_rgba(16,185,129,0.15)]'
+    : tone === 'warn' ? 'text-yellow-400 border-yellow-500/30 bg-yellow-500/10'
+    : tone === 'danger' ? 'text-red-400 border-red-500/30 bg-red-500/10'
+    : 'text-foreground border-white/10 bg-white/5';
+  return (
+    <div className={cn(
+      "min-w-0 rounded-xl md:rounded-2xl border px-3 py-2 md:px-4 md:py-3 backdrop-blur-sm flex flex-col items-center md:items-start justify-center text-center md:text-left transition-transform hover:-translate-y-0.5",
+      toneCls
+    )}>
+      <div className="text-xl md:text-2xl font-black tabular-nums leading-none">{value}</div>
+      <div className="mt-1 text-[9px] md:text-[10px] uppercase tracking-[0.18em] font-bold opacity-80">{label}</div>
+    </div>
+  );
+}
+
