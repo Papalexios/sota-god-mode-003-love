@@ -1202,9 +1202,7 @@ export function ReviewExport() {
                       <span className="text-xs text-muted-foreground italic">Not yet generated</span>
                     )}
                   </td>
-                  <td className="p-4">
-                    {(() => {
-                      const cl = stored?.checklist;
+                  <td className="hidden md:table-cell p-4">
                       if (!cl) return <span className="text-xs text-muted-foreground italic">—</span>;
                       const failCount = cl.items.filter(i => i.severity === 'mandatory' && !i.passed).length;
                       return (
