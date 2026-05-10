@@ -128,6 +128,7 @@ export function ContentStrategy() {
     excludedCategories, setExcludedCategories,
     sitemapUrls, setSitemapUrls,
     addContentItem,
+    contentItems,
     setCurrentStep,
   } = useOptimizerStore();
 
