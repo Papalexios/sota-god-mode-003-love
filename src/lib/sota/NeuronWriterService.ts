@@ -230,6 +230,8 @@ export class NeuronWriterService {
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       // Pick first non-dead proxy URL, else fall back to the first candidate.
       const url = candidateUrls.find(u => !deadUrls.has(u)) || candidateUrls[0];
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), endpointTimeout(cleanEndpoint));
       try {
         this.diag(`callProxy → ${url} | endpoint: ${cleanEndpoint} (attempt ${attempt + 1}/${MAX_RETRIES})`);
 
@@ -259,6 +261,7 @@ export class NeuronWriterService {
           method: 'POST',
           headers,
           body: JSON.stringify(requestBody),
+          signal: controller.signal,
           mode: 'cors',
           credentials: 'omit',
         });
@@ -295,12 +298,17 @@ export class NeuronWriterService {
         const data = result.data !== undefined ? result.data : result;
         return { success: true, data };
       } catch (err: any) {
-        lastError = err.message;
+        const aborted = err?.name === 'AbortError';
+        lastError = aborted
+          ? `NeuronWriter proxy timed out after ${Math.round(endpointTimeout(cleanEndpoint) / 1000)}s for ${cleanEndpoint}`
+          : (err?.message || String(err));
         this.diag(`callProxy attempt ${attempt + 1} failed: ${lastError}`);
         if (/Failed to fetch|NetworkError|Load failed|CORS|endpoint unavailable|server returned HTML|No working proxy/i.test(lastError)) {
           deadUrls.add(url);
         }
         if (attempt < MAX_RETRIES - 1) await this.sleep(INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt));
+      } finally {
+        clearTimeout(timer);
       }
     }
     return { success: false, error: lastError };
