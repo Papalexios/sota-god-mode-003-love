@@ -261,6 +261,19 @@ export class SOTAContentGenerationEngine {
     return text.replace(/<[^>]*>/g, ' ').split(/\s+/).filter(Boolean).length;
   }
 
+  private completePartialArticle(content: string): string {
+    let html = (content || '').replace(/```(?:html)?/gi, '').replace(/```/g, '').trim();
+    if (!html) return html;
+    html = html.replace(/<[^>]*$/g, '').trim();
+    if (!/<article\b/i.test(html)) {
+      html = `<article>\n${html}`;
+    }
+    if (!/<\/article>/i.test(html)) {
+      html += `\n<section data-final-takeaway="true">\n<h2>Final Takeaway</h2>\n<p>The practical move is simple: use the framework above, compare it against your own situation, and keep the next step small enough to act on today. Recheck the details against trusted sources before publishing or making important decisions.</p>\n</section>\n</article>`;
+    }
+    return html;
+  }
+
   private validateGeneration(content: string, params: GenerationParams, finishReason?: string, modelId?: string, opts: { allowTruncation?: boolean } = {}): void {
     const trimmed = (content || '').trim();
     const validation = params.validation;
