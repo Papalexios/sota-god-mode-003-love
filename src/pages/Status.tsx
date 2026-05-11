@@ -120,8 +120,6 @@ const Status = () => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-NW-Api-Key": apiKey,
-            "X-NeuronWriter-Key": apiKey,
             ...(url.includes("supabase") && config.supabaseAnonKey
               ? { Authorization: `Bearer ${config.supabaseAnonKey}`, apikey: config.supabaseAnonKey }
               : {}),

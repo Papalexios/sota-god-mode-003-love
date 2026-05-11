@@ -64,11 +64,20 @@ export function securityHeaders(
 // ═══════════════════════════════════════════════════════════════════
 
 const ALLOWED_ORIGINS = new Set(
-  (process.env.CORS_ALLOWED_ORIGINS || "http://localhost:5173,http://localhost:3000,http://localhost:3001")
+  (process.env.CORS_ALLOWED_ORIGINS || "http://localhost:5173,http://localhost:3000,http://localhost:3001,https://contentoptimizer.app,https://www.contentoptimizer.app,https://cozy-vite-starter.lovable.app")
     .split(",")
     .map((o) => o.trim())
     .filter(Boolean),
 );
+
+function isAllowedPreviewOrigin(origin: string): boolean {
+  try {
+    const host = new URL(origin).hostname;
+    return host.endsWith(".lovable.app") || host.endsWith(".lovableproject.com");
+  } catch {
+    return false;
+  }
+}
 
 export function corsMiddleware(
   req: Request,
@@ -77,7 +86,7 @@ export function corsMiddleware(
 ) {
   const origin = req.header("origin") || "";
 
-  if (ALLOWED_ORIGINS.has(origin) || ALLOWED_ORIGINS.has("*")) {
+  if (ALLOWED_ORIGINS.has(origin) || ALLOWED_ORIGINS.has("*") || isAllowedPreviewOrigin(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
   }
 
@@ -87,7 +96,7 @@ export function corsMiddleware(
   );
   res.setHeader(
     "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, X-NeuronWriter-Key, X-API-KEY, X-Request-Id",
+    "Content-Type, Authorization, X-NeuronWriter-Key, X-NW-Api-Key, X-API-KEY, X-Request-Id, apikey",
   );
   res.setHeader("Access-Control-Max-Age", "86400");
 

@@ -134,7 +134,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   }
 
   try {
-    const apiKeyFromHeader = request.headers.get("X-NeuronWriter-Key") || request.headers.get("X-API-KEY");
+    const apiKeyFromHeader =
+      request.headers.get("X-NeuronWriter-Key") ||
+      request.headers.get("X-NW-Api-Key") ||
+      request.headers.get("X-API-KEY");
 
     if (request.method === "GET") {
       const url = new URL(request.url);
@@ -168,7 +171,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       }
 
       const { endpoint, method = "POST", apiKey, body: requestBody } = body;
-      const finalApiKey = apiKey || apiKeyFromHeader;
+      const bodyApiKey = typeof requestBody?.apiKey === "string" ? requestBody.apiKey : undefined;
+      const finalApiKey = apiKey || bodyApiKey || apiKeyFromHeader;
 
       if (!endpoint) {
         return new Response(
