@@ -8,6 +8,14 @@ interface ProxyRequest {
 
 const NEURON_API_BASE = 'https://app.neuronwriter.com/neuron-api/0.5/writer';
 const ALLOWED_HEADERS = 'authorization, x-client-info, apikey, content-type, x-nw-api-key, x-nw-endpoint, x-neuronwriter-key, x-api-key';
+const ALLOWED_ENDPOINTS = new Set(['/list-projects', '/list-queries', '/new-query', '/get-query', '/get-content', '/set-content']);
+
+function endpointTimeout(endpoint: string): number {
+  if (endpoint === '/new-query') return 45_000;
+  if (endpoint === '/get-query') return 20_000;
+  if (endpoint === '/list-projects' || endpoint === '/list-queries') return 15_000;
+  return 30_000;
+}
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -78,8 +86,15 @@ serve(async (req: Request) => {
 
     // Construct the actual NeuronWriter URL
     // e.g. /projects -> https://app.neuronwriter.com/neuron-api/0.5/writer/projects
-    const targetUrl = `${NEURON_API_BASE}${payload.endpoint.startsWith('/') ? payload.endpoint : '/' + payload.endpoint}`;
+    const cleanEndpoint = payload.endpoint.startsWith('/') ? payload.endpoint : '/' + payload.endpoint;
+    if (!ALLOWED_ENDPOINTS.has(cleanEndpoint)) {
+      return jsonResponse({ error: 'unsupported_endpoint', message: 'Unsupported NeuronWriter endpoint.' }, 400);
+    }
+    const targetUrl = `${NEURON_API_BASE}${cleanEndpoint}`;
     const forwardMethod = (payload.method || 'POST').toUpperCase();
+    if (!['POST', 'PUT'].includes(forwardMethod)) {
+      return jsonResponse({ error: 'unsupported_method', message: 'Unsupported NeuronWriter method.' }, 400);
+    }
 
     const forwardHeaders = new Headers();
     // NeuronWriter strictly requires X-API-KEY header
@@ -90,15 +105,18 @@ serve(async (req: Request) => {
       forwardHeaders.set('Content-Type', 'application/json');
     }
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), endpointTimeout(cleanEndpoint));
     const fetchOpts: RequestInit = {
       method: forwardMethod,
       headers: forwardHeaders,
       body: (payload.body && Object.keys(payload.body).length > 0) ? JSON.stringify(payload.body) : undefined,
+      signal: controller.signal,
     };
 
     console.info(`Forwarding to: ${targetUrl} [${forwardMethod}]`);
 
-    const res = await fetch(targetUrl, fetchOpts);
+    const res = await fetch(targetUrl, fetchOpts).finally(() => clearTimeout(timeoutId));
     const resText = await res.text();
 
     let resBody: any = resText;
