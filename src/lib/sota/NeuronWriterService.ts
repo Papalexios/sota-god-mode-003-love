@@ -77,6 +77,32 @@ export interface NeuronWriterProject {
 const MAX_RETRIES = 3;
 const INITIAL_RETRY_DELAY_MS = 1000;
 const PERSISTENT_CACHE_KEY = 'sota-nw-dedup-cache-v9.0';
+const PROXY_TIMEOUT_MS: Record<string, number> = {
+  '/list-projects': 15_000,
+  '/list-queries': 18_000,
+  '/get-query': 20_000,
+  '/new-query': 45_000,
+};
+
+function endpointTimeout(endpoint: string): number {
+  return PROXY_TIMEOUT_MS[endpoint] ?? 30_000;
+}
+
+function normalizeWhitespace(value: unknown): string {
+  return String(value ?? '').replace(/\s+/g, ' ').trim();
+}
+
+function normalizeLanguage(value?: string): string {
+  const clean = normalizeWhitespace(value).toLowerCase();
+  const map: Record<string, string> = { en: 'English', english: 'English', us: 'English', uk: 'English', de: 'German', es: 'Spanish', fr: 'French', it: 'Italian', nl: 'Dutch', pl: 'Polish', pt: 'Portuguese' };
+  return map[clean] || normalizeWhitespace(value) || 'English';
+}
+
+function normalizeEngine(value?: string): string {
+  const clean = normalizeWhitespace(value).toLowerCase();
+  const map: Record<string, string> = { us: 'google.com', usa: 'google.com', en: 'google.com', uk: 'google.co.uk', gb: 'google.co.uk', de: 'google.de', es: 'google.es', fr: 'google.fr', it: 'google.it', nl: 'google.nl', pl: 'google.pl', pt: 'google.pt' };
+  return map[clean] || normalizeWhitespace(value) || 'google.com';
+}
 
 // ─── Levenshtein similarity ───────────────────────────────────────────────────
 
@@ -204,6 +230,8 @@ export class NeuronWriterService {
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       // Pick first non-dead proxy URL, else fall back to the first candidate.
       const url = candidateUrls.find(u => !deadUrls.has(u)) || candidateUrls[0];
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), endpointTimeout(cleanEndpoint));
       try {
         this.diag(`callProxy → ${url} | endpoint: ${cleanEndpoint} (attempt ${attempt + 1}/${MAX_RETRIES})`);
 
@@ -233,6 +261,7 @@ export class NeuronWriterService {
           method: 'POST',
           headers,
           body: JSON.stringify(requestBody),
+          signal: controller.signal,
           mode: 'cors',
           credentials: 'omit',
         });
@@ -251,15 +280,15 @@ export class NeuronWriterService {
           );
         }
 
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${rawText.slice(0, 300)}`);
-        }
-
         let result: any;
         try {
           result = JSON.parse(rawText);
         } catch {
           throw new Error(`Proxy returned non-JSON response: ${rawText.slice(0, 200)}`);
+        }
+
+        if (!response.ok) {
+          throw new Error(result?.error || result?.message || `HTTP ${response.status}: ${rawText.slice(0, 300)}`);
         }
 
         if (result.success === false && result.error) {
@@ -269,12 +298,17 @@ export class NeuronWriterService {
         const data = result.data !== undefined ? result.data : result;
         return { success: true, data };
       } catch (err: any) {
-        lastError = err.message;
+        const aborted = err?.name === 'AbortError';
+        lastError = aborted
+          ? `NeuronWriter proxy timed out after ${Math.round(endpointTimeout(cleanEndpoint) / 1000)}s for ${cleanEndpoint}`
+          : (err?.message || String(err));
         this.diag(`callProxy attempt ${attempt + 1} failed: ${lastError}`);
         if (/Failed to fetch|NetworkError|Load failed|CORS|endpoint unavailable|server returned HTML|No working proxy/i.test(lastError)) {
           deadUrls.add(url);
         }
         if (attempt < MAX_RETRIES - 1) await this.sleep(INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt));
+      } finally {
+        clearTimeout(timer);
       }
     }
     return { success: false, error: lastError };
@@ -290,7 +324,16 @@ export class NeuronWriterService {
     this.diag('Fetching projects list...');
     const res = await this.callProxy('/list-projects', { body: {} });
     if (!res.success) return res;
-    const projects = res.data?.projects || (Array.isArray(res.data) ? res.data : []);
+    const rawProjects = res.data?.projects || res.data?.data || (Array.isArray(res.data) ? res.data : []);
+    const projects = Array.isArray(rawProjects)
+      ? rawProjects
+        .map((project: any) => ({
+          id: normalizeWhitespace(project.id || project.project || project.project_id),
+          name: normalizeWhitespace(project.name || project.domain || project.url || project.project),
+          queries_count: project.queries_count ?? project.queriesCount,
+        }))
+        .filter((project: NeuronWriterProject) => project.id && project.name)
+      : [];
     return { success: true, projects };
   }
 
@@ -349,8 +392,9 @@ export class NeuronWriterService {
       body: {
         project: projectId,
         keyword: keyword,
-        language: 'en',    // default; could be made configurable
-        country: 'us',     // default; could be made configurable
+          language: normalizeLanguage((this.config as any).targetLanguage),
+          engine: normalizeEngine((this.config as any).targetCountry),
+        competitors_mode: 'top-intent',
       }
     });
 
@@ -400,27 +444,30 @@ export class NeuronWriterService {
 
     this.diag(`Raw analysis keys: ${Object.keys(raw).join(', ')}`);
 
+    const terms = raw.terms || {};
+    const termsTxt = raw.terms_txt || {};
+
     const analysis: NeuronWriterAnalysis = {
       query_id: queryId,
       status: raw.status || 'processing',
       keyword: raw.keyword || raw.query_keyword,
       content_score: raw.content_score || raw.score || 0,
-      recommended_length: raw.recommended_length || raw.recommendedLength || raw.avg_word_count || 2500,
+      recommended_length: raw.recommended_length || raw.recommendedLength || raw.avg_word_count || raw.metrics?.word_count?.target || raw.metrics?.word_count?.median || 2500,
 
       // Basic terms — NW API uses 'terms' or 'terms_basic'
-      terms: this.parseTerms(raw.terms || raw.terms_basic || [], 'basic'),
+      terms: this.parseTerms(raw.terms_basic || raw.content_basic || terms.content_basic || terms.content || termsTxt.content_basic || [], 'basic'),
 
       // Extended terms — NW API uses 'terms_extended' or 'extended_terms'
-      termsExtended: this.parseTerms(raw.terms_extended || raw.extended_terms || raw.termsExtended || [], 'extended'),
+      termsExtended: this.parseTerms(raw.terms_extended || raw.extended_terms || raw.termsExtended || terms.content_extended || termsTxt.content_extended || [], 'extended'),
 
       // Named entities
-      entities: this.parseEntities(raw.entities || raw.named_entities || raw.namedEntities || []),
+      entities: this.parseEntities(raw.entities || raw.named_entities || raw.namedEntities || terms.entities || termsTxt.entities || []),
 
       // H2 headings from competitor analysis
-      headingsH2: this.parseHeadings(raw.headings_h2 || raw.h2_suggestions || raw.h2s || raw.headings?.filter((h: any) => (h.level || h.type) === 'h2') || [], 'h2'),
+      headingsH2: this.parseHeadings(raw.headings_h2 || raw.h2_suggestions || raw.h2s || terms.h2 || terms.content_h2 || raw.headings?.filter((h: any) => (h.level || h.type) === 'h2') || [], 'h2'),
 
       // H3 headings from competitor analysis
-      headingsH3: this.parseHeadings(raw.headings_h3 || raw.h3_suggestions || raw.h3s || raw.headings?.filter((h: any) => (h.level || h.type) === 'h3') || [], 'h3'),
+      headingsH3: this.parseHeadings(raw.headings_h3 || raw.h3_suggestions || raw.h3s || terms.h3 || terms.content_h3 || raw.headings?.filter((h: any) => (h.level || h.type) === 'h3') || [], 'h3'),
 
       competitorData: raw.competitors || raw.competitor_data || [],
     };
@@ -430,10 +477,6 @@ export class NeuronWriterService {
     analysis.extendedKeywords = analysis.termsExtended;
     analysis.h2Suggestions = analysis.headingsH2;
     analysis.h3Suggestions = analysis.headingsH3;
-
-    const hasTerms = (analysis.terms?.length || 0) > 0;
-    const hasEntities = (analysis.entities?.length || 0) > 0;
-    const hasHeadings = (analysis.headingsH2?.length || 0) > 0 || (analysis.headingsH3?.length || 0) > 0;
 
     this.diag(
       `Analysis parsed: ${analysis.terms?.length || 0} basic terms, ` +
@@ -557,42 +600,57 @@ export class NeuronWriterService {
 
   // ─── Private parsers ────────────────────────────────────────────────────────
 
-  private parseTerms(raw: any[], defaultType: 'basic' | 'extended' = 'basic'): NeuronWriterTermData[] {
-    if (!Array.isArray(raw)) return [];
-    return raw
-      .filter(t => t && (t.term || t.text || t.keyword || t.name))
+  private parseTerms(raw: any, defaultType: 'basic' | 'extended' = 'basic'): NeuronWriterTermData[] {
+    const rows = Array.isArray(raw)
+      ? raw
+      : typeof raw === 'string'
+        ? raw.split(/\r?\n|,/).map(term => ({ term: term.trim() })).filter(t => t.term)
+        : [];
+    return rows
+      .filter(t => t && (t.term || t.text || t.keyword || t.name || t.t))
       .map(t => ({
-        term: t.term || t.text || t.keyword || t.name || '',
+        term: normalizeWhitespace(t.term || t.text || t.keyword || t.name || t.t || ''),
         type: (t.type as any) || defaultType,
         frequency: t.count || t.frequency || t.occurrences || 0,
         weight: t.weight || t.importance || 1,
         usage_pc: t.usage_pc || t.usagePc || 0,
         recommended: t.recommended || t.sugg_usage?.[1] || t.max || t.freq_max || Math.max(1, Math.round((t.weight || 1) * 2)),
         sugg_usage: t.sugg_usage,
-      }));
+      }))
+      .filter(t => t.term.length > 0);
   }
 
-  private parseEntities(raw: any[]): Array<{ entity: string; usage_pc?: number; frequency?: number }> {
-    if (!Array.isArray(raw)) return [];
-    return raw
-      .filter(e => e && (e.entity || e.text || e.name || e.value))
+  private parseEntities(raw: any): Array<{ entity: string; usage_pc?: number; frequency?: number }> {
+    const rows = Array.isArray(raw)
+      ? raw
+      : typeof raw === 'string'
+        ? raw.split(/\r?\n|,/).map(entity => ({ entity: entity.trim() })).filter(e => e.entity)
+        : [];
+    return rows
+      .filter(e => e && (e.entity || e.text || e.name || e.value || e.t))
       .map(e => ({
-        entity: e.entity || e.text || e.name || e.value || '',
+        entity: normalizeWhitespace(e.entity || e.text || e.name || e.value || e.t || ''),
         usage_pc: e.usage_pc || e.usagePc || 0,
         frequency: e.frequency || e.count || e.occurrences || 0,
-      }));
+      }))
+      .filter(e => e.entity.length > 0);
   }
 
-  private parseHeadings(raw: any[], defaultLevel: 'h2' | 'h3' = 'h2'): NeuronWriterHeadingData[] {
-    if (!Array.isArray(raw)) return [];
-    return raw
-      .filter(h => h && (h.text || h.heading || h.title || h.value))
+  private parseHeadings(raw: any, defaultLevel: 'h2' | 'h3' = 'h2'): NeuronWriterHeadingData[] {
+    const rows = Array.isArray(raw)
+      ? raw
+      : typeof raw === 'string'
+        ? raw.split(/\r?\n/).map(text => ({ text: text.trim() })).filter(h => h.text)
+        : [];
+    return rows
+      .filter(h => h && (h.text || h.heading || h.title || h.value || h.t))
       .map(h => ({
-        text: h.text || h.heading || h.title || h.value || '',
+        text: normalizeWhitespace(h.text || h.heading || h.title || h.value || h.t || ''),
         usage_pc: h.usage_pc || h.usagePc || 0,
         level: (h.level || h.type || defaultLevel) as 'h1' | 'h2' | 'h3',
         relevanceScore: h.relevance || h.relevanceScore || h.score || 0,
-      }));
+      }))
+      .filter(h => h.text.length > 0);
   }
 }
 
