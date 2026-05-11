@@ -379,6 +379,10 @@ export function SetupConfig() {
   });
   const [renameMode, setRenameMode] = useState(false);
   const [renameValue, setRenameValue] = useState('');
+  // Inline "save as" name input (replaces window.prompt which is blocked in sandboxed iframes)
+  const [saveAsMode, setSaveAsMode] = useState(false);
+  const [saveAsValue, setSaveAsValue] = useState('');
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   const persistSnapshots = (map: SnapshotMap) => {
     localStorage.setItem(SNAPSHOTS_KEY, JSON.stringify(map));
