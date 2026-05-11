@@ -22,6 +22,16 @@ export interface GenerationParams {
   apiKeys: APIKeys;
   temperature?: number;
   maxTokens?: number;
+  /** Hard wall-clock cap for this single provider call, in milliseconds. */
+  timeoutMs?: number;
+  /** Per-call retry cap. Lower for non-critical polish/repair calls. */
+  maxRetries?: number;
+  /** Disable continuation calls for bounded repair/title/polish tasks. */
+  allowContinuations?: boolean;
+  /** Disable SSE resume loops for bounded repair/title/polish tasks. */
+  allowResume?: boolean;
+  /** Optional explicit cap for OpenAI-compatible SSE resume attempts. */
+  maxStreamResumes?: number;
   systemPrompt?: string;
   validation?: {
     type?: 'article-html' | 'html' | 'text';
