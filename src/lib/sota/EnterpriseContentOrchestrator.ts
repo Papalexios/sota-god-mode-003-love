@@ -1277,7 +1277,21 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
 
     // ── Phase 0: Top-3 SERP Scan + Gap Analysis ─────────────────────────────
     this.log('Phase 0: Top-3 SERP ranking scan and gap analysis...');
-    const serpAnalysis = await this.serpAnalyzer.analyze(options.keyword);
+    const serpAnalysis = await this.withTimeout(
+      'Phase 0 SERP analysis',
+      this.serpAnalyzer.analyze(options.keyword),
+      35_000,
+      {
+        avgWordCount: Number(options.targetWordCount || 2500),
+        commonHeadings: [],
+        contentGaps: [],
+        userIntent: 'informational',
+        semanticEntities: [],
+        topCompetitors: [],
+        recommendedWordCount: Number(options.targetWordCount || 2500),
+        recommendedHeadings: [],
+      } as SERPAnalysis,
+    );
     let gapTargets = this.buildTopGapTargetsFromSerp(serpAnalysis, options.keyword, 50);
     const top3Competitors = (serpAnalysis.topCompetitors || []).slice(0, 3);
 
@@ -1326,14 +1340,14 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
 
     // ── Phase 2: YouTube Video Discovery (parallel with Phase 3/4) ─────────
     this.log('Phase 2: YouTube Video Discovery...');
-    const videosPromise = this.fetchYouTubeVideos(options.keyword);
+    const videosPromise = this.withTimeout('Phase 2 YouTube discovery', this.fetchYouTubeVideos(options.keyword), 25_000, [] as YouTubeVideo[]);
 
     // ── Phase 3: Reference Gathering (parallel) ─────────────────────────────
     this.log('Phase 3: Reference Gathering (8-12 high-quality sources)...');
-    const referencesPromise = this.fetchReferences(options.keyword);
+    const referencesPromise = this.withTimeout('Phase 3 references', this.fetchReferences(options.keyword), 25_000, [] as Reference[]);
 
     // ── Phase 4: WordPress Media Discovery (parallel) ───────────────────────
-    const wpImagesPromise = this.fetchWordPressImages(options.keyword);
+    const wpImagesPromise = this.withTimeout('Phase 4 WordPress media', this.fetchWordPressImages(options.keyword), 25_000, [] as WordPressMediaItem[]);
 
     let [videos, references, wpImages] = await Promise.all([videosPromise, referencesPromise, wpImagesPromise]);
 
