@@ -176,14 +176,9 @@ export class NeuronWriterService {
   }
 
   /**
-   * Resolve the proxy URL. Priority:
-   *   1. customProxyUrl (explicit override — must be a full URL)
-   *   2. /api/neuronwriter — the local Express dev server + Vercel/Cloudflare serverless proxy
-   *
-   * NOTE: We do NOT auto-route via Supabase Edge Functions based on supabaseUrl.
-   * The Supabase credentials are only used for auth headers when a customProxyUrl
-   * explicitly points to a Supabase functions endpoint. Auto-detection caused
-   * "Failed to fetch" errors because the edge function is not deployed by default.
+   * Resolve proxy candidates. Keep the app proxy first, then use Supabase only as
+   * a fallback when the user has configured it. NeuronWriter keys are sent in the
+   * JSON body, not custom browser headers, to avoid brittle CORS preflight failures.
    */
   private resolveProxyUrls(): string[] {
     const urls: string[] = [];
@@ -192,8 +187,8 @@ export class NeuronWriterService {
     urls.push('/api/neuronwriter');
     // Supabase Edge Function fallback — used when the SPA is hosted on an
     // environment without Cloudflare Pages Functions (e.g. lovable.app preview).
-    if (this.config.supabaseUrl) {
-      const base = this.config.supabaseUrl.replace(/\/$/, '');
+    if (this.config.supabaseUrl && /^https:\/\/[^/]+\.supabase\.co\/?$/i.test(this.config.supabaseUrl.trim())) {
+      const base = this.config.supabaseUrl.trim().replace(/\/$/, '');
       urls.push(`${base}/functions/v1/neuronwriter-proxy`);
     }
     return Array.from(new Set(urls));
