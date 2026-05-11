@@ -478,10 +478,6 @@ export class NeuronWriterService {
     analysis.h2Suggestions = analysis.headingsH2;
     analysis.h3Suggestions = analysis.headingsH3;
 
-    const hasTerms = (analysis.terms?.length || 0) > 0;
-    const hasEntities = (analysis.entities?.length || 0) > 0;
-    const hasHeadings = (analysis.headingsH2?.length || 0) > 0 || (analysis.headingsH3?.length || 0) > 0;
-
     this.diag(
       `Analysis parsed: ${analysis.terms?.length || 0} basic terms, ` +
       `${analysis.termsExtended?.length || 0} extended terms, ` +
