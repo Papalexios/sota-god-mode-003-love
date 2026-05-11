@@ -620,7 +620,8 @@ export class NeuronWriterService {
         usage_pc: t.usage_pc || t.usagePc || 0,
         recommended: t.recommended || t.sugg_usage?.[1] || t.max || t.freq_max || Math.max(1, Math.round((t.weight || 1) * 2)),
         sugg_usage: t.sugg_usage,
-      }));
+      }))
+      .filter(t => t.term.length > 0);
   }
 
   private parseEntities(raw: any): Array<{ entity: string; usage_pc?: number; frequency?: number }> {
@@ -635,7 +636,8 @@ export class NeuronWriterService {
         entity: normalizeWhitespace(e.entity || e.text || e.name || e.value || e.t || ''),
         usage_pc: e.usage_pc || e.usagePc || 0,
         frequency: e.frequency || e.count || e.occurrences || 0,
-      }));
+      }))
+      .filter(e => e.entity.length > 0);
   }
 
   private parseHeadings(raw: any, defaultLevel: 'h2' | 'h3' = 'h2'): NeuronWriterHeadingData[] {
@@ -651,7 +653,8 @@ export class NeuronWriterService {
         usage_pc: h.usage_pc || h.usagePc || 0,
         level: (h.level || h.type || defaultLevel) as 'h1' | 'h2' | 'h3',
         relevanceScore: h.relevance || h.relevanceScore || h.score || 0,
-      }));
+      }))
+      .filter(h => h.text.length > 0);
   }
 }
 
