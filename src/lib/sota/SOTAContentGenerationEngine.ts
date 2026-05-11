@@ -786,6 +786,9 @@ export class SOTAContentGenerationEngine {
   ): Promise<ProviderCallResult> {
     let acc: ProviderCallResult = { content: '', tokens: 0 };
     let resumes = 0;
+    const maxResumes = params.allowResume === false
+      ? 0
+      : Math.max(0, Math.min(STREAM_RESUME_ATTEMPTS, params.maxStreamResumes ?? STREAM_RESUME_ATTEMPTS));
 
     while (true) {
       const { result, aborted, reason } = await this.streamOpenAICompatibleOnce(
@@ -824,9 +827,9 @@ export class SOTAContentGenerationEngine {
 
       // Aborted — decide whether to resume.
       const haveProgress = (result.content?.length ?? 0) > 200 || acc.content.length > 800;
-      if (resumes >= STREAM_RESUME_ATTEMPTS) {
+      if (resumes >= maxResumes) {
         if (haveProgress) {
-          this.log(`SSE: max resumes (${STREAM_RESUME_ATTEMPTS}) reached — keeping ${acc.content.length} chars as truncated.`);
+          this.log(`SSE: max resumes (${maxResumes}) reached — keeping ${acc.content.length} chars as truncated.`);
           acc.finishReason = acc.finishReason || 'length';
           return acc;
         }
@@ -837,7 +840,7 @@ export class SOTAContentGenerationEngine {
       }
 
       resumes++;
-      this.log(`SSE: ${reason === 'inactivity' ? 'inactivity' : 'overall'} abort — auto-resuming (${resumes}/${STREAM_RESUME_ATTEMPTS}) with ${acc.content.length} chars preserved…`);
+      this.log(`SSE: ${reason === 'inactivity' ? 'inactivity' : 'overall'} abort — auto-resuming (${resumes}/${maxResumes}) with ${acc.content.length} chars preserved…`);
       await this.sleep(1500);
     }
   }
