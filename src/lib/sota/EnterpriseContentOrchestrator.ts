@@ -1692,7 +1692,9 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
     });
     this.log(`Phase 11 ✅ Checklist score ${checklist.score}/100 — ${checklist.mandatoryFailures.length} mandatory failures, ${checklist.recommendedFailures.length} recommended.`);
 
-    if (!checklist.passed) {
+    if (!checklist.passed && this.shouldSkipOptionalPhase('Phase 11 targeted patch', 90_000)) {
+      this.warn(`Phase 11: Finalizing with checklist warnings instead of launching another LLM call (${checklist.mandatoryFailures.map(f => f.id).join(', ')}).`);
+    } else if (!checklist.passed) {
       this.warn(`Phase 11: Checklist failed (${checklist.mandatoryFailures.map(f => f.id).join(', ')}). Running ONE bounded targeted patch (no full regeneration)...`);
       try {
         const t0 = Date.now();
@@ -1703,6 +1705,10 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
           model: (options.model || this.config.primaryModel || 'gemini'),
           apiKeys: this.config.apiKeys,
           maxTokens: 6144,            // bounded — targeted patch only, NOT a full article
+          timeoutMs: Math.min(CHECKLIST_PATCH_TIMEOUT_MS, Math.max(15_000, this.getPipelineRemainingMs() - 45_000)),
+          maxRetries: 0,
+          allowContinuations: false,
+          allowResume: false,
           temperature: 0.5,
           validation: {
             type: 'article-html',
