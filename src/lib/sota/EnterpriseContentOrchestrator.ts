@@ -89,15 +89,21 @@ import { buildVoiceFingerprintDirective, type AuthorProfile, type VoiceFingerpri
 
 const NW_TARGET_SCORE = 90;
 
-// Polling: wait up to 15 minutes, polling every 12 seconds
-const NW_MAX_POLL_ATTEMPTS = 75;          // 75 × 12s = 15 minutes max
-const NW_POLL_INTERVAL_MS = 12000;        // 12 seconds between polls
-const NW_HARD_LIMIT_MS = 15 * 60 * 1000; // 15-minute hard cap
+// Polling: bounded so NeuronWriter can never hold generation hostage.
+const NW_MAX_POLL_ATTEMPTS = 6;           // 6 × 8s = 48 seconds max
+const NW_POLL_INTERVAL_MS = 8000;         // 8 seconds between polls
+const NW_HARD_LIMIT_MS = 50 * 1000;       // fail open and continue without NW
 
 // The NW query must be in one of these statuses before we consider data valid
 const NW_READY_STATUSES = new Set(['done', 'ready', 'completed', 'finished', 'analysed', 'analyzed']);
 
 const MIN_VALID_CONTENT_LENGTH = 1200;
+const PIPELINE_HARD_LIMIT_MS = 10 * 60 * 1000;
+const OPTIONAL_PHASE_MIN_REMAINING_MS = 2 * 60 * 1000;
+const MASTER_GENERATION_TIMEOUT_MS = 3 * 60 * 1000;
+const CRITIQUE_TIMEOUT_MS = 75 * 1000;
+const CHECKLIST_PATCH_TIMEOUT_MS = 45 * 1000;
+const TITLE_REWRITE_TIMEOUT_MS = 20 * 1000;
 
 type NeuronBundle = {
   service: NeuronWriterService;
