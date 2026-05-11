@@ -14,6 +14,7 @@ const neuronWriterBreaker = new CircuitBreaker({ name: "NeuronWriter", failureTh
 const wordPressBreaker = new CircuitBreaker({ name: "WordPress", failureThreshold: 3, resetTimeoutMs: 30_000 });
 
 const NEURON_API_BASE = "https://app.neuronwriter.com/neuron-api/0.5/writer";
+const ALLOWED_NEURON_ENDPOINTS = new Set(["/list-projects", "/list-queries", "/new-query", "/get-query", "/get-content", "/set-content"]);
 
 // ═══════════════════════════════════════════════════════════════════
 // STANDARD ERROR RESPONSE
@@ -204,16 +205,20 @@ export function registerRoutes(app: Express): void {
       const cleanApiKey = String(finalApiKey).trim();
       // Ensure proper URL construction: base ends without slash, endpoint starts with slash
       const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+      const cleanMethod = String(method).toUpperCase();
+      if (!ALLOWED_NEURON_ENDPOINTS.has(cleanEndpoint) || !["POST", "PUT"].includes(cleanMethod)) {
+        return errorResponse(res, 400, "Unsupported NeuronWriter proxy request", "validation_error");
+      }
       const url = `${NEURON_API_BASE}${cleanEndpoint}`;
 
       let timeoutMs = 45_000;
-      if (endpoint === "/list-projects" || endpoint === "/list-queries") timeoutMs = 20_000;
-      else if (endpoint === "/new-query") timeoutMs = 60_000;
-      else if (endpoint === "/get-query") timeoutMs = 30_000;
+      if (cleanEndpoint === "/list-projects" || cleanEndpoint === "/list-queries") timeoutMs = 20_000;
+      else if (cleanEndpoint === "/new-query") timeoutMs = 60_000;
+      else if (cleanEndpoint === "/get-query") timeoutMs = 30_000;
 
       const result = await neuronWriterBreaker.execute(async () => {
         const fetchOptions: RequestInit = {
-          method,
+          method: cleanMethod,
           headers: {
             "X-API-KEY": cleanApiKey,
             "Content-Type": "application/json",
@@ -222,7 +227,7 @@ export function registerRoutes(app: Express): void {
           },
         };
 
-        if (requestBody && (method === "POST" || method === "PUT")) {
+        if (requestBody && (cleanMethod === "POST" || cleanMethod === "PUT")) {
           fetchOptions.body = JSON.stringify(requestBody);
         }
 
