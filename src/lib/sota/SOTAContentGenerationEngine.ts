@@ -454,7 +454,7 @@ export class SOTAContentGenerationEngine {
           providerResult.finishReason &&
           TRUNCATED_FINISH_REASONS.has(providerResult.finishReason) &&
           providerResult.content &&
-          providerResult.content.length >= Math.max(params.validation.minChars ?? 0, MIN_VALID_CONTENT_LENGTH)
+          providerResult.content.length >= Math.max(params.validation.minChars ?? 0, 1200)
         ) {
           this.log(`Completing truncated article locally after provider limit (${providerResult.finishReason}) to avoid another long LLM loop.`);
           providerResult = {
