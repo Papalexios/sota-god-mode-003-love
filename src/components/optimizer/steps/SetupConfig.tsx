@@ -530,8 +530,13 @@ export function SetupConfig() {
   const handleDeleteSnapshot = (nameArg?: string) => {
     const name = nameArg ?? activeSnapshot;
     if (!name) return;
-    const ok = window.confirm(`Delete profile "${name}"? This cannot be undone.`);
-    if (!ok) return;
+    // Use inline confirm via state — window.confirm may be blocked in sandboxed iframes
+    setPendingDelete(name);
+  };
+
+  const confirmDelete = () => {
+    const name = pendingDelete;
+    if (!name) return;
     try {
       const map = { ...snapshots };
       delete map[name];
@@ -540,6 +545,8 @@ export function SetupConfig() {
       toast.success(`Deleted "${name}"`);
     } catch {
       toast.error('Failed to delete snapshot');
+    } finally {
+      setPendingDelete(null);
     }
   };
 
