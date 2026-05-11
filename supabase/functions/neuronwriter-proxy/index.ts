@@ -136,6 +136,11 @@ serve(async (req: Request) => {
     });
   } catch (err) {
     console.error('proxy error', err);
-    return jsonResponse({ error: 'proxy_error', message: String(err), details: (err instanceof Error ? err.stack : null) }, 502);
+    const isTimeout = err instanceof Error && err.name === 'AbortError';
+    return jsonResponse({
+      error: isTimeout ? 'timeout' : 'proxy_error',
+      message: isTimeout ? 'NeuronWriter request timed out.' : String(err),
+      details: (err instanceof Error ? err.stack : null)
+    }, isTimeout ? 408 : 502);
   }
 });
