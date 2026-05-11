@@ -94,13 +94,13 @@ function normalizeWhitespace(value: unknown): string {
 
 function normalizeLanguage(value?: string): string {
   const clean = normalizeWhitespace(value).toLowerCase();
-  const map: Record<string, string> = { en: 'English', english: 'English', us: 'English', uk: 'English' };
+  const map: Record<string, string> = { en: 'English', english: 'English', us: 'English', uk: 'English', de: 'German', es: 'Spanish', fr: 'French', it: 'Italian', nl: 'Dutch', pl: 'Polish', pt: 'Portuguese' };
   return map[clean] || normalizeWhitespace(value) || 'English';
 }
 
 function normalizeEngine(value?: string): string {
   const clean = normalizeWhitespace(value).toLowerCase();
-  const map: Record<string, string> = { us: 'google.com', en: 'google.com', uk: 'google.co.uk' };
+  const map: Record<string, string> = { us: 'google.com', usa: 'google.com', en: 'google.com', uk: 'google.co.uk', gb: 'google.co.uk', de: 'google.de', es: 'google.es', fr: 'google.fr', it: 'google.it', nl: 'google.nl', pl: 'google.pl', pt: 'google.pt' };
   return map[clean] || normalizeWhitespace(value) || 'google.com';
 }
 
