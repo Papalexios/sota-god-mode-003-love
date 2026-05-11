@@ -392,7 +392,7 @@ export class NeuronWriterService {
       body: {
         project: projectId,
         keyword: keyword,
-        language: normalizeLanguage(),
+        language: normalizeLanguage(this.config.customProxyUrl ? undefined : undefined),
         engine: normalizeEngine(),
         competitors_mode: 'top-intent',
       }
