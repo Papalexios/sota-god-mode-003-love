@@ -77,6 +77,32 @@ export interface NeuronWriterProject {
 const MAX_RETRIES = 3;
 const INITIAL_RETRY_DELAY_MS = 1000;
 const PERSISTENT_CACHE_KEY = 'sota-nw-dedup-cache-v9.0';
+const PROXY_TIMEOUT_MS: Record<string, number> = {
+  '/list-projects': 15_000,
+  '/list-queries': 18_000,
+  '/get-query': 20_000,
+  '/new-query': 45_000,
+};
+
+function endpointTimeout(endpoint: string): number {
+  return PROXY_TIMEOUT_MS[endpoint] ?? 30_000;
+}
+
+function normalizeWhitespace(value: unknown): string {
+  return String(value ?? '').replace(/\s+/g, ' ').trim();
+}
+
+function normalizeLanguage(value?: string): string {
+  const clean = normalizeWhitespace(value).toLowerCase();
+  const map: Record<string, string> = { en: 'English', english: 'English', us: 'English', uk: 'English' };
+  return map[clean] || normalizeWhitespace(value) || 'English';
+}
+
+function normalizeEngine(value?: string): string {
+  const clean = normalizeWhitespace(value).toLowerCase();
+  const map: Record<string, string> = { us: 'google.com', en: 'google.com', uk: 'google.co.uk' };
+  return map[clean] || normalizeWhitespace(value) || 'google.com';
+}
 
 // ─── Levenshtein similarity ───────────────────────────────────────────────────
 
