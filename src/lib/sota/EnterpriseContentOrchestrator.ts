@@ -1522,8 +1522,26 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
     );
 
     // ── Phase 7c: Live Web Fact-Check Pass ────────────────────────────────
-    this.log('Phase 7c: Live web fact-check pass (Serper)...');
-    html = await this.runFactCheckPass(html, options.keyword, options.model || this.config.primaryModel || 'gemini');
+    if (this.shouldSkipOptionalPhase('Phase 7c fact-check')) {
+      setLatestFactCheckReport({
+        generatedAt: Date.now(),
+        keyword: options.keyword,
+        totalParagraphsScanned: (html.match(/<p[^>]*>/gi) || []).length,
+        candidatesDetected: 0,
+        claimsChecked: 0,
+        reconciled: false,
+        claims: [],
+        notes: 'Skipped because runtime budget was nearly exhausted; article finalized with deterministic validation.',
+      });
+    } else {
+      this.log('Phase 7c: Live web fact-check pass (Serper)...');
+      html = await this.withTimeout(
+        'Phase 7c fact-check',
+        this.runFactCheckPass(html, options.keyword, options.model || this.config.primaryModel || 'gemini'),
+        60_000,
+        html,
+      );
+    }
 
     // ── Phase 8: SOTA Refinement & Aesthetics ─────────────────────────────
     this.log('Phase 8: Anti-AI Polish & Premium Design Overlay...');
