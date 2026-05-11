@@ -248,13 +248,13 @@ export function registerRoutes(app: Express): void {
         };
       });
 
-      res.json(result);
+      res.status(result.success ? 200 : (result.status || 502)).json(result);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Unknown error";
       const isTimeout = message.includes("abort") || message.includes("timeout");
       const isCircuitOpen = message.includes("Circuit breaker");
 
-      res.json({
+      res.status(isCircuitOpen ? 503 : isTimeout ? 408 : 502).json({
         success: false,
         status: isCircuitOpen ? 503 : isTimeout ? 408 : 500,
         error: isCircuitOpen
