@@ -638,6 +638,10 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
       model: this.config.primaryModel || 'gemini',
       apiKeys: this.config.apiKeys,
       maxTokens: 120,
+      timeoutMs: TITLE_REWRITE_TIMEOUT_MS,
+      maxRetries: 0,
+      allowContinuations: false,
+      allowResume: false,
       temperature: 0.7,
     } as any);
 
@@ -1227,6 +1231,7 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
 
   async generateContent(options: any): Promise<any> {
     this.onProgress = options.onProgress;
+    this.telemetry = { warnings: [], errors: [], timeline: [], startedAt: Date.now(), runtimeBudgetMs: PIPELINE_HARD_LIMIT_MS };
     this.log(`🚀 SOTA GOD-MODE PIPELINE v10.0 ENGAGED: "${options.keyword}"`);
 
     try {
