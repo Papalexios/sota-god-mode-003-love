@@ -152,8 +152,15 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           { status: 400, headers: { ...cors, "Content-Type": "application/json" } }
         );
       }
+      const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+      if (!ALLOWED_ENDPOINTS.has(cleanEndpoint)) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Unsupported NeuronWriter endpoint", type: "validation_error" }),
+          { status: 400, headers: { ...cors, "Content-Type": "application/json" } }
+        );
+      }
 
-      const result = await makeNeuronRequest(endpoint, "GET", apiKey);
+      const result = await makeNeuronRequest(cleanEndpoint, "POST", apiKey, {});
       const httpStatus = result.success ? 200 : (result.status || 500);
       return new Response(JSON.stringify(result), {
         status: httpStatus,
@@ -189,13 +196,21 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           { status: 400, headers: { ...cors, "Content-Type": "application/json" } }
         );
       }
+      const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+      const cleanMethod = method.toUpperCase();
+      if (!ALLOWED_ENDPOINTS.has(cleanEndpoint) || !["POST", "PUT"].includes(cleanMethod)) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Unsupported NeuronWriter proxy request", type: "validation_error" }),
+          { status: 400, headers: { ...cors, "Content-Type": "application/json" } }
+        );
+      }
 
       let timeout = 30000;
-      if (endpoint === "/new-query") timeout = 45000;
-      else if (endpoint === "/get-query") timeout = 20000;
-      else if (endpoint === "/list-queries" || endpoint === "/list-projects") timeout = 15000;
+      if (cleanEndpoint === "/new-query") timeout = 45000;
+      else if (cleanEndpoint === "/get-query") timeout = 20000;
+      else if (cleanEndpoint === "/list-queries" || cleanEndpoint === "/list-projects") timeout = 15000;
 
-      const result = await makeNeuronRequest(endpoint, method, finalApiKey, requestBody, timeout);
+      const result = await makeNeuronRequest(cleanEndpoint, cleanMethod, finalApiKey, requestBody || {}, timeout);
       const httpStatus = result.success ? 200 : (result.status || 500);
       return new Response(JSON.stringify(result), {
         status: httpStatus,
