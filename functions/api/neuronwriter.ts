@@ -9,6 +9,7 @@
 import { getCorsHeadersForCF } from "../../src/lib/shared/corsHeaders";
 
 const NEURON_API_BASE = "https://app.neuronwriter.com/neuron-api/0.5/writer";
+const ALLOWED_ENDPOINTS = new Set(["/list-projects", "/list-queries", "/new-query", "/get-query", "/get-content", "/set-content"]);
 
 interface Env {
   CORS_ALLOWED_ORIGINS?: string;
@@ -58,13 +59,14 @@ async function makeNeuronRequest(
   const cleanApiKey = apiKey.trim();
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const url = `${NEURON_API_BASE}${cleanEndpoint}`;
+  const upstreamMethod = method.toUpperCase();
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const fetchOptions: RequestInit = {
-      method,
+      method: upstreamMethod,
       headers: {
         "X-API-KEY": cleanApiKey,
         "Content-Type": "application/json",
@@ -74,7 +76,7 @@ async function makeNeuronRequest(
       signal: controller.signal,
     };
 
-    if (body && (method === "POST" || method === "PUT")) {
+    if (body && (upstreamMethod === "POST" || upstreamMethod === "PUT")) {
       fetchOptions.body = JSON.stringify(body);
     }
 
