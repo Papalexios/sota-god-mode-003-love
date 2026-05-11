@@ -415,7 +415,11 @@ Return the full corrected HTML article only, starting with <article and ending w
         model: model as any,
         apiKeys: {} as any,
         temperature: 0.15,
-        maxTokens: 16384,
+        maxTokens: 8192,
+        timeoutMs: 45_000,
+        maxRetries: 0,
+        allowContinuations: false,
+        allowResume: false,
         validation: { type: 'article-html', requireCompleteArticle: true, minWords: 600 },
       });
       const match = result.content.match(/<article[\s\S]*?<\/article>/i);
