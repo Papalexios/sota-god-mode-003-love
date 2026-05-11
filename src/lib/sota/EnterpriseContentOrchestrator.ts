@@ -1391,11 +1391,11 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
       ? videos.slice(0, 3).map(v => ({ videoId: v.id, title: v.title }))
       : undefined;
 
-    const targetWordCount = Math.max(
+    const targetWordCount = Math.min(3200, Math.max(
       Number(neuron?.analysis?.recommended_length || 0),
       Number(serpAnalysis.recommendedWordCount || 0),
       Number(options.targetWordCount || 3500),
-    );
+    ));
 
     const userPrompt = buildMasterUserPrompt({
       primaryKeyword: options.keyword,
@@ -1419,7 +1419,11 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
       systemPrompt,
       model: options.model || this.config.primaryModel || 'gemini',
       apiKeys: this.config.apiKeys,
-      maxTokens: 16384,
+      maxTokens: 12000,
+      timeoutMs: Math.min(MASTER_GENERATION_TIMEOUT_MS, Math.max(90_000, this.getPipelineRemainingMs() - 90_000)),
+      maxRetries: 1,
+      maxStreamResumes: 1,
+      allowContinuations: true,
       temperature: 0.85,
       validation: {
         type: 'article-html',
