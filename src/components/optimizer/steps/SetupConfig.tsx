@@ -793,6 +793,64 @@ export function SetupConfig() {
             </div>
           </div>
         )}
+
+        {/* Inline Save-As input (replaces window.prompt which is blocked in sandboxed iframes) */}
+        {saveAsMode && (
+          <div className="pt-4 border-t border-border/50">
+            <p className="text-xs uppercase tracking-wide text-primary font-semibold mb-2">Name your configuration profile</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                autoFocus
+                value={saveAsValue}
+                onChange={(e) => setSaveAsValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitSaveAs();
+                  if (e.key === 'Escape') { setSaveAsMode(false); setSaveAsValue(''); }
+                }}
+                placeholder="e.g. Client A — Health Site"
+                className="flex-1 min-w-[240px] px-3 py-2 rounded-lg bg-background border border-primary/40 text-foreground text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+              <button
+                onClick={() => commitSaveAs()}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 font-semibold text-sm"
+              >
+                <Check className="w-4 h-4" /> Save profile
+              </button>
+              <button
+                onClick={() => { setSaveAsMode(false); setSaveAsValue(''); }}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-foreground hover:bg-accent text-sm"
+              >
+                <XCircle className="w-4 h-4" /> Cancel
+              </button>
+            </div>
+            {saveAsValue.trim() && snapshots[saveAsValue.trim()] && (
+              <p className="text-xs text-amber-500 mt-2">⚠ A profile named "{saveAsValue.trim()}" already exists — saving will overwrite it.</p>
+            )}
+          </div>
+        )}
+
+        {/* Inline delete confirmation */}
+        {pendingDelete && (
+          <div className="pt-4 border-t border-border/50">
+            <div className="flex flex-wrap items-center gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/30">
+              <p className="text-sm text-foreground flex-1 min-w-[200px]">
+                Delete profile <span className="font-semibold text-destructive">"{pendingDelete}"</span>? This cannot be undone.
+              </p>
+              <button
+                onClick={confirmDelete}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 font-semibold text-sm"
+              >
+                <Trash2 className="w-4 h-4" /> Delete
+              </button>
+              <button
+                onClick={() => setPendingDelete(null)}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-foreground hover:bg-accent text-sm"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
 
