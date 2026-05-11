@@ -280,15 +280,15 @@ export class NeuronWriterService {
           );
         }
 
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${rawText.slice(0, 300)}`);
-        }
-
         let result: any;
         try {
           result = JSON.parse(rawText);
         } catch {
           throw new Error(`Proxy returned non-JSON response: ${rawText.slice(0, 200)}`);
+        }
+
+        if (!response.ok) {
+          throw new Error(result?.error || result?.message || `HTTP ${response.status}: ${rawText.slice(0, 300)}`);
         }
 
         if (result.success === false && result.error) {
