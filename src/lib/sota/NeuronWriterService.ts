@@ -211,14 +211,15 @@ export class NeuronWriterService {
           'Content-Type': 'application/json',
         };
 
-        if (this.config.supabaseAnonKey && this.config.supabaseUrl && url.includes(this.config.supabaseUrl)) {
+        const isSupabaseProxy = !!(
+          this.config.supabaseUrl &&
+          this.config.supabaseAnonKey &&
+          url.startsWith(this.config.supabaseUrl.trim().replace(/\/$/, ''))
+        );
+
+        if (isSupabaseProxy) {
           headers['Authorization'] = `Bearer ${this.config.supabaseAnonKey}`;
           headers['apikey'] = this.config.supabaseAnonKey;
-        }
-
-        if (this.config.neuronWriterApiKey) {
-          headers['X-NW-Api-Key'] = this.config.neuronWriterApiKey;
-          headers['X-NeuronWriter-Key'] = this.config.neuronWriterApiKey;
         }
 
         const requestBody: any = {
@@ -231,7 +232,9 @@ export class NeuronWriterService {
         const response = await fetch(url, {
           method: 'POST',
           headers,
-          body: JSON.stringify(requestBody)
+          body: JSON.stringify(requestBody),
+          mode: 'cors',
+          credentials: 'omit',
         });
 
         const rawText = await response.text();
