@@ -170,6 +170,38 @@ export class EnterpriseContentOrchestrator {
     this.telemetry.warnings.push(msg);
   }
 
+  private getPipelineElapsedMs(): number {
+    return Date.now() - (this.telemetry.startedAt || Date.now());
+  }
+
+  private getPipelineRemainingMs(): number {
+    return Math.max(0, PIPELINE_HARD_LIMIT_MS - this.getPipelineElapsedMs());
+  }
+
+  private shouldSkipOptionalPhase(phase: string, minRemainingMs = OPTIONAL_PHASE_MIN_REMAINING_MS): boolean {
+    const remaining = this.getPipelineRemainingMs();
+    if (remaining >= minRemainingMs) return false;
+    this.warn(`${phase}: skipped — runtime budget nearly exhausted (${Math.round(remaining / 1000)}s remaining). Finalizing current article.`);
+    return true;
+  }
+
+  private async withTimeout<T>(label: string, work: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    try {
+      return await Promise.race([
+        work,
+        new Promise<T>((resolve) => {
+          timer = setTimeout(() => {
+            this.warn(`${label}: timed out after ${Math.round(timeoutMs / 1000)}s — continuing without blocking generation.`);
+            resolve(fallback);
+          }, timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
   private error(msg: string) {
     console.error('[Orchestrator]', msg);
     this.telemetry.errors.push(msg);
