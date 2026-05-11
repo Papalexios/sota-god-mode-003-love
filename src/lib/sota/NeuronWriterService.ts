@@ -271,6 +271,9 @@ export class NeuronWriterService {
       } catch (err: any) {
         lastError = err.message;
         this.diag(`callProxy attempt ${attempt + 1} failed: ${lastError}`);
+        if (/Failed to fetch|NetworkError|Load failed|CORS|endpoint unavailable|server returned HTML|No working proxy/i.test(lastError)) {
+          deadUrls.add(url);
+        }
         if (attempt < MAX_RETRIES - 1) await this.sleep(INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt));
       }
     }
