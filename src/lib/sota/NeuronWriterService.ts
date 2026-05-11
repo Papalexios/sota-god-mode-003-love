@@ -604,12 +604,16 @@ export class NeuronWriterService {
 
   // ─── Private parsers ────────────────────────────────────────────────────────
 
-  private parseTerms(raw: any[], defaultType: 'basic' | 'extended' = 'basic'): NeuronWriterTermData[] {
-    if (!Array.isArray(raw)) return [];
-    return raw
-      .filter(t => t && (t.term || t.text || t.keyword || t.name))
+  private parseTerms(raw: any, defaultType: 'basic' | 'extended' = 'basic'): NeuronWriterTermData[] {
+    const rows = Array.isArray(raw)
+      ? raw
+      : typeof raw === 'string'
+        ? raw.split(/\r?\n|,/).map(term => ({ term: term.trim() })).filter(t => t.term)
+        : [];
+    return rows
+      .filter(t => t && (t.term || t.text || t.keyword || t.name || t.t))
       .map(t => ({
-        term: t.term || t.text || t.keyword || t.name || '',
+        term: normalizeWhitespace(t.term || t.text || t.keyword || t.name || t.t || ''),
         type: (t.type as any) || defaultType,
         frequency: t.count || t.frequency || t.occurrences || 0,
         weight: t.weight || t.importance || 1,
@@ -619,23 +623,31 @@ export class NeuronWriterService {
       }));
   }
 
-  private parseEntities(raw: any[]): Array<{ entity: string; usage_pc?: number; frequency?: number }> {
-    if (!Array.isArray(raw)) return [];
-    return raw
-      .filter(e => e && (e.entity || e.text || e.name || e.value))
+  private parseEntities(raw: any): Array<{ entity: string; usage_pc?: number; frequency?: number }> {
+    const rows = Array.isArray(raw)
+      ? raw
+      : typeof raw === 'string'
+        ? raw.split(/\r?\n|,/).map(entity => ({ entity: entity.trim() })).filter(e => e.entity)
+        : [];
+    return rows
+      .filter(e => e && (e.entity || e.text || e.name || e.value || e.t))
       .map(e => ({
-        entity: e.entity || e.text || e.name || e.value || '',
+        entity: normalizeWhitespace(e.entity || e.text || e.name || e.value || e.t || ''),
         usage_pc: e.usage_pc || e.usagePc || 0,
         frequency: e.frequency || e.count || e.occurrences || 0,
       }));
   }
 
-  private parseHeadings(raw: any[], defaultLevel: 'h2' | 'h3' = 'h2'): NeuronWriterHeadingData[] {
-    if (!Array.isArray(raw)) return [];
-    return raw
-      .filter(h => h && (h.text || h.heading || h.title || h.value))
+  private parseHeadings(raw: any, defaultLevel: 'h2' | 'h3' = 'h2'): NeuronWriterHeadingData[] {
+    const rows = Array.isArray(raw)
+      ? raw
+      : typeof raw === 'string'
+        ? raw.split(/\r?\n/).map(text => ({ text: text.trim() })).filter(h => h.text)
+        : [];
+    return rows
+      .filter(h => h && (h.text || h.heading || h.title || h.value || h.t))
       .map(h => ({
-        text: h.text || h.heading || h.title || h.value || '',
+        text: normalizeWhitespace(h.text || h.heading || h.title || h.value || h.t || ''),
         usage_pc: h.usage_pc || h.usagePc || 0,
         level: (h.level || h.type || defaultLevel) as 'h1' | 'h2' | 'h3',
         relevanceScore: h.relevance || h.relevanceScore || h.score || 0,
