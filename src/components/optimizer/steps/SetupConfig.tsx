@@ -399,28 +399,35 @@ export function SetupConfig() {
   const snapshotMeta = currentRecord ? new Date(currentRecord.savedAt).toLocaleString() : null;
 
   const handleSaveSnapshot = () => {
-    // Quick save: overwrite active profile, or prompt for first name
-    const name = activeSnapshot || (typeof window !== 'undefined' ? window.prompt('Name this configuration:', 'Default') : 'Default');
-    if (!name || !name.trim()) return;
-    const trimmed = name.trim();
+    // Quick save: overwrite active profile. If none, open inline name input (window.prompt is blocked in sandboxed iframes).
+    if (!activeSnapshot) {
+      setSaveAsValue(`Profile ${snapshotNames.length + 1}`);
+      setSaveAsMode(true);
+      return;
+    }
     try {
       const map = { ...snapshots };
-      map[trimmed] = { name: trimmed, savedAt: new Date().toISOString(), config };
+      map[activeSnapshot] = { name: activeSnapshot, savedAt: new Date().toISOString(), config };
       persistSnapshots(map);
-      setActive(trimmed);
-      toast.success(`Saved "${trimmed}"`, { description: 'Configuration stored locally.' });
+      toast.success(`Saved "${activeSnapshot}"`, { description: 'Configuration stored locally.' });
     } catch (err) {
       toast.error('Failed to save snapshot', { description: String((err as Error)?.message ?? err) });
     }
   };
 
   const handleSaveAsSnapshot = () => {
-    const suggested = activeSnapshot ? `${activeSnapshot} (copy)` : `Profile ${snapshotNames.length + 1}`;
-    const name = typeof window !== 'undefined' ? window.prompt('Save configuration as:', suggested) : suggested;
-    if (!name || !name.trim()) return;
-    const trimmed = name.trim();
-    if (snapshots[trimmed]) {
-      const ok = window.confirm(`A profile named "${trimmed}" already exists. Overwrite?`);
+    setSaveAsValue(activeSnapshot ? `${activeSnapshot} (copy)` : `Profile ${snapshotNames.length + 1}`);
+    setSaveAsMode(true);
+  };
+
+  const commitSaveAs = (overwrite = false) => {
+    const trimmed = saveAsValue.trim();
+    if (!trimmed) { toast.error('Please enter a profile name'); return; }
+    if (snapshots[trimmed] && !overwrite) {
+      // Ask for overwrite via state, not window.confirm
+      const ok = typeof window !== 'undefined' && typeof window.confirm === 'function'
+        ? window.confirm(`A profile named "${trimmed}" already exists. Overwrite?`)
+        : true;
       if (!ok) return;
     }
     try {
@@ -428,7 +435,9 @@ export function SetupConfig() {
       map[trimmed] = { name: trimmed, savedAt: new Date().toISOString(), config };
       persistSnapshots(map);
       setActive(trimmed);
-      toast.success(`Saved as "${trimmed}"`);
+      setSaveAsMode(false);
+      setSaveAsValue('');
+      toast.success(`Saved "${trimmed}"`, { description: 'You can now load it any time.' });
     } catch (err) {
       toast.error('Failed to save', { description: String((err as Error)?.message ?? err) });
     }
