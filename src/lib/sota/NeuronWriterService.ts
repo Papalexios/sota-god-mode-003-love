@@ -324,7 +324,16 @@ export class NeuronWriterService {
     this.diag('Fetching projects list...');
     const res = await this.callProxy('/list-projects', { body: {} });
     if (!res.success) return res;
-    const projects = res.data?.projects || (Array.isArray(res.data) ? res.data : []);
+    const rawProjects = res.data?.projects || res.data?.data || (Array.isArray(res.data) ? res.data : []);
+    const projects = Array.isArray(rawProjects)
+      ? rawProjects
+        .map((project: any) => ({
+          id: normalizeWhitespace(project.id || project.project || project.project_id),
+          name: normalizeWhitespace(project.name || project.domain || project.url || project.project),
+          queries_count: project.queries_count ?? project.queriesCount,
+        }))
+        .filter((project: NeuronWriterProject) => project.id && project.name)
+      : [];
     return { success: true, projects };
   }
 
@@ -383,8 +392,9 @@ export class NeuronWriterService {
       body: {
         project: projectId,
         keyword: keyword,
-        language: 'en',    // default; could be made configurable
-        country: 'us',     // default; could be made configurable
+        language: normalizeLanguage(),
+        engine: normalizeEngine(),
+        competitors_mode: 'top-intent',
       }
     });
 
@@ -434,27 +444,30 @@ export class NeuronWriterService {
 
     this.diag(`Raw analysis keys: ${Object.keys(raw).join(', ')}`);
 
+    const terms = raw.terms || {};
+    const termsTxt = raw.terms_txt || {};
+
     const analysis: NeuronWriterAnalysis = {
       query_id: queryId,
       status: raw.status || 'processing',
       keyword: raw.keyword || raw.query_keyword,
       content_score: raw.content_score || raw.score || 0,
-      recommended_length: raw.recommended_length || raw.recommendedLength || raw.avg_word_count || 2500,
+      recommended_length: raw.recommended_length || raw.recommendedLength || raw.avg_word_count || raw.metrics?.word_count?.target || raw.metrics?.word_count?.median || 2500,
 
       // Basic terms — NW API uses 'terms' or 'terms_basic'
-      terms: this.parseTerms(raw.terms || raw.terms_basic || [], 'basic'),
+      terms: this.parseTerms(raw.terms_basic || raw.content_basic || terms.content_basic || terms.content || termsTxt.content_basic || [], 'basic'),
 
       // Extended terms — NW API uses 'terms_extended' or 'extended_terms'
-      termsExtended: this.parseTerms(raw.terms_extended || raw.extended_terms || raw.termsExtended || [], 'extended'),
+      termsExtended: this.parseTerms(raw.terms_extended || raw.extended_terms || raw.termsExtended || terms.content_extended || termsTxt.content_extended || [], 'extended'),
 
       // Named entities
-      entities: this.parseEntities(raw.entities || raw.named_entities || raw.namedEntities || []),
+      entities: this.parseEntities(raw.entities || raw.named_entities || raw.namedEntities || terms.entities || termsTxt.entities || []),
 
       // H2 headings from competitor analysis
-      headingsH2: this.parseHeadings(raw.headings_h2 || raw.h2_suggestions || raw.h2s || raw.headings?.filter((h: any) => (h.level || h.type) === 'h2') || [], 'h2'),
+      headingsH2: this.parseHeadings(raw.headings_h2 || raw.h2_suggestions || raw.h2s || terms.h2 || terms.content_h2 || raw.headings?.filter((h: any) => (h.level || h.type) === 'h2') || [], 'h2'),
 
       // H3 headings from competitor analysis
-      headingsH3: this.parseHeadings(raw.headings_h3 || raw.h3_suggestions || raw.h3s || raw.headings?.filter((h: any) => (h.level || h.type) === 'h3') || [], 'h3'),
+      headingsH3: this.parseHeadings(raw.headings_h3 || raw.h3_suggestions || raw.h3s || terms.h3 || terms.content_h3 || raw.headings?.filter((h: any) => (h.level || h.type) === 'h3') || [], 'h3'),
 
       competitorData: raw.competitors || raw.competitor_data || [],
     };
