@@ -190,8 +190,9 @@ export function registerRoutes(app: Express): void {
   const neuronWriterHandler = async (req: Request, res: Response) => {
     try {
       const { endpoint, method = "POST", apiKey, body: requestBody } = req.body;
-      const apiKeyFromHeader = (req.headers["x-neuronwriter-key"] || req.headers["x-nw-api-key"]) as string | undefined;
-      const finalApiKey = apiKey || apiKeyFromHeader;
+      const apiKeyFromHeader = (req.headers["x-neuronwriter-key"] || req.headers["x-nw-api-key"] || req.headers["x-api-key"]) as string | undefined;
+      const bodyApiKey = typeof requestBody?.apiKey === "string" ? requestBody.apiKey : undefined;
+      const finalApiKey = apiKey || bodyApiKey || apiKeyFromHeader;
 
       if (!endpoint || typeof endpoint !== "string") {
         return errorResponse(res, 400, "Missing endpoint", "validation_error");
