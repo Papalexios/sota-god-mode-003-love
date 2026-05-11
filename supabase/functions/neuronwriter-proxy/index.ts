@@ -7,7 +7,7 @@ interface ProxyRequest {
 }
 
 const NEURON_API_BASE = 'https://app.neuronwriter.com/neuron-api/0.5/writer';
-const ALLOWED_HEADERS = 'authorization, x-client-info, apikey, content-type, x-nw-api-key, x-nw-endpoint';
+const ALLOWED_HEADERS = 'authorization, x-client-info, apikey, content-type, x-nw-api-key, x-nw-endpoint, x-neuronwriter-key, x-api-key';
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
