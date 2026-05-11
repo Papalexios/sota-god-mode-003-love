@@ -321,6 +321,9 @@ export class SOTAContentGenerationEngine {
     finalMaxTokens: number,
     timeoutMs: number,
   ): Promise<ProviderCallResult> {
+    if (params.allowContinuations === false) {
+      return initial;
+    }
     if (params.model !== 'openrouter' && params.model !== 'groq' && params.model !== 'openai') {
       return initial;
     }
@@ -398,12 +401,13 @@ export class SOTAContentGenerationEngine {
     }
 
     const finalMaxTokens = maxTokens || config.maxTokens;
+    const maxRetries = Math.max(0, Math.min(MAX_RETRIES, params.maxRetries ?? MAX_RETRIES));
     let lastError: unknown;
 
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
       if (attempt > 0) {
         const backoffMs = Math.min(1500 * Math.pow(2, attempt), 12000);
-        this.log(`Retrying ${model} (attempt ${attempt + 1}/${MAX_RETRIES + 1}) after ${backoffMs}ms...`);
+        this.log(`Retrying ${model} (attempt ${attempt + 1}/${maxRetries + 1}) after ${backoffMs}ms...`);
         await this.sleep(backoffMs);
       }
 
@@ -412,7 +416,7 @@ export class SOTAContentGenerationEngine {
         let providerResult: ProviderCallResult = { content: '', tokens: 0 };
 
         const timing = this.timingFor(model, config.modelId);
-        const providerTimeout = timing.timeoutMs;
+        const providerTimeout = Math.max(10_000, Math.min(timing.timeoutMs, params.timeoutMs ?? timing.timeoutMs));
         if (timing.presetLabel) {
           this.log(`Detected slow model preset: ${timing.presetLabel} → timeout ${Math.round(providerTimeout / 1000)}s, inactivity ${Math.round(timing.inactivityMs / 1000)}s`);
         }
@@ -451,7 +455,7 @@ export class SOTAContentGenerationEngine {
         if (msg.includes('USER_ABORT') || this.masterAbort.signal.aborted) throw error;
         // Slow-throughput abort → skip retrying the same slow model, jump to fallbacks.
         if (msg.includes('SLOW_MODEL')) break;
-        if (attempt < MAX_RETRIES && this.isRetryableError(error)) continue;
+        if (attempt < maxRetries && this.isRetryableError(error)) continue;
         break;
       }
     }
