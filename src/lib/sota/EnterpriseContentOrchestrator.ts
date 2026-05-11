@@ -480,6 +480,8 @@ Return the full corrected HTML article only, starting with <article and ending w
     // Build NeuronWriter config with proper proxy routing
     const nwConfig: any = {
       neuronWriterApiKey: this.config.neuronWriterApiKey,
+      targetLanguage: this.config.targetLanguage,
+      targetCountry: this.config.targetCountry,
     };
 
     // If a customProxyUrl is set, pass it through
