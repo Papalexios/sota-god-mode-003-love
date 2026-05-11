@@ -7,7 +7,7 @@ interface ProxyRequest {
 }
 
 const NEURON_API_BASE = 'https://app.neuronwriter.com/neuron-api/0.5/writer';
-const ALLOWED_HEADERS = 'authorization, x-client-info, apikey, content-type, x-nw-api-key, x-nw-endpoint';
+const ALLOWED_HEADERS = 'authorization, x-client-info, apikey, content-type, x-nw-api-key, x-nw-endpoint, x-neuronwriter-key, x-api-key';
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -62,10 +62,18 @@ serve(async (req: Request) => {
     // to match your Edge function structure.
     
     // Let's look for the API key in the custom header we were sending:
-    const apiKey = req.headers.get('X-NW-Api-Key') || Deno.env.get('NEURONWRITER_API_KEY');
-    
+    // Accept API key from (in priority order): request body, custom headers, env var.
+    // The UI sends it in the body as `apiKey` and also in `X-NeuronWriter-Key` / `X-NW-Api-Key` headers.
+    const bodyApiKey = (payload as any)?.apiKey || (payload as any)?.body?.apiKey;
+    const apiKey =
+      bodyApiKey ||
+      req.headers.get('X-NW-Api-Key') ||
+      req.headers.get('X-NeuronWriter-Key') ||
+      req.headers.get('X-API-KEY') ||
+      Deno.env.get('NEURONWRITER_API_KEY');
+
     if (!apiKey) {
-      return jsonResponse({ error: 'missing_api_key', message: 'NeuronWriter API Key is not set in environment and not provided in X-NW-Api-Key header.' }, 500);
+      return jsonResponse({ error: 'missing_api_key', message: 'NeuronWriter API Key is required (provide in body.apiKey, X-NeuronWriter-Key header, or NEURONWRITER_API_KEY env).' }, 400);
     }
 
     // Construct the actual NeuronWriter URL
