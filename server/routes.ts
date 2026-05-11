@@ -256,7 +256,7 @@ export function registerRoutes(app: Express): void {
 
       res.status(isCircuitOpen ? 503 : isTimeout ? 408 : 502).json({
         success: false,
-        status: isCircuitOpen ? 503 : isTimeout ? 408 : 500,
+        status: isCircuitOpen ? 503 : isTimeout ? 408 : 502,
         error: isCircuitOpen
           ? "NeuronWriter API is temporarily unavailable. Please wait and try again."
           : isTimeout
