@@ -60,8 +60,10 @@ const DEFAULT_MODEL_CONFIGS: Record<AIModel, ModelConfig> = {
 // what a 3000-word article needs. When that happens the API returns
 // finish_reason="length" with a partial body. Instead of failing the whole
 // pipeline, we automatically continue the assistant turn and stitch.
-// HARD CAP: limited to 2 to prevent runaway 30+ minute generations.
-const MAX_CONTINUATIONS = 2;
+// HARD CAP: limited to 1 by default. More continuations produced multi-hour
+// runs on slow OpenRouter/community models; better to finalize a complete-enough
+// article with warnings than silently keep extending.
+const MAX_CONTINUATIONS = 1;
 
 export interface ExtendedAPIKeys extends APIKeys {
   openrouterModelId?: string;
@@ -69,7 +71,7 @@ export interface ExtendedAPIKeys extends APIKeys {
   fallbackModels?: string[];
 }
 
-const MAX_RETRIES = 4; // Respect user's chosen model — retry it before considering user-defined fallbacks.
+const MAX_RETRIES = 2; // Enterprise default: retry briefly, then fail/fallback instead of hanging.
 const RETRYABLE_STATUS_CODES = [408, 409, 425, 429, 500, 502, 503, 504, 520, 522, 524];
 // Per-provider timeouts. Free OpenRouter models (e.g. tencent/hy3-preview:free)
 // route through slow community backends and routinely take 3-5+ minutes for a
@@ -86,12 +88,12 @@ const PROVIDER_TIMEOUT_MS: Record<string, number> = {
   gemini: 180_000,
   openai: 360_000,
   anthropic: 180_000,
-  openrouter: 420_000, // 7 min absolute ceiling
+  openrouter: 180_000, // 3 min absolute ceiling per call
   groq: 180_000,
 };
 const DEFAULT_PROVIDER_TIMEOUT_MS = 300_000;
 const DEFAULT_STREAM_INACTIVITY_MS = 90_000;
-const STREAM_RESUME_ATTEMPTS = 3;
+const STREAM_RESUME_ATTEMPTS = 1;
 const TRUNCATED_FINISH_REASONS = new Set(['length', 'max_tokens', 'max_output_tokens', 'MAX_TOKENS']);
 
 // Throughput watchdog: if a stream sustains a char-per-second rate below this
@@ -107,12 +109,12 @@ const SLOW_THROUGHPUT_MIN_ELAPSED_MS = 30_000;
 interface ModelTimingPreset { pattern: RegExp; label: string; timeoutMs: number; inactivityMs: number; }
 // Per-model OVERRIDES — cap at 8 minutes max even for slow community routes.
 const SLOW_MODEL_PRESETS: ModelTimingPreset[] = [
-  { pattern: /tencent\/hy3/i,             label: 'Tencent Hunyuan',     timeoutMs: 480_000, inactivityMs: 90_000 },
-  { pattern: /owl-alpha/i,                label: 'Owl Alpha (stealth)', timeoutMs: 480_000, inactivityMs: 90_000 },
-  { pattern: /:free$/i,                   label: 'free routed',         timeoutMs: 480_000, inactivityMs: 90_000 },
-  { pattern: /deepseek/i,                 label: 'DeepSeek',            timeoutMs: 420_000, inactivityMs: 75_000 },
-  { pattern: /qwen/i,                     label: 'Qwen',                timeoutMs: 420_000, inactivityMs: 75_000 },
-  { pattern: /llama-?(3\.1|3\.3|4)-?(70|405)b/i, label: 'Llama big',    timeoutMs: 420_000, inactivityMs: 75_000 },
+  { pattern: /tencent\/hy3/i,             label: 'Tencent Hunyuan',     timeoutMs: 180_000, inactivityMs: 45_000 },
+  { pattern: /owl-alpha/i,                label: 'Owl Alpha (stealth)', timeoutMs: 180_000, inactivityMs: 45_000 },
+  { pattern: /:free$/i,                   label: 'free routed',         timeoutMs: 180_000, inactivityMs: 45_000 },
+  { pattern: /deepseek/i,                 label: 'DeepSeek',            timeoutMs: 180_000, inactivityMs: 45_000 },
+  { pattern: /qwen/i,                     label: 'Qwen',                timeoutMs: 180_000, inactivityMs: 45_000 },
+  { pattern: /llama-?(3\.1|3\.3|4)-?(70|405)b/i, label: 'Llama big',    timeoutMs: 180_000, inactivityMs: 45_000 },
 ];
 function presetForModel(modelId: string): ModelTimingPreset | undefined {
   return SLOW_MODEL_PRESETS.find(p => p.pattern.test(modelId));
