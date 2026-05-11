@@ -379,6 +379,10 @@ export function SetupConfig() {
   });
   const [renameMode, setRenameMode] = useState(false);
   const [renameValue, setRenameValue] = useState('');
+  // Inline "save as" name input (replaces window.prompt which is blocked in sandboxed iframes)
+  const [saveAsMode, setSaveAsMode] = useState(false);
+  const [saveAsValue, setSaveAsValue] = useState('');
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   const persistSnapshots = (map: SnapshotMap) => {
     localStorage.setItem(SNAPSHOTS_KEY, JSON.stringify(map));
@@ -395,28 +399,35 @@ export function SetupConfig() {
   const snapshotMeta = currentRecord ? new Date(currentRecord.savedAt).toLocaleString() : null;
 
   const handleSaveSnapshot = () => {
-    // Quick save: overwrite active profile, or prompt for first name
-    const name = activeSnapshot || (typeof window !== 'undefined' ? window.prompt('Name this configuration:', 'Default') : 'Default');
-    if (!name || !name.trim()) return;
-    const trimmed = name.trim();
+    // Quick save: overwrite active profile. If none, open inline name input (window.prompt is blocked in sandboxed iframes).
+    if (!activeSnapshot) {
+      setSaveAsValue(`Profile ${snapshotNames.length + 1}`);
+      setSaveAsMode(true);
+      return;
+    }
     try {
       const map = { ...snapshots };
-      map[trimmed] = { name: trimmed, savedAt: new Date().toISOString(), config };
+      map[activeSnapshot] = { name: activeSnapshot, savedAt: new Date().toISOString(), config };
       persistSnapshots(map);
-      setActive(trimmed);
-      toast.success(`Saved "${trimmed}"`, { description: 'Configuration stored locally.' });
+      toast.success(`Saved "${activeSnapshot}"`, { description: 'Configuration stored locally.' });
     } catch (err) {
       toast.error('Failed to save snapshot', { description: String((err as Error)?.message ?? err) });
     }
   };
 
   const handleSaveAsSnapshot = () => {
-    const suggested = activeSnapshot ? `${activeSnapshot} (copy)` : `Profile ${snapshotNames.length + 1}`;
-    const name = typeof window !== 'undefined' ? window.prompt('Save configuration as:', suggested) : suggested;
-    if (!name || !name.trim()) return;
-    const trimmed = name.trim();
-    if (snapshots[trimmed]) {
-      const ok = window.confirm(`A profile named "${trimmed}" already exists. Overwrite?`);
+    setSaveAsValue(activeSnapshot ? `${activeSnapshot} (copy)` : `Profile ${snapshotNames.length + 1}`);
+    setSaveAsMode(true);
+  };
+
+  const commitSaveAs = (overwrite = false) => {
+    const trimmed = saveAsValue.trim();
+    if (!trimmed) { toast.error('Please enter a profile name'); return; }
+    if (snapshots[trimmed] && !overwrite) {
+      // Ask for overwrite via state, not window.confirm
+      const ok = typeof window !== 'undefined' && typeof window.confirm === 'function'
+        ? window.confirm(`A profile named "${trimmed}" already exists. Overwrite?`)
+        : true;
       if (!ok) return;
     }
     try {
@@ -424,7 +435,9 @@ export function SetupConfig() {
       map[trimmed] = { name: trimmed, savedAt: new Date().toISOString(), config };
       persistSnapshots(map);
       setActive(trimmed);
-      toast.success(`Saved as "${trimmed}"`);
+      setSaveAsMode(false);
+      setSaveAsValue('');
+      toast.success(`Saved "${trimmed}"`, { description: 'You can now load it any time.' });
     } catch (err) {
       toast.error('Failed to save', { description: String((err as Error)?.message ?? err) });
     }
@@ -517,8 +530,13 @@ export function SetupConfig() {
   const handleDeleteSnapshot = (nameArg?: string) => {
     const name = nameArg ?? activeSnapshot;
     if (!name) return;
-    const ok = window.confirm(`Delete profile "${name}"? This cannot be undone.`);
-    if (!ok) return;
+    // Use inline confirm via state — window.confirm may be blocked in sandboxed iframes
+    setPendingDelete(name);
+  };
+
+  const confirmDelete = () => {
+    const name = pendingDelete;
+    if (!name) return;
     try {
       const map = { ...snapshots };
       delete map[name];
@@ -527,6 +545,8 @@ export function SetupConfig() {
       toast.success(`Deleted "${name}"`);
     } catch {
       toast.error('Failed to delete snapshot');
+    } finally {
+      setPendingDelete(null);
     }
   };
 
@@ -770,6 +790,64 @@ export function SetupConfig() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* Inline Save-As input (replaces window.prompt which is blocked in sandboxed iframes) */}
+        {saveAsMode && (
+          <div className="pt-4 border-t border-border/50">
+            <p className="text-xs uppercase tracking-wide text-primary font-semibold mb-2">Name your configuration profile</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                autoFocus
+                value={saveAsValue}
+                onChange={(e) => setSaveAsValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitSaveAs();
+                  if (e.key === 'Escape') { setSaveAsMode(false); setSaveAsValue(''); }
+                }}
+                placeholder="e.g. Client A — Health Site"
+                className="flex-1 min-w-[240px] px-3 py-2 rounded-lg bg-background border border-primary/40 text-foreground text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+              <button
+                onClick={() => commitSaveAs()}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 font-semibold text-sm"
+              >
+                <Check className="w-4 h-4" /> Save profile
+              </button>
+              <button
+                onClick={() => { setSaveAsMode(false); setSaveAsValue(''); }}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-foreground hover:bg-accent text-sm"
+              >
+                <XCircle className="w-4 h-4" /> Cancel
+              </button>
+            </div>
+            {saveAsValue.trim() && snapshots[saveAsValue.trim()] && (
+              <p className="text-xs text-amber-500 mt-2">⚠ A profile named "{saveAsValue.trim()}" already exists — saving will overwrite it.</p>
+            )}
+          </div>
+        )}
+
+        {/* Inline delete confirmation */}
+        {pendingDelete && (
+          <div className="pt-4 border-t border-border/50">
+            <div className="flex flex-wrap items-center gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/30">
+              <p className="text-sm text-foreground flex-1 min-w-[200px]">
+                Delete profile <span className="font-semibold text-destructive">"{pendingDelete}"</span>? This cannot be undone.
+              </p>
+              <button
+                onClick={confirmDelete}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 font-semibold text-sm"
+              >
+                <Trash2 className="w-4 h-4" /> Delete
+              </button>
+              <button
+                onClick={() => setPendingDelete(null)}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-foreground hover:bg-accent text-sm"
+              >
+                Cancel
+              </button>
             </div>
           </div>
         )}
