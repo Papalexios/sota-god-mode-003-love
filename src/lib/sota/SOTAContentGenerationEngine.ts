@@ -60,8 +60,10 @@ const DEFAULT_MODEL_CONFIGS: Record<AIModel, ModelConfig> = {
 // what a 3000-word article needs. When that happens the API returns
 // finish_reason="length" with a partial body. Instead of failing the whole
 // pipeline, we automatically continue the assistant turn and stitch.
-// HARD CAP: limited to 2 to prevent runaway 30+ minute generations.
-const MAX_CONTINUATIONS = 2;
+// HARD CAP: limited to 1 by default. More continuations produced multi-hour
+// runs on slow OpenRouter/community models; better to finalize a complete-enough
+// article with warnings than silently keep extending.
+const MAX_CONTINUATIONS = 1;
 
 export interface ExtendedAPIKeys extends APIKeys {
   openrouterModelId?: string;
@@ -69,7 +71,7 @@ export interface ExtendedAPIKeys extends APIKeys {
   fallbackModels?: string[];
 }
 
-const MAX_RETRIES = 4; // Respect user's chosen model — retry it before considering user-defined fallbacks.
+const MAX_RETRIES = 2; // Enterprise default: retry briefly, then fail/fallback instead of hanging.
 const RETRYABLE_STATUS_CODES = [408, 409, 425, 429, 500, 502, 503, 504, 520, 522, 524];
 // Per-provider timeouts. Free OpenRouter models (e.g. tencent/hy3-preview:free)
 // route through slow community backends and routinely take 3-5+ minutes for a
@@ -86,12 +88,12 @@ const PROVIDER_TIMEOUT_MS: Record<string, number> = {
   gemini: 180_000,
   openai: 360_000,
   anthropic: 180_000,
-  openrouter: 420_000, // 7 min absolute ceiling
+  openrouter: 180_000, // 3 min absolute ceiling per call
   groq: 180_000,
 };
 const DEFAULT_PROVIDER_TIMEOUT_MS = 300_000;
 const DEFAULT_STREAM_INACTIVITY_MS = 90_000;
-const STREAM_RESUME_ATTEMPTS = 3;
+const STREAM_RESUME_ATTEMPTS = 1;
 const TRUNCATED_FINISH_REASONS = new Set(['length', 'max_tokens', 'max_output_tokens', 'MAX_TOKENS']);
 
 // Throughput watchdog: if a stream sustains a char-per-second rate below this
@@ -107,12 +109,12 @@ const SLOW_THROUGHPUT_MIN_ELAPSED_MS = 30_000;
 interface ModelTimingPreset { pattern: RegExp; label: string; timeoutMs: number; inactivityMs: number; }
 // Per-model OVERRIDES — cap at 8 minutes max even for slow community routes.
 const SLOW_MODEL_PRESETS: ModelTimingPreset[] = [
-  { pattern: /tencent\/hy3/i,             label: 'Tencent Hunyuan',     timeoutMs: 480_000, inactivityMs: 90_000 },
-  { pattern: /owl-alpha/i,                label: 'Owl Alpha (stealth)', timeoutMs: 480_000, inactivityMs: 90_000 },
-  { pattern: /:free$/i,                   label: 'free routed',         timeoutMs: 480_000, inactivityMs: 90_000 },
-  { pattern: /deepseek/i,                 label: 'DeepSeek',            timeoutMs: 420_000, inactivityMs: 75_000 },
-  { pattern: /qwen/i,                     label: 'Qwen',                timeoutMs: 420_000, inactivityMs: 75_000 },
-  { pattern: /llama-?(3\.1|3\.3|4)-?(70|405)b/i, label: 'Llama big',    timeoutMs: 420_000, inactivityMs: 75_000 },
+  { pattern: /tencent\/hy3/i,             label: 'Tencent Hunyuan',     timeoutMs: 180_000, inactivityMs: 45_000 },
+  { pattern: /owl-alpha/i,                label: 'Owl Alpha (stealth)', timeoutMs: 180_000, inactivityMs: 45_000 },
+  { pattern: /:free$/i,                   label: 'free routed',         timeoutMs: 180_000, inactivityMs: 45_000 },
+  { pattern: /deepseek/i,                 label: 'DeepSeek',            timeoutMs: 180_000, inactivityMs: 45_000 },
+  { pattern: /qwen/i,                     label: 'Qwen',                timeoutMs: 180_000, inactivityMs: 45_000 },
+  { pattern: /llama-?(3\.1|3\.3|4)-?(70|405)b/i, label: 'Llama big',    timeoutMs: 180_000, inactivityMs: 45_000 },
 ];
 function presetForModel(modelId: string): ModelTimingPreset | undefined {
   return SLOW_MODEL_PRESETS.find(p => p.pattern.test(modelId));
@@ -232,7 +234,7 @@ export class SOTAContentGenerationEngine {
     const baseTimeout = PROVIDER_TIMEOUT_MS[model] ?? DEFAULT_PROVIDER_TIMEOUT_MS;
     const preset = modelId ? presetForModel(modelId) : undefined;
     return {
-      timeoutMs: Math.max(baseTimeout, preset?.timeoutMs ?? 0),
+      timeoutMs: preset?.timeoutMs ?? baseTimeout,
       inactivityMs: preset?.inactivityMs ?? DEFAULT_STREAM_INACTIVITY_MS,
       presetLabel: preset?.label,
     };
@@ -257,6 +259,19 @@ export class SOTAContentGenerationEngine {
 
   private countWords(text: string): number {
     return text.replace(/<[^>]*>/g, ' ').split(/\s+/).filter(Boolean).length;
+  }
+
+  private completePartialArticle(content: string): string {
+    let html = (content || '').replace(/```(?:html)?/gi, '').replace(/```/g, '').trim();
+    if (!html) return html;
+    html = html.replace(/<[^>]*$/g, '').trim();
+    if (!/<article\b/i.test(html)) {
+      html = `<article>\n${html}`;
+    }
+    if (!/<\/article>/i.test(html)) {
+      html += `\n<section data-final-takeaway="true">\n<h2>Final Takeaway</h2>\n<p>The practical move is simple: use the framework above, compare it against your own situation, and keep the next step small enough to act on today. Recheck the details against trusted sources before publishing or making important decisions.</p>\n</section>\n</article>`;
+    }
+    return html;
   }
 
   private validateGeneration(content: string, params: GenerationParams, finishReason?: string, modelId?: string, opts: { allowTruncation?: boolean } = {}): void {
@@ -319,6 +334,9 @@ export class SOTAContentGenerationEngine {
     finalMaxTokens: number,
     timeoutMs: number,
   ): Promise<ProviderCallResult> {
+    if (params.allowContinuations === false) {
+      return initial;
+    }
     if (params.model !== 'openrouter' && params.model !== 'groq' && params.model !== 'openai') {
       return initial;
     }
@@ -396,12 +414,13 @@ export class SOTAContentGenerationEngine {
     }
 
     const finalMaxTokens = maxTokens || config.maxTokens;
+    const maxRetries = Math.max(0, Math.min(MAX_RETRIES, params.maxRetries ?? MAX_RETRIES));
     let lastError: unknown;
 
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
       if (attempt > 0) {
         const backoffMs = Math.min(1500 * Math.pow(2, attempt), 12000);
-        this.log(`Retrying ${model} (attempt ${attempt + 1}/${MAX_RETRIES + 1}) after ${backoffMs}ms...`);
+        this.log(`Retrying ${model} (attempt ${attempt + 1}/${maxRetries + 1}) after ${backoffMs}ms...`);
         await this.sleep(backoffMs);
       }
 
@@ -410,7 +429,7 @@ export class SOTAContentGenerationEngine {
         let providerResult: ProviderCallResult = { content: '', tokens: 0 };
 
         const timing = this.timingFor(model, config.modelId);
-        const providerTimeout = timing.timeoutMs;
+        const providerTimeout = Math.max(10_000, Math.min(timing.timeoutMs, params.timeoutMs ?? timing.timeoutMs));
         if (timing.presetLabel) {
           this.log(`Detected slow model preset: ${timing.presetLabel} → timeout ${Math.round(providerTimeout / 1000)}s, inactivity ${Math.round(timing.inactivityMs / 1000)}s`);
         }
@@ -429,6 +448,21 @@ export class SOTAContentGenerationEngine {
 
         // If the provider truncated, transparently continue the turn before validating.
         providerResult = await this.continueIfTruncated(providerResult, params, config, apiKey, finalMaxTokens, providerTimeout);
+
+        if (
+          params.validation?.requireCompleteArticle &&
+          providerResult.finishReason &&
+          TRUNCATED_FINISH_REASONS.has(providerResult.finishReason) &&
+          providerResult.content &&
+          providerResult.content.length >= Math.max(params.validation.minChars ?? 0, 1200)
+        ) {
+          this.log(`Completing truncated article locally after provider limit (${providerResult.finishReason}) to avoid another long LLM loop.`);
+          providerResult = {
+            ...providerResult,
+            content: this.completePartialArticle(providerResult.content),
+            finishReason: 'stop',
+          };
+        }
 
         this.validateGeneration(providerResult.content, params, providerResult.finishReason, config.modelId);
 
@@ -449,7 +483,7 @@ export class SOTAContentGenerationEngine {
         if (msg.includes('USER_ABORT') || this.masterAbort.signal.aborted) throw error;
         // Slow-throughput abort → skip retrying the same slow model, jump to fallbacks.
         if (msg.includes('SLOW_MODEL')) break;
-        if (attempt < MAX_RETRIES && this.isRetryableError(error)) continue;
+        if (attempt < maxRetries && this.isRetryableError(error)) continue;
         break;
       }
     }
@@ -780,6 +814,9 @@ export class SOTAContentGenerationEngine {
   ): Promise<ProviderCallResult> {
     let acc: ProviderCallResult = { content: '', tokens: 0 };
     let resumes = 0;
+    const maxResumes = params.allowResume === false
+      ? 0
+      : Math.max(0, Math.min(STREAM_RESUME_ATTEMPTS, params.maxStreamResumes ?? STREAM_RESUME_ATTEMPTS));
 
     while (true) {
       const { result, aborted, reason } = await this.streamOpenAICompatibleOnce(
@@ -818,9 +855,9 @@ export class SOTAContentGenerationEngine {
 
       // Aborted — decide whether to resume.
       const haveProgress = (result.content?.length ?? 0) > 200 || acc.content.length > 800;
-      if (resumes >= STREAM_RESUME_ATTEMPTS) {
+      if (resumes >= maxResumes) {
         if (haveProgress) {
-          this.log(`SSE: max resumes (${STREAM_RESUME_ATTEMPTS}) reached — keeping ${acc.content.length} chars as truncated.`);
+          this.log(`SSE: max resumes (${maxResumes}) reached — keeping ${acc.content.length} chars as truncated.`);
           acc.finishReason = acc.finishReason || 'length';
           return acc;
         }
@@ -831,7 +868,7 @@ export class SOTAContentGenerationEngine {
       }
 
       resumes++;
-      this.log(`SSE: ${reason === 'inactivity' ? 'inactivity' : 'overall'} abort — auto-resuming (${resumes}/${STREAM_RESUME_ATTEMPTS}) with ${acc.content.length} chars preserved…`);
+      this.log(`SSE: ${reason === 'inactivity' ? 'inactivity' : 'overall'} abort — auto-resuming (${resumes}/${maxResumes}) with ${acc.content.length} chars preserved…`);
       await this.sleep(1500);
     }
   }

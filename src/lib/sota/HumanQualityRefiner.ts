@@ -11,6 +11,7 @@ interface SelfCritiqueOptions {
   contentGaps?: string[];
   maxPasses?: number;
   minScore?: number;
+  timeoutMs?: number;
   onProgress?: (message: string) => void;
 }
 
@@ -99,6 +100,10 @@ export async function refineWithSelfCritique(options: SelfCritiqueOptions): Prom
         apiKeys: {} as any,
         temperature: 0.25,
         maxTokens: 16384,
+        timeoutMs: options.timeoutMs ?? 75_000,
+        maxRetries: 0,
+        allowContinuations: false,
+        allowResume: false,
         validation: {
           type: 'article-html',
           requireCompleteArticle: true,

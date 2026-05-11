@@ -89,15 +89,21 @@ import { buildVoiceFingerprintDirective, type AuthorProfile, type VoiceFingerpri
 
 const NW_TARGET_SCORE = 90;
 
-// Polling: wait up to 15 minutes, polling every 12 seconds
-const NW_MAX_POLL_ATTEMPTS = 75;          // 75 × 12s = 15 minutes max
-const NW_POLL_INTERVAL_MS = 12000;        // 12 seconds between polls
-const NW_HARD_LIMIT_MS = 15 * 60 * 1000; // 15-minute hard cap
+// Polling: bounded so NeuronWriter can never hold generation hostage.
+const NW_MAX_POLL_ATTEMPTS = 6;           // 6 × 8s = 48 seconds max
+const NW_POLL_INTERVAL_MS = 8000;         // 8 seconds between polls
+const NW_HARD_LIMIT_MS = 50 * 1000;       // fail open and continue without NW
 
 // The NW query must be in one of these statuses before we consider data valid
 const NW_READY_STATUSES = new Set(['done', 'ready', 'completed', 'finished', 'analysed', 'analyzed']);
 
 const MIN_VALID_CONTENT_LENGTH = 1200;
+const PIPELINE_HARD_LIMIT_MS = 10 * 60 * 1000;
+const OPTIONAL_PHASE_MIN_REMAINING_MS = 2 * 60 * 1000;
+const MASTER_GENERATION_TIMEOUT_MS = 3 * 60 * 1000;
+const CRITIQUE_TIMEOUT_MS = 75 * 1000;
+const CHECKLIST_PATCH_TIMEOUT_MS = 45 * 1000;
+const TITLE_REWRITE_TIMEOUT_MS = 20 * 1000;
 
 type NeuronBundle = {
   service: NeuronWriterService;
@@ -162,6 +168,38 @@ export class EnterpriseContentOrchestrator {
   private warn(msg: string) {
     console.warn('[Orchestrator]', msg);
     this.telemetry.warnings.push(msg);
+  }
+
+  private getPipelineElapsedMs(): number {
+    return Date.now() - (this.telemetry.startedAt || Date.now());
+  }
+
+  private getPipelineRemainingMs(): number {
+    return Math.max(0, PIPELINE_HARD_LIMIT_MS - this.getPipelineElapsedMs());
+  }
+
+  private shouldSkipOptionalPhase(phase: string, minRemainingMs = OPTIONAL_PHASE_MIN_REMAINING_MS): boolean {
+    const remaining = this.getPipelineRemainingMs();
+    if (remaining >= minRemainingMs) return false;
+    this.warn(`${phase}: skipped — runtime budget nearly exhausted (${Math.round(remaining / 1000)}s remaining). Finalizing current article.`);
+    return true;
+  }
+
+  private async withTimeout<T>(label: string, work: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    try {
+      return await Promise.race([
+        work,
+        new Promise<T>((resolve) => {
+          timer = setTimeout(() => {
+            this.warn(`${label}: timed out after ${Math.round(timeoutMs / 1000)}s — continuing without blocking generation.`);
+            resolve(fallback);
+          }, timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   private error(msg: string) {
@@ -377,7 +415,11 @@ Return the full corrected HTML article only, starting with <article and ending w
         model: model as any,
         apiKeys: {} as any,
         temperature: 0.15,
-        maxTokens: 16384,
+        maxTokens: 8192,
+        timeoutMs: 45_000,
+        maxRetries: 0,
+        allowContinuations: false,
+        allowResume: false,
         validation: { type: 'article-html', requireCompleteArticle: true, minWords: 600 },
       });
       const match = result.content.match(/<article[\s\S]*?<\/article>/i);
@@ -600,6 +642,10 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
       model: this.config.primaryModel || 'gemini',
       apiKeys: this.config.apiKeys,
       maxTokens: 120,
+      timeoutMs: TITLE_REWRITE_TIMEOUT_MS,
+      maxRetries: 0,
+      allowContinuations: false,
+      allowResume: false,
       temperature: 0.7,
     } as any);
 
@@ -1189,6 +1235,7 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
 
   async generateContent(options: any): Promise<any> {
     this.onProgress = options.onProgress;
+    this.telemetry = { warnings: [], errors: [], timeline: [], startedAt: Date.now(), runtimeBudgetMs: PIPELINE_HARD_LIMIT_MS };
     this.log(`🚀 SOTA GOD-MODE PIPELINE v10.0 ENGAGED: "${options.keyword}"`);
 
     try {
@@ -1234,7 +1281,21 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
 
     // ── Phase 0: Top-3 SERP Scan + Gap Analysis ─────────────────────────────
     this.log('Phase 0: Top-3 SERP ranking scan and gap analysis...');
-    const serpAnalysis = await this.serpAnalyzer.analyze(options.keyword);
+    const serpAnalysis = await this.withTimeout(
+      'Phase 0 SERP analysis',
+      this.serpAnalyzer.analyze(options.keyword),
+      35_000,
+      {
+        avgWordCount: Number(options.targetWordCount || 2500),
+        commonHeadings: [],
+        contentGaps: [],
+        userIntent: 'informational',
+        semanticEntities: [],
+        topCompetitors: [],
+        recommendedWordCount: Number(options.targetWordCount || 2500),
+        recommendedHeadings: [],
+      } as SERPAnalysis,
+    );
     let gapTargets = this.buildTopGapTargetsFromSerp(serpAnalysis, options.keyword, 50);
     const top3Competitors = (serpAnalysis.topCompetitors || []).slice(0, 3);
 
@@ -1283,14 +1344,14 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
 
     // ── Phase 2: YouTube Video Discovery (parallel with Phase 3/4) ─────────
     this.log('Phase 2: YouTube Video Discovery...');
-    const videosPromise = this.fetchYouTubeVideos(options.keyword);
+    const videosPromise = this.withTimeout('Phase 2 YouTube discovery', this.fetchYouTubeVideos(options.keyword), 25_000, [] as YouTubeVideo[]);
 
     // ── Phase 3: Reference Gathering (parallel) ─────────────────────────────
     this.log('Phase 3: Reference Gathering (8-12 high-quality sources)...');
-    const referencesPromise = this.fetchReferences(options.keyword);
+    const referencesPromise = this.withTimeout('Phase 3 references', this.fetchReferences(options.keyword), 25_000, [] as Reference[]);
 
     // ── Phase 4: WordPress Media Discovery (parallel) ───────────────────────
-    const wpImagesPromise = this.fetchWordPressImages(options.keyword);
+    const wpImagesPromise = this.withTimeout('Phase 4 WordPress media', this.fetchWordPressImages(options.keyword), 25_000, [] as WordPressMediaItem[]);
 
     let [videos, references, wpImages] = await Promise.all([videosPromise, referencesPromise, wpImagesPromise]);
 
@@ -1348,11 +1409,11 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
       ? videos.slice(0, 3).map(v => ({ videoId: v.id, title: v.title }))
       : undefined;
 
-    const targetWordCount = Math.max(
+    const targetWordCount = Math.min(3200, Math.max(
       Number(neuron?.analysis?.recommended_length || 0),
       Number(serpAnalysis.recommendedWordCount || 0),
       Number(options.targetWordCount || 3500),
-    );
+    ));
 
     const userPrompt = buildMasterUserPrompt({
       primaryKeyword: options.keyword,
@@ -1376,7 +1437,11 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
       systemPrompt,
       model: options.model || this.config.primaryModel || 'gemini',
       apiKeys: this.config.apiKeys,
-      maxTokens: 16384,
+      maxTokens: 12000,
+      timeoutMs: Math.min(MASTER_GENERATION_TIMEOUT_MS, Math.max(90_000, this.getPipelineRemainingMs() - 90_000)),
+      maxRetries: 1,
+      maxStreamResumes: 1,
+      allowContinuations: true,
       temperature: 0.85,
       validation: {
         type: 'article-html',
@@ -1428,9 +1493,11 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
 
     // ── Phase 7: Built-in Self-Critique Rewrite (gated by Strategy toggles) ──
     const critiqueEnabled = options.enableSelfCritique !== false;
-    const requestedPasses = Math.max(1, Math.min(3, Number(options.maxCritiquePasses) || 1));
+    const requestedPasses = Math.max(1, Math.min(1, Number(options.maxCritiquePasses) || 1));
     if (!critiqueEnabled) {
       this.log('Phase 7: Self-critique disabled by Strategy — skipping LLM rewrite passes.');
+    } else if (this.shouldSkipOptionalPhase('Phase 7 self-critique')) {
+      html = removeAIPhrases(polishReadability(html));
     } else {
       try {
         const t0 = Date.now();
@@ -1446,6 +1513,7 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
           contentGaps: gapTargets,
           maxPasses: requestedPasses,
           minScore: 92,
+          timeoutMs: Math.min(CRITIQUE_TIMEOUT_MS, Math.max(20_000, this.getPipelineRemainingMs() - 75_000)),
         });
 
         html = critique.html;
@@ -1472,8 +1540,26 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
     );
 
     // ── Phase 7c: Live Web Fact-Check Pass ────────────────────────────────
-    this.log('Phase 7c: Live web fact-check pass (Serper)...');
-    html = await this.runFactCheckPass(html, options.keyword, options.model || this.config.primaryModel || 'gemini');
+    if (this.shouldSkipOptionalPhase('Phase 7c fact-check')) {
+      setLatestFactCheckReport({
+        generatedAt: Date.now(),
+        keyword: options.keyword,
+        totalParagraphsScanned: (html.match(/<p[^>]*>/gi) || []).length,
+        candidatesDetected: 0,
+        claimsChecked: 0,
+        reconciled: false,
+        claims: [],
+        notes: 'Skipped because runtime budget was nearly exhausted; article finalized with deterministic validation.',
+      });
+    } else {
+      this.log('Phase 7c: Live web fact-check pass (Serper)...');
+      html = await this.withTimeout(
+        'Phase 7c fact-check',
+        this.runFactCheckPass(html, options.keyword, options.model || this.config.primaryModel || 'gemini'),
+        60_000,
+        html,
+      );
+    }
 
     // ── Phase 8: SOTA Refinement & Aesthetics ─────────────────────────────
     this.log('Phase 8: Anti-AI Polish & Premium Design Overlay...');
@@ -1610,7 +1696,9 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
     });
     this.log(`Phase 11 ✅ Checklist score ${checklist.score}/100 — ${checklist.mandatoryFailures.length} mandatory failures, ${checklist.recommendedFailures.length} recommended.`);
 
-    if (!checklist.passed) {
+    if (!checklist.passed && this.shouldSkipOptionalPhase('Phase 11 targeted patch', 90_000)) {
+      this.warn(`Phase 11: Finalizing with checklist warnings instead of launching another LLM call (${checklist.mandatoryFailures.map(f => f.id).join(', ')}).`);
+    } else if (!checklist.passed) {
       this.warn(`Phase 11: Checklist failed (${checklist.mandatoryFailures.map(f => f.id).join(', ')}). Running ONE bounded targeted patch (no full regeneration)...`);
       try {
         const t0 = Date.now();
@@ -1621,6 +1709,10 @@ OUTPUT: Return ONLY the title string. No JSON, no quotes, no explanation, no mar
           model: (options.model || this.config.primaryModel || 'gemini'),
           apiKeys: this.config.apiKeys,
           maxTokens: 6144,            // bounded — targeted patch only, NOT a full article
+          timeoutMs: Math.min(CHECKLIST_PATCH_TIMEOUT_MS, Math.max(15_000, this.getPipelineRemainingMs() - 45_000)),
+          maxRetries: 0,
+          allowContinuations: false,
+          allowResume: false,
           temperature: 0.5,
           validation: {
             type: 'article-html',
