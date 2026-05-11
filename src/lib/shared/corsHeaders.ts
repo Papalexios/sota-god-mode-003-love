@@ -12,7 +12,20 @@ const DEFAULT_ALLOWED_ORIGINS = [
   "http://localhost:5173",
   "http://localhost:3000",
   "http://localhost:3001",
+  "https://contentoptimizer.app",
+  "https://www.contentoptimizer.app",
+  "https://cozy-vite-starter.lovable.app",
 ];
+
+function isAllowedPreviewOrigin(origin: string | null): boolean {
+  if (!origin) return false;
+  try {
+    const host = new URL(origin).hostname;
+    return host.endsWith(".lovable.app") || host.endsWith(".lovableproject.com");
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Build CORS headers for a given request origin.
@@ -23,7 +36,7 @@ export function buildCorsHeaders(
   allowedOrigins?: string[],
 ): Record<string, string> {
   const origins = allowedOrigins ?? DEFAULT_ALLOWED_ORIGINS;
-  const isAllowed = requestOrigin && origins.includes(requestOrigin);
+  const isAllowed = !!requestOrigin && (origins.includes(requestOrigin) || isAllowedPreviewOrigin(requestOrigin));
 
   return {
     "Access-Control-Allow-Origin": isAllowed ? requestOrigin : origins[0] || "",
