@@ -30,6 +30,11 @@ export default function Perf() {
   });
 
   useEffect(() => {
+    document.title = "Performance — Core Web Vitals · WP Content Optimizer PRO";
+    const desc = "Live Core Web Vitals (LCP, INP, CLS, FCP, TTFB) measured in your browser using web-vitals.";
+    let tag = document.querySelector('meta[name="description"]');
+    if (!tag) { tag = document.createElement("meta"); tag.setAttribute("name", "description"); document.head.appendChild(tag); }
+    tag.setAttribute("content", desc);
     const set = (key: keyof Vitals) => (m: Metric) =>
       setVitals((s) => ({ ...s, [key]: { value: m.value, rating: m.rating } }));
     onLCP(set("LCP"));
