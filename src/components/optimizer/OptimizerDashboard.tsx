@@ -81,6 +81,7 @@ export function OptimizerDashboard() {
 
       <main className="flex-1 overflow-auto relative z-10 custom-scrollbar w-full">
         <div className="p-4 md:p-6 max-w-7xl mx-auto animate-fade-in pt-[84px] pb-32 lg:pt-6 lg:pb-6">
+          <h1 className="sr-only">{meta.title} — WP Content Optimizer PRO</h1>
           <DashboardKPIStrip />
           {currentStep === 1 && <SetupConfig />}
           {currentStep === 2 && <ContentStrategy />}
