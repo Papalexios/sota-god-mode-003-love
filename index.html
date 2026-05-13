@@ -7,19 +7,85 @@
     <meta name="theme-color" content="#0a1014" />
     <meta name="color-scheme" content="dark" />
 
-    <title>WP Content Optimizer PRO — Enterprise SEO Engine that ships rankings</title>
-    <meta name="description" content="A 10-phase SEO engine that scans the SERP, syncs NeuronWriter, drafts 4k+ words in your voice, wires real internal links, validates E-E-A-T, and publishes to WordPress — end to end, in minutes." />
+    <title>WP Content Optimizer PRO — 10-Phase SEO Engine</title>
+    <meta name="description" content="Ten-phase SEO engine: SERP scan, NeuronWriter sync, 4k+ word drafts, real internal links, E-E-A-T validation, and one-click WordPress publishing." />
+    <link rel="canonical" href="https://contentoptimizer.app/" />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="WP Content Optimizer PRO — Enterprise SEO Engine" />
-    <meta property="og:description" content="Ten-phase pipeline. SERP-grounded, fact-checked, self-critiqued, schema-armed. Publish to WordPress in minutes." />
-    <meta property="og:image" content="/favicon.png" />
+    <meta property="og:site_name" content="WP Content Optimizer PRO" />
+    <meta property="og:title" content="WP Content Optimizer PRO — 10-Phase SEO Engine" />
+    <meta property="og:description" content="SERP-grounded, fact-checked, self-critiqued, schema-armed. Publish to WordPress in minutes." />
+    <meta property="og:url" content="https://contentoptimizer.app/" />
+    <meta property="og:image" content="https://contentoptimizer.app/favicon.png" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="WP Content Optimizer PRO — 10-Phase SEO Engine" />
+    <meta name="twitter:description" content="SERP-grounded, fact-checked, self-critiqued, schema-armed. Publish to WordPress in minutes." />
+    <meta name="twitter:image" content="https://contentoptimizer.app/favicon.png" />
 
     <!-- Performance: preconnect to Google Fonts so CSS @import resolves faster (helps LCP) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- Structured data: Organization + WebSite -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://contentoptimizer.app/#organization",
+          "name": "WP Content Optimizer PRO",
+          "url": "https://contentoptimizer.app/",
+          "logo": "https://contentoptimizer.app/favicon.png"
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://contentoptimizer.app/#website",
+          "url": "https://contentoptimizer.app/",
+          "name": "WP Content Optimizer PRO",
+          "publisher": { "@id": "https://contentoptimizer.app/#organization" }
+        },
+        {
+          "@type": "FAQPage",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "How is this different from generic AI writers?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Generic AI writers paste a prompt to an LLM and ship. We run a 10-phase pipeline: SERP scan, NeuronWriter sync, IDF-weighted linking, WordPress media injection, 3-pass self-critique, E-E-A-T gate, and schema. The result is a publishable article — not a draft you have to babysit."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Will the content actually rank?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Quality scores 92+ on every post, 6–12 contextual internal links from your real sitemap, NeuronWriter scores >90/100, structured data, and a strict E-E-A-T validator. Plus GEO/AEO patterns so LLMs can cite it. The system is built for ranking, not for vanity word counts."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Do I need to bring my own API keys?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. You plug in your own OpenRouter / Groq / OpenAI / Anthropic key and (optionally) NeuronWriter. This keeps you in control of cost and model choice — and your content never sits on someone else's account."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Can it really publish autonomously?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. God Mode 2.0 is a 24/7 autonomous loop with priority queues and a full HTML history. You give it a topic queue and a WordPress connection — it researches, writes, optimizes, and ships while you sleep."
+              }
+            }
+          ]
+        }
+      ]
+    }
+    </script>
   </head>
   <body>
     <div id="root"></div>
