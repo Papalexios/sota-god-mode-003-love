@@ -366,6 +366,11 @@ const Status = () => {
     () => getLatestFactCheckReport() || loadPersistedFactCheckReport()
   );
   useEffect(() => {
+    document.title = "Status — Integrations Health · WP Content Optimizer PRO";
+    const desc = "Live health checks for the NeuronWriter proxy, WordPress REST connection, AI gateway, and fact-check reports.";
+    let tag = document.querySelector('meta[name="description"]');
+    if (!tag) { tag = document.createElement("meta"); tag.setAttribute("name", "description"); document.head.appendChild(tag); }
+    tag.setAttribute("content", desc);
     const unsub = subscribeFactCheckReport(setFactReport);
     if (autoRanRef.current) return unsub;
     autoRanRef.current = true;

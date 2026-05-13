@@ -1,0 +1,9 @@
+# WP Content Optimizer PRO
+
+> Enterprise SEO engine that runs a 10-phase pipeline — SERP scan, NeuronWriter sync, long-form drafting, internal linking, E-E-A-T validation, schema, and one-click WordPress publishing.
+
+## Pages
+
+- [Home](/): Product overview, pipeline, strategies, FAQ.
+- [Status](/status): Live integration health (NeuronWriter, WordPress, AI gateway).
+- [Performance](/perf): Real-time Core Web Vitals measured in your browser.

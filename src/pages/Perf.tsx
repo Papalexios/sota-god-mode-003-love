@@ -30,6 +30,11 @@ export default function Perf() {
   });
 
   useEffect(() => {
+    document.title = "Performance — Core Web Vitals · WP Content Optimizer PRO";
+    const desc = "Live Core Web Vitals (LCP, INP, CLS, FCP, TTFB) measured in your browser using web-vitals.";
+    let tag = document.querySelector('meta[name="description"]');
+    if (!tag) { tag = document.createElement("meta"); tag.setAttribute("name", "description"); document.head.appendChild(tag); }
+    tag.setAttribute("content", desc);
     const set = (key: keyof Vitals) => (m: Metric) =>
       setVitals((s) => ({ ...s, [key]: { value: m.value, rating: m.rating } }));
     onLCP(set("LCP"));
@@ -74,13 +79,15 @@ export default function Perf() {
             <Gauge className="w-9 h-9 text-primary" />
           </div>
           <div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Composite score</div>
+            <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Composite score</h2>
             <div className="text-4xl font-black tabular-nums">{score == null ? "—" : `${score}/100`}</div>
             <div className="text-xs text-muted-foreground mt-1">% of metrics in the &quot;good&quot; band</div>
           </div>
         </section>
 
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <section aria-labelledby="cwv-heading" className="space-y-3">
+        <h2 id="cwv-heading" className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">Core Web Vitals</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {(Object.keys(TARGETS) as (keyof Vitals)[]).map((k) => {
             const v = vitals[k];
             const t = TARGETS[k];
@@ -102,12 +109,13 @@ export default function Perf() {
               </div>
             );
           })}
+        </div>
         </section>
 
         <section className="rounded-2xl border border-border/50 bg-card/60 p-5 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2 font-bold text-foreground mb-2">
+          <h2 className="flex items-center gap-2 font-bold text-foreground mb-2 text-base">
             <Zap className="w-4 h-4 text-primary" /> Optimizations applied
-          </div>
+          </h2>
           <ul className="list-disc pl-5 space-y-1">
             <li>OptimizerDashboard is lazy-loaded — landing JS stays small.</li>
             <li>Aurora ambient layers are GPU-only (transform/opacity), no layout thrash.</li>
